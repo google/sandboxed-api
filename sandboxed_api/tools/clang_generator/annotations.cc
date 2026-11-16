@@ -168,9 +168,12 @@ enum class AnnotationSite {
 };
 
 // `GetFunctionProtoType` returns non-null only for function pointers and
-// supported functor types, so it identifies callback parameters.
-bool IsCallback(bool is_param, clang::QualType type) {
-  return is_param && ast::GetFunctionProtoType(type) != nullptr;
+// supported functor types. `kCallbackTypedefReturn` is excluded because a
+// callback typedef's return type describes the value returned by the callback,
+// not a callback declaration itself.
+bool IsCallback(AnnotationSite site, clang::QualType type) {
+  return site != AnnotationSite::kCallbackTypedefReturn &&
+         ast::GetFunctionProtoType(type) != nullptr;
 }
 
 // Returns the name of the first annotation in `annotations` that is not
@@ -213,10 +216,10 @@ std::optional<absl::string_view> FindUnsupportedCallbackAnnotation(
   return std::nullopt;
 }
 
-// Validates annotations on a callback parameter declaration. Prefix annotations
-// on a callback parameter apply to the function pointer itself; annotations for
-// the callback's parameters or return value must be placed on the callback's
-// parameter declarations or on a callback `typedef`.
+// Validates annotations on a callback declaration. Prefix annotations on a
+// callback apply to the function pointer itself; annotations for the callback's
+// parameters or return value must be placed on the callback's parameter
+// declarations or on a callback `typedef`.
 absl::Status CheckCallbackPointerAnnotations(
     absl::string_view name, const Annotations& annotations,
     const clang::FunctionProtoType& callback_type,
@@ -345,13 +348,13 @@ absl::Status CheckReturnBufferAnnotations(absl::string_view name,
 absl::Status CheckParsedAnnotations(absl::string_view name,
                                     const Annotations& annotations,
                                     AnnotationSite site, clang::QualType type) {
-  const bool is_param = site == AnnotationSite::kParameter;
   const clang::TypedefNameDecl* callback_typedef =
-      is_param ? FindCallbackTypedef(type) : nullptr;
+      site != AnnotationSite::kCallbackTypedefReturn ? FindCallbackTypedef(type)
+                                                     : nullptr;
   type = type.getCanonicalType();
   ABSL_RETURN_IF_ERROR(CheckContextBoundAnnotations(name, annotations));
   ABSL_RETURN_IF_ERROR(CheckStructSyncAnnotations(name, annotations, type));
-  if (IsCallback(is_param, type)) {
+  if (IsCallback(site, type)) {
     return CheckCallbackPointerAnnotations(
         name, annotations, *ast::GetFunctionProtoType(type), callback_typedef);
   }
@@ -614,7 +617,16 @@ absl::StatusOr<Annotations> ParseReturnDeclAnnotations(
 
 absl::StatusOr<Annotations> ParseAnnotations(
     absl::string_view name, const clang::FunctionDecl* funcDecl) {
-  return ParseReturnDeclAnnotations(name, funcDecl, funcDecl->getReturnType(),
+  clang::QualType return_type = funcDecl->getReturnType();
+  if (FindCallbackTypedef(return_type) == nullptr) {
+    for (const clang::FunctionDecl* redecl : funcDecl->redecls()) {
+      if (FindCallbackTypedef(redecl->getReturnType()) != nullptr) {
+        return_type = redecl->getReturnType();
+        break;
+      }
+    }
+  }
+  return ParseReturnDeclAnnotations(name, funcDecl, return_type,
                                     AnnotationSite::kFunctionReturn);
 }
 

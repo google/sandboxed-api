@@ -59,11 +59,19 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
 
   // Record callback typedef references before filtering out ignored functions
   // so that a typedef referenced only by an ignored function is not reported as
-  // unused.
-  for (const clang::ParmVarDecl* param : decl->parameters()) {
+  // unused. Walk all redeclarations because the first declaration in the
+  // translation unit (from the library header) may spell out a raw function
+  // pointer while a later redeclaration attaches the callback typedef.
+  for (const clang::FunctionDecl* redecl : decl->redecls()) {
     if (const clang::TypedefNameDecl* td =
-            FindCallbackTypedef(param->getType())) {
+            FindCallbackTypedef(redecl->getReturnType())) {
       referenced_callback_typedefs_.insert(td->getNameAsString());
+    }
+    for (const clang::ParmVarDecl* param : redecl->parameters()) {
+      if (const clang::TypedefNameDecl* td =
+              FindCallbackTypedef(param->getType())) {
+        referenced_callback_typedefs_.insert(td->getNameAsString());
+      }
     }
   }
 
@@ -147,10 +155,16 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
     return absl::OkStatus();
   }
 
-  for (const clang::ParmVarDecl* param : decl->parameters()) {
+  for (const clang::FunctionDecl* redecl : decl->redecls()) {
     if (const clang::TypedefNameDecl* td =
-            FindCallbackTypedef(param->getType())) {
+            FindCallbackTypedef(redecl->getReturnType())) {
       used_callback_typedefs_.insert(td->getNameAsString());
+    }
+    for (const clang::ParmVarDecl* param : redecl->parameters()) {
+      if (const clang::TypedefNameDecl* td =
+              FindCallbackTypedef(param->getType())) {
+        used_callback_typedefs_.insert(td->getNameAsString());
+      }
     }
   }
 
@@ -268,15 +282,21 @@ absl::Status SandboxedLibraryEmitter::ParseCallbackTypedef(
   // only alive while this file's AST is. Typedefs are parsed in source
   // order, so the invokers are appended in a stable one. Not every typedef
   // has one; see ConvertCallbackTypedefToInvokerIR.
-  if (absl::StatusOr<std::optional<ir::Function>> invoker =
+  if (absl::StatusOr<InvokerConversion> conversion =
           ConvertCallbackTypedefToInvokerIR(
               decl, it->second,
               ConversionContext{
                   .record_annotations = library_ir_.record_annotations,
                   .callback_typedefs = library_ir_.callback_typedefs,
               });
-      invoker.ok() && invoker->has_value()) {
-    library_ir_.functions.push_back(**std::move(invoker));
+      conversion.ok()) {
+    if (conversion->invoker.has_value()) {
+      library_ir_.functions.push_back(*std::move(conversion->invoker));
+    } else {
+      it->second.no_reverse_reason = std::move(conversion->no_reverse_reason);
+    }
+  } else {
+    it->second.no_reverse_reason = std::string(conversion.status().message());
   }
   return absl::OkStatus();
 }

@@ -53,4 +53,48 @@ TEST(SandboxeeFunctionAddress, IsStableAndDistinct) {
   EXPECT_EQ(get_adder(99), 0u);
 }
 
+// A callback handed back out of the sandbox. Unlike everything above, these
+// go through the library's own signature, so they read the same and mean the
+// same whether or not there is a sandbox underneath.
+
+TEST(ReturnedCallback, CanBeCalled) {
+  int (*add)(int, int) = get_adder_fn(0);
+  ASSERT_NE(add, nullptr);
+  EXPECT_EQ(add(2, 3), 5);
+
+  int (*multiply)(int, int) = get_adder_fn(1);
+  ASSERT_NE(multiply, nullptr);
+  EXPECT_EQ(multiply(2, 3), 6);
+}
+
+TEST(ReturnedCallback, NullStaysNull) {
+  // A library's `if (cb)` has to keep working across the boundary.
+  EXPECT_EQ(get_adder_fn(99), nullptr);
+}
+
+TEST(ReturnedCallback, CanBePassedBackIn) {
+  // A callback the sandbox implements, handed out and then handed straight back
+  // in as an argument. In real code this is the pattern where a library exposes
+  // default callbacks (such as a default allocator or comparator) that the
+  // caller can pass back into the library's own entry points. Sandboxed, that
+  // is a host thunk going back down and being called from inside the very
+  // library it came from.
+  EXPECT_EQ(apply_twice(get_adder_fn(0), 2, 3), 8);
+  EXPECT_EQ(apply_twice(get_adder_fn(1), 2, 3), 18);
+}
+
+TEST(ReturnedCallback, IsInterchangeableWithAHostFunction) {
+  // Same call, same callback typedef, once with each kind of callback.
+  auto host_add = [](int a, int b) { return a + b; };
+  EXPECT_EQ(apply_twice(host_add, 2, 3), 8);
+  EXPECT_EQ(apply_twice(get_adder_fn(0), 2, 3), 8);
+}
+
+TEST(ReturnedCallback, AskingTwiceGivesTheSameCallback) {
+  // Equality of function pointers is what a library's "is this still my
+  // hook?" check rests on, so the substitution has to preserve it.
+  EXPECT_EQ(get_adder_fn(0), get_adder_fn(0));
+  EXPECT_NE(get_adder_fn(0), get_adder_fn(1));
+}
+
 }  // namespace

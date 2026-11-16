@@ -264,6 +264,12 @@ struct CallbackTypedef {
   Annotations return_annotations;
   // Parameter names and annotations in declaration order.
   std::vector<CallbackTypedefParam> params;
+  // Empty when a callback following this typedef can be handed back out of
+  // the sandbox. Otherwise says why it cannot, for the diagnostic at the use
+  // site that tried. Filled in once the typedef's invoker has been built,
+  // which is the one place that decides; see
+  // `ConvertCallbackTypedefToInvokerIR`.
+  std::string no_reverse_reason;
 };
 
 // Returns the underlying `FunctionProtoType` if `decl` is a callback typedef

@@ -56,8 +56,9 @@ std::optional<PointerDir> Parameter::direction() const {
                             "Unhandled parameter payload with direction!");
               return p.direction;
             } else {
-              static_assert(IsOneOf<T, VoidParam, ScalarParam>,
-                            "Unhandled parameter payload without direction!");
+              static_assert(
+                  IsOneOf<T, VoidParam, ScalarParam, SandboxeeCallbackParam>,
+                  "Unhandled parameter payload without direction!");
               return std::nullopt;
             }
           },
@@ -90,7 +91,8 @@ bool Parameter::uninitialized() const {
           [](const auto& p) {
             using T = std::decay_t<decltype(p)>;
             static_assert(IsOneOf<T, VoidParam, ScalarParam, CppStringParam,
-                                  OpaquePointerParam, StructSyncParam>,
+                                  OpaquePointerParam, StructSyncParam,
+                                  SandboxeeCallbackParam>,
                           "Unhandled parameter payload in uninitialized()!");
             return false;
           },
@@ -111,7 +113,7 @@ bool Parameter::should_clear_bindings() const {
             } else {
               static_assert(
                   IsOneOf<T, VoidParam, ScalarParam, CppStringParam,
-                          CallbackParam>,
+                          CallbackParam, SandboxeeCallbackParam>,
                   "Unhandled parameter payload without context_bound!");
               return false;
             }

@@ -342,6 +342,40 @@ TEST_F(SandboxedLibraryEmitterTest,
   EXPECT_THAT(redeclared.second, HasSubstr("decompress_stream"));
 }
 
+// Verifies that when a library header declares functions with raw function
+// pointers (both as parameters and as return values) and the annotation file
+// redeclares them in the same translation unit using callback typedefs, the
+// emitter preserves each callback typedef's reverse invoker and host thunk pool
+// and generates the same code as a single typedef-based declaration.
+TEST_F(
+    SandboxedLibraryEmitterTest,
+    RedeclaringFunctionWithCallbackTypedefAfterRawDeclarationEmitsThunkPool) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const auto redeclared, EmitHostAndSandboxeeSrc(R"(
+    extern "C" int (*get_adder_fn(int which))(int, int);
+    extern "C" int apply_fn(int (*cb)(int, int), int a, int b);
+
+    typedef int (*adder_cb)(int a, int b);
+    typedef int (*apply_cb)(int a, int b);
+
+    extern "C" adder_cb get_adder_fn(int which);
+    extern "C" int apply_fn(apply_cb cb, int a, int b);
+  )"));
+  SAPI_ASSERT_OK_AND_ASSIGN(const auto single_decl, EmitHostAndSandboxeeSrc(R"(
+    typedef int (*adder_cb)(int a, int b);
+    typedef int (*apply_cb)(int a, int b);
+
+    extern "C" adder_cb get_adder_fn(int which);
+    extern "C" int apply_fn(apply_cb cb, int a, int b);
+  )"));
+
+  EXPECT_EQ(redeclared.first, single_decl.first);
+  EXPECT_EQ(redeclared.second, single_decl.second);
+  EXPECT_THAT(redeclared.first, HasSubstr("sapi_thunk_pool_adder_cb"));
+  EXPECT_THAT(redeclared.second, HasSubstr("sapi_invoke_adder_cb"));
+  EXPECT_THAT(redeclared.first, HasSubstr("sapi_thunk_pool_apply_cb"));
+  EXPECT_THAT(redeclared.second, HasSubstr("sapi_invoke_apply_cb"));
+}
+
 // Verifies that `PostParseAllFiles` reports only callback typedefs in the main
 // file that are never referenced by any callback parameter.
 TEST_F(SandboxedLibraryEmitterTest, UnusedCallbackTypedefIsReported) {

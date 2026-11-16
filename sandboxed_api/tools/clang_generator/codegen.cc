@@ -407,6 +407,43 @@ std::string EmitInvokerTargetType(const ir::Function& func) {
       absl::StrJoin(types, ", "));
 }
 
+// The entry point that turns a sandboxee function following `typedef_name` into
+// a host-callable address. Defined by EmitThunkPool.
+std::string BindThunkName(absl::string_view typedef_name) {
+  return absl::StrCat("sapi_bind_thunk_", typedef_name);
+}
+
+// An alias for the function pointer type a callback typedef describes.
+//
+// A function that returns a function pointer cannot be declared by writing
+// the return type in front of the name -- `int (*f(void))(int)` is the only
+// spelling, and it is not one that composes with how declarations are built
+// here. Going through an alias gives the same type in the ordinary shape.
+//
+// Keyed on the callback typedef rather than on the returning function, so that
+// two functions handing back the same kind of callback share one alias.
+// Repeating an identical alias is legal, which is what makes that safe.
+std::string CallbackTypedefAliasName(absl::string_view typedef_name) {
+  return absl::StrCat("sapi_callback_", typedef_name, "_t");
+}
+
+std::string EmitCallbackTypedefAlias(const ir::Parameter& ret,
+                                     const ir::SandboxeeCallbackParam& cb) {
+  return absl::Substitute("using $0 = $1;\n",
+                          CallbackTypedefAliasName(cb.typedef_name),
+                          ret.type.canonical_name);
+}
+
+// What a value of this type looks like crossing the boundary. A callback the
+// sandbox implements travels as the bare address of a sandboxee function;
+// everything else travels as itself.
+std::string WireTypeName(const ir::Parameter& param) {
+  if (param.Is<ir::SandboxeeCallbackParam>()) {
+    return "uintptr_t";
+  }
+  return param.type.canonical_name;
+}
+
 // Emits the C++ parameter type declaration for the host wrapper.
 std::string EmitHostParamDecl(const ir::Parameter& param) {
   return std::visit(
@@ -421,6 +458,13 @@ std::string EmitHostParamDecl(const ir::Parameter& param) {
             }
             return absl::Substitute("$0 (*$1)($2)", ret_type, param.name,
                                     absl::StrJoin(param_types, ", "));
+          },
+          [&](const ir::SandboxeeCallbackParam& cb) {
+            // Unreachable today: only a return value can be one of these. The
+            // alias is still the right spelling, and cheaper than leaving a
+            // trap for whoever makes a parameter one.
+            return absl::Substitute(
+                "$0 $1", CallbackTypedefAliasName(cb.typedef_name), param.name);
           },
           [&](const auto& p) {
             using T = std::decay_t<decltype(p)>;
@@ -456,6 +500,11 @@ std::string EmitSandboxeeParamDecl(const ir::Parameter& param) {
                                       param.name);
             }
             return absl::Substitute("sapi::LenValStruct* $0", param.name);
+          },
+          [&](const ir::SandboxeeCallbackParam&) {
+            // Unreachable today: only a return value can be one of these,
+            // and a return travels through `sapi_ret_arg`.
+            return absl::Substitute("uintptr_t $0", param.name);
           },
           [&](const auto& p) {
             using T = std::decay_t<decltype(p)>;
@@ -719,11 +768,12 @@ bool NeedsCallbackLambdaWrapper(const ir::CallbackParam& cb) {
             [](const ir::BufferParam&) { return true; },
             [&](const auto& inner) {
               using T = std::decay_t<decltype(inner)>;
-              static_assert(IsOneOf<T, ir::VoidParam, ir::ScalarParam,
-                                    ir::CppStringParam, ir::OpaquePointerParam,
-                                    ir::StructSyncParam, ir::CallbackParam>,
-                            "Unhandled callback parameter payload in "
-                            "NeedsCallbackLambdaWrapper!");
+              static_assert(
+                  IsOneOf<T, ir::VoidParam, ir::ScalarParam, ir::CppStringParam,
+                          ir::OpaquePointerParam, ir::StructSyncParam,
+                          ir::CallbackParam, ir::SandboxeeCallbackParam>,
+                  "Unhandled callback parameter payload in "
+                  "NeedsCallbackLambdaWrapper!");
               return p.direction().has_value();
             },
         },
@@ -869,7 +919,8 @@ $3        sapi_host_$0 = reinterpret_cast<$1>(sapi_arr_$0->GetData());
               using T = std::decay_t<decltype(inner)>;
               static_assert(
                   IsOneOf<T, ir::VoidParam, ir::ScalarParam, ir::CppStringParam,
-                          ir::StructSyncParam, ir::CallbackParam>,
+                          ir::StructSyncParam, ir::CallbackParam,
+                          ir::SandboxeeCallbackParam>,
                   "Unhandled callback parameter payload in "
                   "EmitCallbackParamMarshaling!");
               if (p.direction().has_value()) {
@@ -1068,7 +1119,12 @@ $4    };
 void EmitFuncDecl(std::string& out, const ir::Function& func) {
   std::string ret = "void";
   if (func.return_value) {
-    ret = func.return_value->type.canonical_name;
+    if (const auto* cb = func.return_value->As<ir::SandboxeeCallbackParam>()) {
+      absl::StrAppend(&out, EmitCallbackTypedefAlias(*func.return_value, *cb));
+      ret = CallbackTypedefAliasName(cb->typedef_name);
+    } else {
+      ret = func.return_value->type.canonical_name;
+    }
   }
   absl::StrAppend(&out,
                   absl::Substitute("extern \"C\" $0 $1(", ret, func.name));
@@ -1103,8 +1159,7 @@ void EmitWrapperDecl(std::string& out, const ir::Function& func) {
     if (func.return_value->type.kind == ir::TypeKind::kString) {
       absl::StrAppend(&out, "sapi::LenValStruct* sapi_ret_arg");
     } else {
-      absl::StrAppend(&out, func.return_value->type.canonical_name,
-                      "* sapi_ret_arg");
+      absl::StrAppend(&out, WireTypeName(*func.return_value), "* sapi_ret_arg");
     }
   }
 
@@ -1152,10 +1207,11 @@ bool HasStringType(const ir::Library& library) {
               },
               [](const auto& p) {
                 using T = std::decay_t<decltype(p)>;
-                static_assert(IsOneOf<T, ir::VoidParam, ir::ScalarParam,
-                                      ir::BufferParam, ir::OpaquePointerParam,
-                                      ir::StructSyncParam, ir::CallbackParam>,
-                              "Unhandled parameter payload in HasStringType!");
+                static_assert(
+                    IsOneOf<T, ir::VoidParam, ir::ScalarParam, ir::BufferParam,
+                            ir::OpaquePointerParam, ir::StructSyncParam,
+                            ir::CallbackParam, ir::SandboxeeCallbackParam>,
+                    "Unhandled parameter payload in HasStringType!");
                 return false;
               },
           },
@@ -1330,11 +1386,12 @@ absl::StatusOr<std::string> EmitSandboxeeSrc(
                 },
                 [&](const auto& p) {
                   using T = std::decay_t<decltype(p)>;
-                  static_assert(IsOneOf<T, ir::VoidParam, ir::ScalarParam,
-                                        ir::BufferParam, ir::OpaquePointerParam,
-                                        ir::StructSyncParam>,
-                                "Unhandled parameter payload type in sandboxee "
-                                "call arguments!");
+                  static_assert(
+                      IsOneOf<T, ir::VoidParam, ir::ScalarParam,
+                              ir::BufferParam, ir::OpaquePointerParam,
+                              ir::StructSyncParam, ir::SandboxeeCallbackParam>,
+                      "Unhandled parameter payload type in sandboxee "
+                      "call arguments!");
                   call_args.push_back(param.name);
                 },
             },
@@ -1361,6 +1418,15 @@ absl::StatusOr<std::string> EmitSandboxeeSrc(
               "    memcpy(sapi_ret_arg->data, sapi_ret_val.data(), "
               "sapi_ret_arg->size);\n"
               "  }\n",
+              target_call);
+        } else if (func->return_value->Is<ir::SandboxeeCallbackParam>()) {
+          // The host cannot hold a sandboxee function as a function pointer,
+          // so it travels as a plain address and is bound to a thunk on
+          // arrival.
+          absl::SubstituteAndAppend(
+              &out,
+              "  auto sapi_ret_val = $0;\n"
+              "  *sapi_ret_arg = reinterpret_cast<uintptr_t>(sapi_ret_val);\n",
               target_call);
         } else {
           // Using auto avoids potential syntax errors with complex return
@@ -1404,11 +1470,12 @@ absl::StatusOr<std::string> EmitSandboxeeSrc(
               },
               [&](const auto& p) {
                 using T = std::decay_t<decltype(p)>;
-                static_assert(IsOneOf<T, ir::VoidParam, ir::ScalarParam,
-                                      ir::BufferParam, ir::OpaquePointerParam,
-                                      ir::StructSyncParam, ir::CallbackParam>,
-                              "Unhandled parameter payload in EmitSandboxeeSrc "
-                              "includes!");
+                static_assert(
+                    IsOneOf<T, ir::VoidParam, ir::ScalarParam, ir::BufferParam,
+                            ir::OpaquePointerParam, ir::StructSyncParam,
+                            ir::CallbackParam, ir::SandboxeeCallbackParam>,
+                    "Unhandled parameter payload in EmitSandboxeeSrc "
+                    "includes!");
               },
           },
           param.payload);
@@ -1937,7 +2004,8 @@ void EmitHostSrcParam(const ir::Parameter& param, std::string& pre_call,
           [&](const auto& p) {
             using T = std::decay_t<decltype(p)>;
             static_assert(
-                IsOneOf<T, ir::VoidParam, ir::ScalarParam>,
+                IsOneOf<T, ir::VoidParam, ir::ScalarParam,
+                        ir::SandboxeeCallbackParam>,
                 "Unhandled parameter payload type in host call args!");
             absl::StrAppend(&call_args, param.name);
           },
@@ -2008,7 +2076,8 @@ absl::flat_hash_set<std::string> GatherHostIncludes(
                                           ir::CppStringParam,
                                           ir::OpaquePointerParam,
                                           ir::StructSyncParam,
-                                          ir::CallbackParam>,
+                                          ir::CallbackParam,
+                                          ir::SandboxeeCallbackParam>,
                                   "Unhandled callback parameter payload type "
                                   "in includes check!");
                             },
@@ -2022,7 +2091,7 @@ absl::flat_hash_set<std::string> GatherHostIncludes(
                 static_assert(
                     IsOneOf<T, ir::VoidParam, ir::ScalarParam, ir::BufferParam,
                             ir::CppStringParam, ir::OpaquePointerParam,
-                            ir::StructSyncParam>,
+                            ir::StructSyncParam, ir::SandboxeeCallbackParam>,
                     "Unhandled parameter payload in GatherHostIncludes!");
               },
           },
@@ -2049,9 +2118,9 @@ constexpr int kThunkPoolSize = 32;
 // the typedef's signature, the dispatcher they share, the pool that names them,
 // and the entry point that binds a sandboxee function to a free slot.
 //
-// Nothing generated calls the entry point yet. Converting a callback-typed
-// value that crosses out of the sandbox into one of these thunks is a
-// separate change; this one only makes the thunks exist.
+// The pools are emitted after the host shims: a thunk calls the shim for its
+// callback typedef's invoker, and a shim that hands a callback back out calls
+// this entry point, so the two refer to each other.
 std::string EmitThunkPool(const GeneratorOptions& options,
                           const ir::Function& invoker) {
   const std::string& typedef_name = *invoker.invoker_for_typedef;
@@ -2161,6 +2230,22 @@ absl::StatusOr<std::string> EmitHostSrc(
     absl::StrAppend(&out, src, "\n");
   }
 
+  // The pools are emitted after the shims, because a thunk calls the shim for
+  // its callback typedef's invoker. A shim that hands a callback back out calls
+  // the pool's bind entry point, so that much has to be declared first.
+  std::string bind_decls;
+  for (const auto* func : sorted_funcs) {
+    if (func->invoker_for_typedef) {
+      absl::SubstituteAndAppend(
+          &bind_decls,
+          "extern \"C\" uintptr_t $0(uintptr_t sapi_sandboxee_fn);\n",
+          BindThunkName(*func->invoker_for_typedef));
+    }
+  }
+  if (!bind_decls.empty()) {
+    absl::StrAppend(&out, bind_decls, "\n");
+  }
+
   for (const auto* func : sorted_funcs) {
     if (func->host_thunk) {
       absl::StrAppend(&out, "// Start of thunk\n");
@@ -2197,10 +2282,9 @@ absl::StatusOr<std::string> EmitHostSrc(
                         "  sapi::v::LenVal sapi_ret_tmp(nullptr, 0);\n");
         absl::StrAppend(&call_args, "sapi_ret_tmp.PtrAfter()");
       } else {
-        absl::StrAppend(
-            &pre_call,
-            absl::Substitute("  sapi::v::Reg<$0> sapi_ret_arg;\n",
-                             func->return_value->type.canonical_name));
+        absl::StrAppend(&pre_call,
+                        absl::Substitute("  sapi::v::Reg<$0> sapi_ret_arg;\n",
+                                         WireTypeName(*func->return_value)));
         absl::StrAppend(&call_args, "sapi_ret_arg.PtrAfter()");
       }
     }
@@ -2284,6 +2368,19 @@ absl::StatusOr<std::string> EmitHostSrc(
                 } else {
                   absl::StrAppend(&out, "  return sapi_ret_arg.GetValue();\n");
                 }
+              },
+              [&](const ir::SandboxeeCallbackParam& cb) {
+                // What arrived is an address inside the sandbox, which host
+                // code cannot call. Hand back a thunk with the callback
+                // typedef's signature instead; the caller cannot tell it from a
+                // function the library wrote. A null callback binds to
+                // nothing and stays null.
+                absl::SubstituteAndAppend(
+                    &out,
+                    "  return reinterpret_cast<$0>($1(\n"
+                    "      sapi_ret_arg.GetValue()));\n",
+                    CallbackTypedefAliasName(cb.typedef_name),
+                    BindThunkName(cb.typedef_name));
               },
               [&](const auto& p) {
                 using T = std::decay_t<decltype(p)>;

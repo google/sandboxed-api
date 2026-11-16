@@ -259,10 +259,24 @@ struct CallbackParam {
   bool uninitialized = false;
 };
 
+// A callback the sandbox implements, crossing outwards. Today that means a
+// library function handing back one of its own functions.
+//
+// Unlike `CallbackParam` this records nothing but the callback typedef. What
+// the callback does with its arguments is a property of the callback rather
+// than of this one use of it, the callback typedef is where that is written,
+// and the invoker generated for that typedef has already been built from it.
+// All that is left at the crossing is to say which callback typedef, so that
+// the right pool of host thunks is used.
+struct SandboxeeCallbackParam {
+  std::string typedef_name;
+};
+
 // Strongly-typed sum type payload representing all valid parameter kinds.
 using ParameterPayload =
     std::variant<VoidParam, ScalarParam, BufferParam, CppStringParam,
-                 OpaquePointerParam, StructSyncParam, CallbackParam>;
+                 OpaquePointerParam, StructSyncParam, CallbackParam,
+                 SandboxeeCallbackParam>;
 
 // Declarative Intermediate Representation of a function parameter or return
 // value.

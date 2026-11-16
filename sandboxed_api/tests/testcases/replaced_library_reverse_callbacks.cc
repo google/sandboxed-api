@@ -47,4 +47,15 @@ ABSL_ATTRIBUTE_NO_SANITIZE_CFI int apply_twice(int (*cb)(int, int), int a,
   return cb(cb(a, b), b);
 }
 
+int (*get_adder_fn(int which))(int, int) {
+  switch (which) {
+    case 0:
+      return &AddInts;
+    case 1:
+      return &MultiplyInts;
+    default:
+      return nullptr;
+  }
+}
+
 }  // extern "C"

@@ -976,18 +976,56 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
             std::make_shared<ir::Parameter>(std::move(cb_ret_param));
       }
     } else {
-      // A callback only has a `ParmVarDecl` when it appears as a function
-      // parameter. Without one there is nothing to read the callback's own
-      // parameter names and annotations from, so returning a callback (either
-      // from a function or from another callback) is unsupported.
+      // No `ParmVarDecl`, so this callback is being handed back rather than
+      // passed in. There is nothing here to read the callback's own parameter
+      // names and annotations from, which is exactly the gap a callback typedef
+      // fills, and the invoker built from that typedef is what would make
+      // the call. So a callback typedef is required, and is also the only thing
+      // worth recording.
       std::string template_name;
       if (ast::GetFunctorUnderlyingFunctionType(type, template_name) !=
           nullptr) {
-        return absl::InvalidArgumentError(
-            absl::Substitute("return C++ functor $0 is not supported", name));
+        // A functor is an object with captured state that only means anything
+        // in the address space that built it, so there is nothing a thunk
+        // could stand in for.
+        return absl::InvalidArgumentError(absl::Substitute(
+            "$0 hands back C++ functor '$1', which is not supported. Only a "
+            "plain function pointer can be replaced by a host thunk",
+            name, template_name));
       }
-      return absl::InvalidArgumentError(absl::Substitute(
-          "return function pointer $0 is not supported", name));
+      if (std::holds_alternative<CallbackReturnSource>(source)) {
+        // A callback typedef describes one callback, not a callback that
+        // itself hands back another callback.
+        return absl::InvalidArgumentError(absl::Substitute(
+            "$0: a callback that hands back another callback is not supported",
+            name));
+      }
+      const clang::TypedefNameDecl* td = FindCallbackTypedef(type);
+      if (td == nullptr) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "$0 hands back a callback, so its return type must be a callback "
+            "typedef: a return has no parameter declarations to read the "
+            "callback's annotations from",
+            name));
+      }
+      const CallbackTypedef* cb_typedef = LookupCallbackTypedef(type, conv_ctx);
+      if (cb_typedef == nullptr) {
+        if (!HasSandboxAnnotations(*td)) {
+          ABSL_RETURN_IF_ERROR(ParseCallbackTypedef(*td).status());
+        }
+        return absl::InvalidArgumentError(
+            absl::Substitute("$0 references unknown callback typedef $1", name,
+                             td->getNameAsString()));
+      }
+      if (!cb_typedef->no_reverse_reason.empty()) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("$0 hands back a callback, but $1", name,
+                             cb_typedef->no_reverse_reason));
+      }
+      ir_param.payload = ir::SandboxeeCallbackParam{
+          .typedef_name = cb_typedef->name,
+      };
+      return ir_param;
     }
     ir_param.payload = std::move(cb);
     return ir_param;
@@ -1191,6 +1229,14 @@ absl::StatusOr<sapi::ir::Function> ConvertFunctionToIR(
   ir_func.context_bound = std::move(func_decl_annotations.context_bound);
 
   clang::QualType ret_type = func_decl->getReturnType();
+  if (FindCallbackTypedef(ret_type) == nullptr) {
+    for (const clang::FunctionDecl* redecl : func_decl->redecls()) {
+      if (FindCallbackTypedef(redecl->getReturnType()) != nullptr) {
+        ret_type = redecl->getReturnType();
+        break;
+      }
+    }
+  }
   if (!ret_type->isVoidType()) {
     ABSL_ASSIGN_OR_RETURN(
         ir_func.return_value,
@@ -1201,7 +1247,26 @@ absl::StatusOr<sapi::ir::Function> ConvertFunctionToIR(
   ir_func.parameters.reserve(func_decl->getNumParams());
   for (size_t i = 0; i < func_decl->getNumParams(); ++i) {
     const clang::ParmVarDecl* param = func_decl->getParamDecl(i);
+    if (FindCallbackTypedef(param->getType()) == nullptr) {
+      for (const clang::FunctionDecl* redecl : func_decl->redecls()) {
+        if (i < redecl->getNumParams() &&
+            FindCallbackTypedef(redecl->getParamDecl(i)->getType()) !=
+                nullptr) {
+          param = redecl->getParamDecl(i);
+          break;
+        }
+      }
+    }
     std::string name = param->getNameAsString();
+    if (name.empty()) {
+      for (const clang::FunctionDecl* redecl : func_decl->redecls()) {
+        if (i < redecl->getNumParams() &&
+            !redecl->getParamDecl(i)->getNameAsString().empty()) {
+          name = redecl->getParamDecl(i)->getNameAsString();
+          break;
+        }
+      }
+    }
     if (name.empty()) {
       name = absl::StrFormat("sapi_arg%zu", i);
     }
@@ -1217,10 +1282,9 @@ absl::StatusOr<sapi::ir::Function> ConvertFunctionToIR(
   return ir_func;
 }
 
-absl::StatusOr<std::optional<sapi::ir::Function>>
-ConvertCallbackTypedefToInvokerIR(const clang::TypedefNameDecl& decl,
-                                  const CallbackTypedef& cb_typedef,
-                                  const ConversionContext& conv_ctx) {
+absl::StatusOr<InvokerConversion> ConvertCallbackTypedefToInvokerIR(
+    const clang::TypedefNameDecl& decl, const CallbackTypedef& cb_typedef,
+    const ConversionContext& conv_ctx) {
   const clang::FunctionProtoType* proto = GetCallbackTypedefProto(decl);
   std::optional<clang::FunctionProtoTypeLoc> ftl =
       ast::GetFunctionProtoTypeLoc(decl.getTypeSourceInfo());
@@ -1232,7 +1296,6 @@ ConvertCallbackTypedefToInvokerIR(const clang::TypedefNameDecl& decl,
   ABSL_RETURN_IF_ERROR(CheckCallbackSignatureIsCallable(
       absl::StrCat("callback typedef ", cb_typedef.name), decl.getASTContext(),
       *proto));
-
   ir::Function invoker;
   invoker.name = ir::InvokerName(cb_typedef.name);
   invoker.invoker_for_typedef = cb_typedef.name;
@@ -1255,7 +1318,14 @@ ConvertCallbackTypedefToInvokerIR(const clang::TypedefNameDecl& decl,
     // rather than on the type so that an opaque handle, which needs no copy
     // but also has nothing saying it may be dereferenced, is excluded too.
     if (!invoker.return_value->Is<ir::ScalarParam>()) {
-      return std::nullopt;
+      return InvokerConversion{
+          .no_reverse_reason = absl::Substitute(
+              "callback typedef $0 hands back '$1'. A callback the sandbox "
+              "implements is called by host code rather than from inside a "
+              "call into the sandbox, so there is no enclosing call for that "
+              "buffer to outlive and nothing to free it",
+              cb_typedef.name, ret_type.getAsString()),
+      };
     }
   }
 
@@ -1278,7 +1348,7 @@ ConvertCallbackTypedefToInvokerIR(const clang::TypedefNameDecl& decl,
             conv_ctx));
     invoker.parameters.push_back(std::move(ir_param));
   }
-  return invoker;
+  return InvokerConversion{.invoker = std::move(invoker)};
 }
 
 }  // namespace sapi

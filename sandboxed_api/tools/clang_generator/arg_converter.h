@@ -42,18 +42,26 @@ struct ConversionContext {
 absl::StatusOr<sapi::ir::Function> ConvertFunctionToIR(
     const clang::FunctionDecl* func_decl, const ConversionContext& conv_ctx);
 
+// The outcome of building a callback typedef's invoker.
+struct InvokerConversion {
+  // Absent when the callback typedef has no reverse direction.
+  std::optional<sapi::ir::Function> invoker;
+  // Why there is none, phrased for a use site that tried to hand such a
+  // callback out of the sandbox. Empty exactly when `invoker` is set.
+  std::string no_reverse_reason;
+};
+
 // Builds the indirect caller for a callback typedef: a function whose first
 // parameter is the address of a sandboxee function with the typedef's
 // signature, and whose remaining parameters are the typedef's own. See
 // `ir::Function::invoker_for_typedef`.
 //
-// Returns nullopt for a callback typedef that has no reverse direction, which
-// today means one that hands back a pointer. The buffer would have to be copied
-// out of the sandbox and then kept alive, and `SANDBOX_LIFETIME_OUTER_CALL` --
-// the only lifetime a callback typedef can state -- names the enclosing library
-// call. A host thunk is called by host code rather than from inside a call into
-// the sandbox, so there is no outer call for the buffer to outlive and nothing
-// to free it.
+// A callback typedef that hands back a pointer gets no invoker. The buffer
+// would have to be copied out of the sandbox and then kept alive, and
+// `SANDBOX_LIFETIME_OUTER_CALL` -- the only lifetime a callback typedef can
+// state -- names the enclosing library call. A host thunk is called by host
+// code rather than from inside a call into the sandbox, so there is no outer
+// call for the buffer to outlive and nothing to free it.
 //
 // `decl` is the typedef's own declaration, and has to be passed rather than
 // remembered on `CallbackTypedef`: it is only alive while the file that
@@ -66,10 +74,9 @@ absl::StatusOr<sapi::ir::Function> ConvertFunctionToIR(
 // direction: `in` forward is "copy into the address space of whoever runs the
 // callback", which here is the sandbox, and which is exactly what `in` means on
 // a library function's parameter.
-absl::StatusOr<std::optional<sapi::ir::Function>>
-ConvertCallbackTypedefToInvokerIR(const clang::TypedefNameDecl& decl,
-                                  const CallbackTypedef& cb_typedef,
-                                  const ConversionContext& conv_ctx);
+absl::StatusOr<InvokerConversion> ConvertCallbackTypedefToInvokerIR(
+    const clang::TypedefNameDecl& decl, const CallbackTypedef& cb_typedef,
+    const ConversionContext& conv_ctx);
 
 }  // namespace sapi
 

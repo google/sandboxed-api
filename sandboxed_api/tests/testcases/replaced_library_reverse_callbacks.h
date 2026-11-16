@@ -39,6 +39,12 @@ uintptr_t get_adder(int which);
 // `cb(cb(a, b), b)`, so the callback is genuinely reentered.
 int apply_twice(int (*cb)(int, int), int a, int b);
 
+// The same function `get_adder` hands back, but as a callback rather than as
+// an address. This is the shape `lua_gethook` has: a library handing back one
+// of its own functions for the caller to hold and call. Null for an index
+// nobody implements.
+int (*get_adder_fn(int which))(int, int);
+
 }  // extern "C"
 
 #endif  // SANDBOXED_API_TESTS_TESTCASES_REPLACED_LIBRARY_REVERSE_CALLBACKS_H_

@@ -33,4 +33,11 @@ uintptr_t get_adder(int which);
 
 int apply_twice(adder cb, int a, int b);
 
+// The same callback typedef, naming what comes *out*.
+//
+// Nothing distinguishes this use of `adder` from the one above, which is the
+// point: a callback typedef says what a callback means, not which way it
+// travels.
+adder get_adder_fn(int which);
+
 }  // extern "C"

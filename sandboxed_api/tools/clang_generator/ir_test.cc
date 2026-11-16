@@ -214,16 +214,18 @@ TEST(IrTest, VisitorPatternDispatch) {
   Parameter cpp_str{.name = "str", .payload = CppStringParam{}};
 
   auto describe = [](const Parameter& p) {
-    return std::visit(absl::Overload{
-                          [](const ScalarParam&) { return "scalar"; },
-                          [](const BufferParam&) { return "buffer"; },
-                          [](const CppStringParam&) { return "cpp_string"; },
-                          [](const OpaquePointerParam&) { return "opaque"; },
-                          [](const StructSyncParam&) { return "struct_sync"; },
-                          [](const CallbackParam&) { return "callback"; },
-                          [](const VoidParam&) { return "void"; },
-                      },
-                      p.payload);
+    return std::visit(
+        absl::Overload{
+            [](const ScalarParam&) { return "scalar"; },
+            [](const BufferParam&) { return "buffer"; },
+            [](const CppStringParam&) { return "cpp_string"; },
+            [](const OpaquePointerParam&) { return "opaque"; },
+            [](const StructSyncParam&) { return "struct_sync"; },
+            [](const CallbackParam&) { return "callback"; },
+            [](const SandboxeeCallbackParam&) { return "sandboxee_callback"; },
+            [](const VoidParam&) { return "void"; },
+        },
+        p.payload);
   };
 
   EXPECT_EQ(describe(scalar), "scalar");
@@ -337,6 +339,13 @@ class IrConvertTest : public ::sapi::FrontendActionTest {
                     absl::StrCat("callback typedef ", it->first,
                                  " is annotated more than once"));
                 return;
+              }
+              if (absl::StatusOr<InvokerConversion> conversion =
+                      ConvertCallbackTypedefToInvokerIR(*td, it->second,
+                                                        conv_ctx_);
+                  conversion.ok() && !conversion->invoker.has_value()) {
+                it->second.no_reverse_reason =
+                    std::move(conversion->no_reverse_reason);
               }
             }
             for (const clang::FunctionDecl* func_decl : functions_) {
@@ -1597,18 +1606,85 @@ TEST_F(IrConvertTest, RejectsAliasPtrOnNonCallbackOpaqueParam) {
                        HasSubstr("is opaque and should not have a lifetime")));
 }
 
-// A callback is only supported as a function parameter, where its own
-// parameter names and annotations can be read off the `ParmVarDecl`.
-TEST_F(IrConvertTest, RejectsReturnedFunctionPointer) {
+// A callback handed back out of the sandbox has no `ParmVarDecl` anywhere to
+// read its parameter names and annotations from, which is the gap a callback
+// typedef fills.
+TEST_F(IrConvertTest, RejectsReturnedCallbackWithoutCallbackTypedef) {
   EXPECT_THAT(ConvertSnippetToIR(R"(
     extern "C" void (*get_handler())(int);
   )",
                                  "get_handler"),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("return function pointer sapi_ret_arg is not "
-                                 "supported")));
+                       HasSubstr("hands back a callback, so its return type "
+                                 "must be a callback typedef")));
 }
 
+TEST_F(IrConvertTest, ConvertsReturnedCallbackNamingACallbackTypedef) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
+                            ConvertSnippetToIR(R"(
+    typedef void (*handler_cb)(int value);
+    extern "C" handler_cb get_handler();
+  )",
+                                               "get_handler"));
+  ASSERT_TRUE(func.return_value.has_value());
+  const auto* returned =
+      std::get_if<SandboxeeCallbackParam>(&func.return_value->payload);
+  ASSERT_NE(returned, nullptr);
+  EXPECT_EQ(returned->typedef_name, "handler_cb");
+}
+
+TEST_F(IrConvertTest,
+       ConvertsRedeclaredReturnedCallbackAfterRawFunctionPointerDeclaration) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
+                            ConvertSnippetToIR(R"(
+    extern "C" void (*get_handler(int which))(int);
+    typedef void (*handler_cb)(int value);
+    extern "C" handler_cb get_handler(int which);
+  )",
+                                               "get_handler"));
+  ASSERT_TRUE(func.return_value.has_value());
+  const auto* returned =
+      std::get_if<SandboxeeCallbackParam>(&func.return_value->payload);
+  ASSERT_NE(returned, nullptr);
+  EXPECT_EQ(returned->typedef_name, "handler_cb");
+}
+
+// Only a callback typedef that can be called in the reverse direction has an
+// invoker for a host thunk to route through. Saying so at the use site is what
+// keeps the alternative from being a link error against a thunk pool that was
+// never emitted.
+TEST_F(IrConvertTest, RejectsReturnedCallbackWhoseTypedefHasNoReverse) {
+  EXPECT_THAT(ConvertSnippetToIR(
+                  R"(
+    [[clang::annotate("sandbox", "lifetime_outer_call")]]
+    [[clang::annotate("sandbox", "elem_sized_by", "n")]]
+    typedef char* (*alloc_cb)(int n);
+    extern "C" alloc_cb get_allocator();
+  )",
+                  "get_allocator"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("hands back a callback, but callback typedef "
+                                 "alloc_cb hands back 'char *'")));
+}
+
+// A callback typedef describes one callback, not a callback that itself hands
+// back another callback.
+TEST_F(IrConvertTest, RejectsCallbackThatReturnsACallback) {
+  EXPECT_THAT(
+      ConvertSnippetToIR(
+          R"(
+    typedef void (*inner_cb)(int);
+    typedef inner_cb (*outer_cb)(int value);
+    extern "C" void take_handler(outer_cb cb);
+  )",
+          "take_handler"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("a callback that hands back another callback is not "
+                         "supported")));
+}
+
+// A functor is an object with captured state that only means anything in the
+// address space that built it, so no thunk can stand in for it.
 TEST_F(IrConvertTest, RejectsReturnedFunctor) {
   EXPECT_THAT(ConvertSnippetToIR(R"(
     namespace std {
@@ -1624,8 +1700,7 @@ TEST_F(IrConvertTest, RejectsReturnedFunctor) {
   )",
                                  "get_handler"),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("return C++ functor sapi_ret_arg is not "
-                                 "supported")));
+                       HasSubstr("hands back C++ functor 'std::function'")));
 }
 
 // In C++ an empty parameter list is a prototype, so a prototype-less function
