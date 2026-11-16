@@ -20,6 +20,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
   add_library(sapi::test_lib ALIAS sapi_test_lib)
   target_link_libraries(sapi_test_lib PRIVATE
     absl::algorithm_container
+    absl::core_headers
     absl::span
     sapi::base
     sapi::lenval_core

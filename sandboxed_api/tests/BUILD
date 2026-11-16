@@ -70,6 +70,7 @@ cc_library(
     deps = [
         "//sandboxed_api:lenval_core",
         "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/types:span",
     ],
     alwayslink = 1,

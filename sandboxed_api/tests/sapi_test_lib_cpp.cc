@@ -15,6 +15,7 @@
 #include <cstdlib>
 
 #include "absl/algorithm/container.h"
+#include "absl/base/attributes.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/lenval_core.h"
 
@@ -37,15 +38,18 @@ extern "C" bool compare_self_symbol(void* self) {
   return self == reinterpret_cast<void*>(&compare_self_symbol);
 }
 
-extern "C" int call_callback(int (*cb)(int, int), int a, int b) {
+extern "C" ABSL_ATTRIBUTE_NO_SANITIZE_CFI int call_callback(int (*cb)(int, int),
+                                                            int a, int b) {
   return cb(a, b);
 }
 
-extern "C" int call_callback_with_ptr(int (*cb)(int*), int* ptr) {
+extern "C" ABSL_ATTRIBUTE_NO_SANITIZE_CFI int call_callback_with_ptr(
+    int (*cb)(int*), int* ptr) {
   return cb(ptr);
 }
 
-extern "C" int call_callback_loop(int (*cb)(int), int count) {
+extern "C" ABSL_ATTRIBUTE_NO_SANITIZE_CFI int call_callback_loop(int (*cb)(int),
+                                                                 int count) {
   int sum = 0;
   for (int i = 0; i < count; ++i) {
     sum += cb(i);
