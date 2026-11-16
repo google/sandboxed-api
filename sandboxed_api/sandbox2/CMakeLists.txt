@@ -259,14 +259,11 @@ target_link_libraries(sandbox2_global_forkserver
           absl::cleanup
           absl::no_destructor
           absl::strings
-          absl::status
           absl::status_macros
           absl::log
-          sandbox2::client
           sandbox2::flags
           sandbox2::forkserver_bin_embed
           sandbox2::util
-          sapi::strerror
           sapi::base
           sapi::config
           sapi::embed_file
@@ -275,7 +272,10 @@ target_link_libraries(sandbox2_global_forkserver
   PUBLIC absl::core_headers
          absl::flags
          absl::flat_hash_map
+         absl::status
+         absl::statusor
          absl::synchronization
+         protobuf::libprotobuf
          sandbox2::comms
          sandbox2::fork_client
          sandbox2::forkserver_proto
@@ -1296,6 +1296,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::allowlists_all_syscalls
     sandbox2::allowlists_enable_landlock
     sandbox2::allowlists_namespaces
+    sandbox2::allowlists_unrestricted_networking
     sandbox2::comms
     sandbox2::flags
     sandbox2::fork_client

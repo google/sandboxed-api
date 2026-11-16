@@ -38,6 +38,7 @@
 #include "sandboxed_api/sandbox2/buffer.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
+#include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/monitor_base.h"
 #include "sandboxed_api/sandbox2/monitor_ptrace.h"
 #include "sandboxed_api/sandbox2/monitor_unotify.h"
@@ -222,6 +223,12 @@ absl::Status Sandbox2::EnableSharedMountNamespace() {
         "Shared mount namespace is not supported together with Landlock mode");
   }
   Namespace& ns = *policy_->namespace_;
+  if (ns.netns_config() != NETNS_MODE_SHARED_PER_FORKSERVER &&
+      ns.netns_config() != NETNS_MODE_NONE) {
+    return absl::FailedPreconditionError(
+        "Shared mount namespace requires UseForkServerSharedNetNs() or "
+        "UnrestrictedNetworking()");
+  }
   ABSL_RETURN_IF_ERROR(ns.mounts().EnableSharedMountNamespace());
   return absl::OkStatus();
 }

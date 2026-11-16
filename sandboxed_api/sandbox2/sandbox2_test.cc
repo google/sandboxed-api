@@ -48,6 +48,7 @@
 #include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
 #include "sandboxed_api/sandbox2/allowlists/enable_landlock.h"
 #include "sandboxed_api/sandbox2/allowlists/namespaces.h"
+#include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/flags.h"
@@ -639,6 +640,23 @@ TEST(Sandbox2Test, SharedMountNamespaceWorks) {
   EXPECT_EQ(result.reason_code(), 0);
 }
 
+TEST(Sandbox2Test, SharedMountNamespaceWorksWithUnrestrictedNetworking) {
+  SKIP_SANITIZERS;
+
+  GlobalForkClient::Shutdown();
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path)
+                                .Allow(sandbox2::UnrestrictedNetworking())
+                                .TryBuild());
+  Sandbox2 sandbox(std::make_unique<Executor>(path, args), std::move(policy));
+  ASSERT_THAT(sandbox.EnableSharedMountNamespace(), IsOk());
+  Result result = sandbox.Run();
+  ASSERT_EQ(result.final_status(), Result::OK);
+  EXPECT_EQ(result.reason_code(), 0);
+}
+
 TEST(Sandbox2Test, EnableUnotifyMonitorFailsWithoutNamespaces) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
   std::vector<std::string> args = {path};
@@ -798,12 +816,26 @@ TEST(Sandbox2Test, EnableSharedMountNamespaceFailsWithLandlock) {
                                  "together with Landlock mode")));
 }
 
+TEST(Sandbox2Test, EnableSharedMountNamespaceFailsWithPerSandboxeeNetNs) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path};
+  auto executor = std::make_unique<Executor>(path, args);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  EXPECT_THAT(sandbox.EnableSharedMountNamespace(),
+              StatusIs(absl::StatusCode::kFailedPrecondition,
+                       HasSubstr("Shared mount namespace requires "
+                                 "UseForkServerSharedNetNs() or "
+                                 "UnrestrictedNetworking()")));
+}
+
 TEST(Sandbox2Test, EnableSharedMountNamespaceFailsWithTmpfsMount) {
   const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
   std::vector<std::string> args = {path};
   auto executor = std::make_unique<Executor>(path, args);
   PolicyBuilder builder = CreateDefaultPermissiveTestPolicy(path);
-  builder.AddTmpfs("/tmp", 4ULL << 20);
+  builder.AddTmpfs("/tmp", 4ULL << 20).UseForkServerSharedNetNs();
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy, builder.TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));
   EXPECT_THAT(sandbox.EnableSharedMountNamespace(),
@@ -827,6 +859,7 @@ TEST(Sandbox2Test, SharedMountNamespaceRejectsWritableRoot) {
   SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
                             sandbox2::PolicyBuilder()
                                 .DefaultAction(sandbox2::AllowAllSyscalls())
+                                .UseForkServerSharedNetNs()
                                 .SetRootWritable()
                                 .TryBuild());
   Sandbox2 sandbox(std::move(executor), std::move(policy));

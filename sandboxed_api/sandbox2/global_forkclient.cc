@@ -392,6 +392,9 @@ absl::Status GlobalForkClient::GlobalData::SetupSharedIpcNamespaceLocked() {
 absl::StatusOr<file_util::fileops::FDCloser>
 GlobalForkClient::GlobalData::SetupSharedMountNamespaceLocked(
     const MountSpecs& mount_specs) {
+  if (shared_netns_fd_.get() == -1) {
+    ABSL_RETURN_IF_ERROR(SetupSharedNetnsNamespacesLocked());
+  }
   ABSL_ASSIGN_OR_RETURN(Comms setup_comms,
                         instance_->fork_client_.SendInitializeRequest(
                             ForkRequest::INITIALIZE_SHARED_MNTNS));
@@ -470,11 +473,14 @@ absl::Status GlobalForkClient::GlobalData::SetupOptions(
     options.shared_pidns_fd = shared_pidns_fd_.get();
     mounts_internal::HashableMountSpecs hashable_mount_specs(
         request.mount_specs());
-    auto [it, inserted] = shared_mount_namespaces_.emplace(
-        hashable_mount_specs, file_util::fileops::FDCloser());
-    if (inserted) {
+    auto it = shared_mount_namespaces_.find(hashable_mount_specs);
+    if (it == shared_mount_namespaces_.end()) {
       ABSL_ASSIGN_OR_RETURN(
-          it->second, SetupSharedMountNamespaceLocked(request.mount_specs()));
+          file_util::fileops::FDCloser mntns_fd,
+          SetupSharedMountNamespaceLocked(request.mount_specs()));
+      it = shared_mount_namespaces_
+               .emplace(std::move(hashable_mount_specs), std::move(mntns_fd))
+               .first;
     }
     options.mntns_fd = it->second.get();
   }

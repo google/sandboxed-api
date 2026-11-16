@@ -1220,6 +1220,7 @@ cc_test(
         "//sandboxed_api/sandbox2/allowlists:enable_landlock",
         "//sandboxed_api/sandbox2/allowlists:testonly_all_syscalls",
         "//sandboxed_api/sandbox2/allowlists:testonly_namespaces",
+        "//sandboxed_api/sandbox2/allowlists:testonly_unrestricted_networking",
         "//sandboxed_api/util:file_base",
         "//sandboxed_api/util:file_helpers",
         "//sandboxed_api/util:temp_file",
