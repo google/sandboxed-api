@@ -182,6 +182,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::flat_hash_map
     absl::memory
     absl::overload
+    absl::status
     absl::status_macros
     absl::status_matchers
     absl::statusor

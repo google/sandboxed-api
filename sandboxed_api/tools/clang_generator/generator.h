@@ -81,6 +81,7 @@ struct GeneratorOptions {
   bool limit_scan_depth = false;
   bool symbol_list_gen = false;
   bool sandboxed_library_gen = false;
+  bool merged_sandboxee = false;
 
   // Output options
   SandboxMode sandbox_mode = SandboxMode::kSandbox2;

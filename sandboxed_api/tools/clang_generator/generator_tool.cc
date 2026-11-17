@@ -117,6 +117,12 @@ absl::NoDestructor<llvm::cl::opt<bool>> g_sandboxed_library_gen(
     llvm::cl::desc("Whether to generate a sandboxed library."),
     llvm::cl::cat(*g_tool_category));
 
+absl::NoDestructor<llvm::cl::opt<bool>> g_sapi_merged_sandboxee(
+    "sapi_merged_sandboxee",
+    llvm::cl::desc("Whether to emit LWBox merged sandboxee registration "
+                   "instead of defining HandleCallMsg/HandleSymbolMsg."),
+    llvm::cl::cat(*g_tool_category));
+
 absl::NoDestructor<llvm::cl::opt<std::string>> g_sandboxee_hdr_out(
     "sandboxee_hdr_out",
     llvm::cl::desc("Output path of the generated sandboxed library sandboxee "
@@ -176,6 +182,7 @@ GeneratorOptions GeneratorOptionsFromFlags(
   options.sandbox_mode = *g_sapi_sandbox_mode;
   options.symbol_list_gen = *g_symbol_list_gen;
   options.sandboxed_library_gen = *g_sandboxed_library_gen;
+  options.merged_sandboxee = *g_sapi_merged_sandboxee;
   return options;
 }
 
@@ -204,6 +211,12 @@ absl::Status GeneratorMain(int argc, char* argv[]) {
     absl::FPrintF(
         stderr,
         "Warning: API versions greater than 1 are currently experimental.\n");
+  }
+  if (options.merged_sandboxee &&
+      options.sandbox_mode == SandboxMode::kPassthrough) {
+    return absl::InvalidArgumentError(
+        "Error: --sapi_merged_sandboxee cannot be used with "
+        "--sapi_sandbox_mode=passthrough.");
   }
 
   std::unique_ptr<clang::tooling::CompilationDatabase> db =

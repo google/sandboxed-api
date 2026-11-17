@@ -242,6 +242,43 @@ void %3$sHandleSymbolMsg(const char* symname, ::sapi::FuncRet* ret) {
 }  // namespace sapi::client
 )";
 
+inline constexpr std::string_view kMergedSandboxeeIncludes = R"(
+#include "absl/base/optimization.h"
+#include "absl/log/log.h"
+#include "sandboxed_api/call.h"
+#include "sandboxed_api/function_call_helper.h"
+#include "sandboxed_api/lwbox/runtime/sandboxee_registry.h"
+)";
+
+// Text template arguments:
+//   1. Sandboxee prototypes
+//   2. Sandboxee handler functions
+//   3. Sandboxee function entries
+//   4. Sandboxee symbol entries
+inline constexpr std::string_view kMergedSandboxeeSrcTemplate = R"(
+extern "C" {
+  %1$s
+
+}
+
+namespace sapi::client {
+namespace {
+  %2$s
+
+[[maybe_unused]] const bool kSandboxeeRegistered = []() {
+  ::sapi::lwbox::RegisterSandboxeeFunctions(
+      {
+  %3$s
+      },
+      {
+  %4$s
+      });
+  return true;
+}();
+}  // namespace
+}  // namespace sapi::client
+)";
+
 inline constexpr std::string_view kFuncHandlerHeaderTemplate = R"(
 FuncRet HandleCall_%1$s(const FunctionCallPreparer& call) {
   if (ABSL_PREDICT_FALSE(call.arg_count() != %2$d)) {
@@ -483,10 +520,12 @@ absl::StatusOr<std::string> Emitter::DoEmitFunction(
 }
 
 absl::StatusOr<std::string> Emitter::DoEmitSandboxeeSrc() {
+  if (options_.merged_sandboxee &&
+      options_.sandbox_mode == SandboxMode::kPassthrough) {
+    return absl::InvalidArgumentError(
+        "merged_sandboxee cannot be used with passthrough sandbox mode");
+  }
   std::string out;
-  absl::StrAppend(&out, kGeneratorComment, kSandboxeeCommonIncludes);
-  std::string call_msg_prefix =
-      options_.sandbox_mode == SandboxMode::kPassthrough ? options_.name : "";
   std::vector<std::string> rendered_functions_unqualified_ordered(
       rendered_functions_unqualified_.begin(),
       rendered_functions_unqualified_.end());
@@ -499,25 +538,39 @@ absl::StatusOr<std::string> Emitter::DoEmitSandboxeeSrc() {
     entries.push_back(
         absl::StrFormat("{\"%1$s\", reinterpret_cast<void*>(&%1$s)}", func));
   }
+  const std::string function_entries = absl::StrJoin(
+      rendered_functions_unqualified_ordered, ",\n",
+      [](std::string* out, std::string_view func) {
+        absl::StrAppend(out,
+                        absl::StrFormat("{\"%1$s\", HandleCall_%1$s}", func));
+      });
+
+  if (options_.merged_sandboxee) {
+    absl::StrAppend(&out, kGeneratorComment, kMergedSandboxeeIncludes);
+    absl::StrAppend(
+        &out, absl::StrFormat(
+                  kMergedSandboxeeSrcTemplate,
+                  absl::StrJoin(rendered_sandboxee_prototypes_ordered_, "\n"),
+                  absl::StrJoin(rendered_sandboxee_handler_ordered_, "\n"),
+                  function_entries, absl::StrJoin(entries, ",\n")));
+    return out;
+  }
+
+  absl::StrAppend(&out, kGeneratorComment, kSandboxeeCommonIncludes);
+  std::string call_msg_prefix =
+      options_.sandbox_mode == SandboxMode::kPassthrough ? options_.name : "";
   entries.push_back(
       R"(#if defined(__x86_64__) || defined(__aarch64__) || defined(__riscv)
     {"sapi_callback_trampolines", reinterpret_cast<void*>(sapi_callback_trampolines)}
 #endif)");
 
   absl::StrAppend(
-      &out, absl::StrFormat(
-                kSandboxeeSrcTemplate,
-                absl::StrJoin(rendered_sandboxee_prototypes_ordered_, "\n"),
-                absl::StrJoin(rendered_sandboxee_handler_ordered_, "\n"),
-                call_msg_prefix,
-                absl::StrJoin(rendered_functions_unqualified_ordered, ",\n",
-                              [](std::string* out, std::string_view func) {
-                                absl::StrAppend(
-                                    out,
-                                    absl::StrFormat(
-                                        "{\"%1$s\", HandleCall_%1$s}", func));
-                              }),
-                absl::StrJoin(entries, ",\n")));
+      &out,
+      absl::StrFormat(
+          kSandboxeeSrcTemplate,
+          absl::StrJoin(rendered_sandboxee_prototypes_ordered_, "\n"),
+          absl::StrJoin(rendered_sandboxee_handler_ordered_, "\n"),
+          call_msg_prefix, function_entries, absl::StrJoin(entries, ",\n")));
   return out;
 }
 
@@ -557,6 +610,11 @@ void EmitInNamespaces(std::string& out, absl::string_view base_ns_name,
 }  // namespace
 
 absl::StatusOr<std::string> Emitter::DoEmitHeader() {
+  if (options_.merged_sandboxee &&
+      options_.sandbox_mode == SandboxMode::kPassthrough) {
+    return absl::InvalidArgumentError(
+        "merged_sandboxee cannot be used with passthrough sandbox mode");
+  }
   // Log a warning message if the number of requested functions is not equal to
   // the number of functions generated.
   if (!options_.function_names.empty() &&

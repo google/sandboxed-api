@@ -22,6 +22,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -37,6 +38,7 @@ namespace sapi {
 namespace {
 
 using ::absl_testing::IsOk;
+using ::absl_testing::StatusIs;
 using ::testing::ContainsRegex;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
@@ -950,6 +952,64 @@ TEST_F(SandboxeeTest, VariadicParametersSkipsFunction) {
                         std::make_unique<GeneratorAction>(&emitter, &options)),
       IsOk());
   EXPECT_THAT(emitter.GetRenderedSandboxeePrototypes(), IsEmpty());
+}
+
+TEST_F(SandboxeeTest, DefaultModeUsesFunctionLocalMap) {
+  GeneratorOptions options;
+  options.sandboxee_src_out = "sandboxee_src.cc";
+  EmitterForTesting emitter(&options);
+  ASSERT_THAT(
+      RunFrontendAction(R"(extern "C" int Add(int a, int b);)",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string sandboxee_src,
+                            emitter.EmitSandboxeeSrc());
+  EXPECT_THAT(sandboxee_src, HasSubstr("kSandboxeeFunctions"));
+  EXPECT_THAT(sandboxee_src, HasSubstr("void HandleCallMsg("));
+  EXPECT_THAT(sandboxee_src, HasSubstr("void HandleSymbolMsg("));
+  EXPECT_THAT(sandboxee_src, Not(HasSubstr("RegisterSandboxeeFunctions")));
+}
+
+TEST_F(SandboxeeTest, MergedSandboxeeRegistersIntoLwboxRegistry) {
+  GeneratorOptions options;
+  options.sandboxee_src_out = "sandboxee_src.cc";
+  options.merged_sandboxee = true;
+  EmitterForTesting emitter(&options);
+  ASSERT_THAT(
+      RunFrontendAction(R"(extern "C" int Add(int a, int b);)",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string sandboxee_src,
+                            emitter.EmitSandboxeeSrc());
+  EXPECT_THAT(sandboxee_src,
+              HasSubstr("::sapi::lwbox::RegisterSandboxeeFunctions("));
+  EXPECT_THAT(sandboxee_src, HasSubstr("{\"Add\", HandleCall_Add}"));
+  EXPECT_THAT(sandboxee_src,
+              HasSubstr("{\"Add\", reinterpret_cast<void*>(&Add)}"));
+  EXPECT_THAT(sandboxee_src, Not(HasSubstr("sapi_callback_trampolines")));
+  EXPECT_THAT(sandboxee_src, Not(HasSubstr("HandleCallMsg(")));
+  EXPECT_THAT(sandboxee_src, Not(HasSubstr("HandleSymbolMsg(")));
+}
+
+TEST_F(SandboxeeTest, MergedSandboxeeRejectsPassthroughMode) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  options.out_file = "mylib.sapi.h";
+  options.sandboxee_src_out = "sandboxee_src.cc";
+  options.merged_sandboxee = true;
+  options.sandbox_mode = SandboxMode::kPassthrough;
+  EmitterForTesting emitter(&options);
+  ASSERT_THAT(
+      RunFrontendAction(R"(extern "C" int Add(int a, int b);)",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+
+  EXPECT_THAT(emitter.EmitHeader(),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(emitter.EmitSandboxeeSrc(),
+              StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 }  // namespace
