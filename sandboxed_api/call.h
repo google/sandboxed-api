@@ -17,6 +17,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <type_traits>
 
 #include "sandboxed_api/var_type.h"
 
@@ -110,11 +112,11 @@ struct FuncRet {
     if constexpr (std::is_floating_point_v<T>) {
       static_assert(sizeof(T) <= sizeof(ret.float_val),
                     "float_val too small to represent type");
-      memcpy(&ret.float_val, &val, sizeof(T));
+      std::memcpy(&ret.float_val, &val, sizeof(T));
     } else {
       static_assert(sizeof(T) <= sizeof(ret.int_val),
                     "int_val too small to represent type");
-      memcpy(&ret.int_val, &val, sizeof(T));
+      std::memcpy(&ret.int_val, &val, sizeof(T));
     }
     return ret;
   }

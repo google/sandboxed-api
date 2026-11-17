@@ -228,7 +228,6 @@ target_link_libraries(sapi_sapi
          sapi::passthrough_backend
          sapi::sandbox2_backend
          sapi::status
-         sapi::lwbox_runtime
 )
 
 # sandboxed_api:call
@@ -439,7 +438,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
 endif()
 
 # Install headers and libraries, excluding tools, tests and examples
-foreach(_dir IN ITEMS . sandbox2 sandbox2/allowlists sandbox2/network_proxy sandbox2/unwind sandbox2/util util)
+foreach(_dir IN ITEMS . lwbox/runtime sandbox2 sandbox2/allowlists sandbox2/network_proxy sandbox2/unwind sandbox2/util util)
   get_property(_sapi_targets DIRECTORY ${_dir} PROPERTY BUILDSYSTEM_TARGETS)
   list(FILTER _sapi_targets INCLUDE REGEX ^\(sapi|sandbox2\).*)
   list(FILTER _sapi_targets EXCLUDE REGEX _test)

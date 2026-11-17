@@ -26,10 +26,71 @@ cc_library(
     hdrs = ["sandbox_config.h"],
     copts = sapi_platform_copts(),
     deps = [
+        "//sandboxed_api:embed_toc",
+        "//sandboxed_api:sandbox2_backend",
+        "//sandboxed_api:sandbox_config",
+        "//sandboxed_api:sapi",
+        "//sandboxed_api/sandbox2:limits",
+        "//sandboxed_api/sandbox2:policy",
+        "//sandboxed_api/sandbox2:policybuilder",
+        "//sandboxed_api/sandbox2:sandbox_config",
+        "//sandboxed_api/sandbox2/allowlists:seccomp_speculation",
+        "//sandboxed_api/util:checked_math",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_test(
+    name = "sandbox_config_test",
+    srcs = ["sandbox_config_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":sandbox_config",
+        "//sandboxed_api:embed_toc",
         "//sandboxed_api:sandbox_config",
         "//sandboxed_api/sandbox2:policy",
         "//sandboxed_api/sandbox2:policybuilder",
-        "//sandboxed_api/sandbox2/allowlists:seccomp_speculation",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "sandboxee_registry",
+    srcs = ["sandboxee_registry.cc"],
+    hdrs = ["sandboxee_registry.h"],
+    copts = sapi_platform_copts(),
+    deps = [
+        "//sandboxed_api:call",
+        "//sandboxed_api:client",
+        "//sandboxed_api:function_call_helper",
+        "//sandboxed_api:var_type",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings:string_view",
+    ],
+    alwayslink = True,
+)
+
+cc_test(
+    name = "sandboxee_registry_test",
+    srcs = ["sandboxee_registry_test.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":sandboxee_registry",
+        "//sandboxed_api:call",
+        "//sandboxed_api:function_call_helper",
+        "//sandboxed_api:var_type",
+        "@googletest//:gtest_main",
     ],
 )
 
