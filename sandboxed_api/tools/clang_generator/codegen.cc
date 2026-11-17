@@ -124,66 +124,20 @@ constexpr absl::string_view kHostHeader = R"(
 #include "$0sandboxed_api/sandbox.h"
 #include "$0sandboxed_api/lwbox/runtime/sandbox_config.h"
 
-__attribute__((weak))
-std::unique_ptr<sandbox2::Policy> $1SandboxModifyPolicy(
-    sandbox2::PolicyBuilder* builder) {
-  return builder->BuildOrDie();
+const ::sapi::EmbedToc* _sapi_merged_sandbox_embed_create();
+std::unique_ptr<sandbox2::Policy> SapiMergedSandboxModifyPolicy(
+    sandbox2::PolicyBuilder* builder);
+
+namespace {
+
+::sapi::SandboxConfig CreateMergedSandboxConfig() {
+  sandbox2::PolicyBuilder builder = ::sapi::lwbox::DefaultPolicyBuilder();
+  return ::sapi::lwbox::CreateMergedSandboxConfig(
+      SapiMergedSandboxModifyPolicy(&builder),
+      _sapi_merged_sandbox_embed_create());
 }
 
-struct $1SandboxImpl : public $1Sandbox {
-  static $1SandboxImpl* Instance() {
-    static $1SandboxImpl instance;
-    return &instance;
-  }
-
-  $1SandboxImpl() : $1Sandbox(CreateSandboxConfig()) { Check(Init()); }
-
-  void Check(const absl::Status& status) {
-    CHECK_OK(status) << "SAPI sandbox $1 failed";
-  }
-
-  size_t CheckedMultiply(size_t x, size_t y) {
-#if __has_builtin(__builtin_mul_overflow)
-    size_t result;
-    CHECK(!__builtin_mul_overflow(x, y, &result));
-    return result;
-#else
-    size_t result = x * y;
-    if (y != 0)
-      CHECK_EQ(result / y, x);
-    return result;
-#endif
-  }
-
-  static sapi::SandboxConfig CreateSandboxConfig() {
-    sandbox2::PolicyBuilder builder =
-        sapi::lwbox::DefaultPolicyBuilder();
-    return {
-        .environment_variables =
-            sapi::SandboxConfig::DefaultEnvironmentVariables(),
-        .command_line_flags = sapi::SandboxConfig::DefaultFlags(),
-        .sandbox2 = {
-            .policy = $1SandboxModifyPolicy(&builder),
-            .shared_memory_config =
-                sandbox2::SharedMemoryConfig{
-                    .size = (128ULL << 20),
-                    .enable_huge_pages = true,
-                },
-            .enable_shared_memory_comms = true,
-            .enable_multithreading = true,
-            // We're permissive with limits by default to not break libraries
-            // that might use a lot of memory/cpu.
-            .limits = sandbox2::Limits()
-                          .set_rlimit_as(RLIM64_INFINITY)
-                          .set_rlimit_cpu(RLIM64_INFINITY)
-                          .set_rlimit_fsize(RLIM64_INFINITY)
-                          .set_rlimit_nofile(RLIM64_INFINITY)
-                          .set_rlimit_core(RLIM64_INFINITY)
-                          .set_walltime_limit(absl::ZeroDuration()),
-        },
-    };
-  }
-};
+}  // namespace
 
 )";
 
@@ -2121,8 +2075,7 @@ constexpr int kThunkPoolSize = 32;
 // The pools are emitted after the host shims: a thunk calls the shim for its
 // callback typedef's invoker, and a shim that hands a callback back out calls
 // this entry point, so the two refer to each other.
-std::string EmitThunkPool(const GeneratorOptions& options,
-                          const ir::Function& invoker) {
+std::string EmitThunkPool(const ir::Function& invoker) {
   const std::string& typedef_name = *invoker.invoker_for_typedef;
   const std::string ret_type =
       invoker.return_value ? invoker.return_value->type.canonical_name : "void";
@@ -2159,16 +2112,17 @@ std::string EmitThunkPool(const GeneratorOptions& options,
       "$1 sapi_dispatch_thunk_$0(uintptr_t sapi_thunk$2) {\n"
       "  std::optional<uintptr_t> sapi_bound =\n"
       "      sapi::lwbox::SandboxeeCallbackRegistry::Instance()->LookUpThunk(\n"
-      "          *$3SandboxImpl::Instance(), *sapi_thunk_pool_$0(),\n"
-      "          sapi_thunk);\n"
+      "          ::sapi::lwbox::SharedSandboxInstance("
+      "&CreateMergedSandboxConfig),\n"
+      "          *sapi_thunk_pool_$0(), sapi_thunk);\n"
       "  CHECK(sapi_bound.has_value())\n"
       "      << \"a host thunk for callback typedef $0 was called after its "
       "\"\n"
       "         \"binding was released\";\n"
-      "  return $4(*sapi_bound$5);\n"
+      "  return $3(*sapi_bound$4);\n"
       "}\n\n",
       typedef_name, ret_type, params.empty() ? "" : absl::StrCat(", ", params),
-      options.name, invoker.name, args_after_target);
+      invoker.name, args_after_target);
 
   std::vector<std::string> thunk_addresses;
   thunk_addresses.reserve(kThunkPoolSize);
@@ -2200,14 +2154,15 @@ std::string EmitThunkPool(const GeneratorOptions& options,
       "// callback typedef `$0`'s signature. A null function stays null.\n"
       "extern \"C\" uintptr_t sapi_bind_thunk_$0(uintptr_t sapi_sandboxee_fn) "
       "{\n"
-      "  auto* sandbox = $2SandboxImpl::Instance();\n"
+      "  auto* sandbox = &::sapi::lwbox::SharedSandboxInstance("
+      "&CreateMergedSandboxConfig);\n"
       "  absl::StatusOr<uintptr_t> sapi_thunk =\n"
       "      sapi::lwbox::SandboxeeCallbackRegistry::Instance()->ThunkFor(\n"
       "          *sandbox, *sapi_thunk_pool_$0(), sapi_sandboxee_fn);\n"
       "  sandbox->Check(sapi_thunk.status());\n"
       "  return *sapi_thunk;\n"
       "}\n\n",
-      typedef_name, absl::StrJoin(thunk_addresses, "\n"), options.name);
+      typedef_name, absl::StrJoin(thunk_addresses, "\n"));
   return out;
 }
 
@@ -2217,8 +2172,7 @@ absl::StatusOr<std::string> EmitHostSrc(
     const absl::flat_hash_set<std::string>& includes) {
   std::string out;
   absl::StrAppendFormat(&out, "#include \"%s\"\n", options.out_file);
-  absl::StrAppend(&out,
-                  absl::Substitute(kHostHeader, kIncludePrefix, options.name));
+  absl::StrAppend(&out, absl::Substitute(kHostHeader, kIncludePrefix));
 
   std::vector<const ir::Function*> sorted_funcs = GetSortedFunctions(library);
 
@@ -2262,8 +2216,8 @@ absl::StatusOr<std::string> EmitHostSrc(
     EmitFuncDecl(out, *func);
     absl::StrAppend(
         &out, " {\n",
-        absl::Substitute("  auto* sandbox = $0SandboxImpl::Instance();\n",
-                         options.name),
+        "  auto* sandbox = &::sapi::lwbox::SharedSandboxInstance("
+        "&CreateMergedSandboxConfig);\n",
         absl::Substitute("  $0Api api(sandbox);\n\n", options.name));
 
     std::string pre_call;
@@ -2403,7 +2357,7 @@ absl::StatusOr<std::string> EmitHostSrc(
     if (!func->invoker_for_typedef) {
       continue;
     }
-    absl::StrAppend(&out, EmitThunkPool(options, *func));
+    absl::StrAppend(&out, EmitThunkPool(*func));
   }
 
   absl::flat_hash_set<std::string> host_includes =

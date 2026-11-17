@@ -18,9 +18,9 @@ load("@bazel_skylib//rules:common_settings.bzl", "string_setting")
 licenses(["notice"])
 
 exports_files([
-    "proto.bzl",
     "embed_data.bzl",
     "embed_data_oss.bzl",
+    "proto.bzl",
     "sapi.bzl",
 ])
 
