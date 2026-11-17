@@ -889,7 +889,9 @@ TEST_F(SandboxeeTest, PrototypesAreCorrectlyGenerated) {
                            }  // namespace sandboxed
                            enum E { A, B, C };
                            typedef unsigned long long MyType;
-                           extern "C" sandboxed::S* Structize();
+                           extern "C" sandboxed::S* Structize(
+                               const sandboxed::S* in,
+                               volatile sandboxed::S* out);
                            extern "C" MyType Add(MyType a, MyType b);
                            extern "C" void Enumify(E e);)",
                         std::make_unique<GeneratorAction>(&emitter, &options)),
@@ -902,7 +904,7 @@ TEST_F(SandboxeeTest, PrototypesAreCorrectlyGenerated) {
 
   EXPECT_THAT(sandboxee_src,
               HasSubstr("extern \"C\" { "
-                        "void* Structize(); "
+                        "void* Structize(const void*, volatile void*); "
                         "unsigned long long Add(unsigned long long, unsigned "
                         "long long); "
                         "void Enumify(unsigned int); "
@@ -940,6 +942,18 @@ TEST_F(SandboxeeTest, StubsAreCallingSandboxedFunctions) {
 
   EXPECT_THAT(sandboxee_src, ContainsRegex("FuncRet HandleCall_Enumify"
                                            ".*{.*Enumify\\(.*\\);.*}"));
+
+  EXPECT_THAT(sandboxee_src,
+              HasSubstr("extern char sapi_sym_Add[] __asm__(\"Add\"); "
+                        "extern char sapi_sym_Enumify[] __asm__(\"Enumify\"); "
+                        "extern char sapi_sym_Structize[] "
+                        "__asm__(\"Structize\");"));
+  EXPECT_THAT(
+      sandboxee_src,
+      HasSubstr("{\"Add\", reinterpret_cast<void*>(SAPI_SYM(Add))}, "
+                "{\"Enumify\", reinterpret_cast<void*>(SAPI_SYM(Enumify))}, "
+                "{\"Structize\", "
+                "reinterpret_cast<void*>(SAPI_SYM(Structize))}"));
 }
 
 TEST_F(SandboxeeTest, VariadicParametersSkipsFunction) {
@@ -987,7 +1001,9 @@ TEST_F(SandboxeeTest, MergedSandboxeeRegistersIntoLwboxRegistry) {
               HasSubstr("::sapi::lwbox::RegisterSandboxeeFunctions("));
   EXPECT_THAT(sandboxee_src, HasSubstr("{\"Add\", HandleCall_Add}"));
   EXPECT_THAT(sandboxee_src,
-              HasSubstr("{\"Add\", reinterpret_cast<void*>(&Add)}"));
+              HasSubstr("extern char sapi_sym_Add[] __asm__(\"Add\");"));
+  EXPECT_THAT(sandboxee_src,
+              HasSubstr("{\"Add\", reinterpret_cast<void*>(SAPI_SYM(Add))}"));
   EXPECT_THAT(sandboxee_src, Not(HasSubstr("sapi_callback_trampolines")));
   EXPECT_THAT(sandboxee_src, Not(HasSubstr("HandleCallMsg(")));
   EXPECT_THAT(sandboxee_src, Not(HasSubstr("HandleSymbolMsg(")));

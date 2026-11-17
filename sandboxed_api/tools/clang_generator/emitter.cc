@@ -185,7 +185,8 @@ inline constexpr std::string_view kSandboxeeCommonIncludes = R"(
 //   2. Sandboxee handler functions
 //   3. HandleCallMsg name prefix
 //   4. Sandboxee function names
-//   5. Sandboxee symbol names
+//   5. Sandboxee symbol declarations
+//   6. Sandboxee symbol names
 inline constexpr std::string_view kSandboxeeSrcTemplate = R"(
 #if defined(__x86_64__) || defined(__aarch64__) || defined(__riscv)
 extern "C" char sapi_callback_trampolines[];
@@ -223,10 +224,23 @@ void %3$sHandleCallMsg(const ::sapi::FuncCall& call, ::sapi::FuncRet* ret) {
 }
 
 void %3$sHandleSymbolMsg(const char* symname, ::sapi::FuncRet* ret) {
+  // DFSan appends a `.dfsan` suffix to instrumented function symbols, which
+  // does not apply to `char[]` asm aliases. Consider special-casing DFSan
+  // instead of kCFI in the future.
+#ifdef __has_feature
+#if __has_feature(kcfi)
+  %5$s
+#define SAPI_SYM(sym) sapi_sym_##sym
+#endif
+#endif
+#ifndef SAPI_SYM
+#define SAPI_SYM(sym) &sym
+#endif
   static const absl::NoDestructor<absl::flat_hash_map<std::string, void*>>
     kSandboxeeSymbols({
-  %5$s
+  %6$s
   });
+#undef SAPI_SYM
 
   auto it = kSandboxeeSymbols->find(symname);
   if (ABSL_PREDICT_FALSE(it == kSandboxeeSymbols->end())) {
@@ -254,7 +268,8 @@ inline constexpr std::string_view kMergedSandboxeeIncludes = R"(
 //   1. Sandboxee prototypes
 //   2. Sandboxee handler functions
 //   3. Sandboxee function entries
-//   4. Sandboxee symbol entries
+//   4. Sandboxee symbol declarations
+//   5. Sandboxee symbol entries
 inline constexpr std::string_view kMergedSandboxeeSrcTemplate = R"(
 extern "C" {
   %1$s
@@ -266,13 +281,26 @@ namespace {
   %2$s
 
 [[maybe_unused]] const bool kSandboxeeRegistered = []() {
+  // DFSan appends a `.dfsan` suffix to instrumented function symbols, which
+  // does not apply to `char[]` asm aliases. Consider special-casing DFSan
+  // instead of kCFI in the future.
+#ifdef __has_feature
+#if __has_feature(kcfi)
+  %4$s
+#define SAPI_SYM(sym) sapi_sym_##sym
+#endif
+#endif
+#ifndef SAPI_SYM
+#define SAPI_SYM(sym) &sym
+#endif
   ::sapi::lwbox::RegisterSandboxeeFunctions(
       {
   %3$s
       },
       {
-  %4$s
+  %5$s
       });
+#undef SAPI_SYM
   return true;
 }();
 }  // namespace
@@ -354,7 +382,10 @@ std::string GetSandboxeeCppType(TypeMapper& type_mapper, clang::QualType type) {
     type = enum_decl->getIntegerType();
   }
   if (type->isPointerType() && !type->getPointeeType()->isBuiltinType()) {
-    return "void *";
+    clang::QualType pointee = type->getPointeeType();
+    return absl::StrCat(pointee.isConstQualified() ? "const " : "",
+                        pointee.isVolatileQualified() ? "volatile " : "",
+                        "void *");
   }
   return type_mapper.MapQualTypeParameterForCxx(type);
 }
@@ -532,11 +563,15 @@ absl::StatusOr<std::string> Emitter::DoEmitSandboxeeSrc() {
   std::sort(rendered_functions_unqualified_ordered.begin(),
             rendered_functions_unqualified_ordered.end());
 
+  std::vector<std::string> sym_decls;
   std::vector<std::string> entries;
+  sym_decls.reserve(rendered_functions_unqualified_ordered.size());
   entries.reserve(rendered_functions_unqualified_ordered.size() + 1);
   for (const auto& func : rendered_functions_unqualified_ordered) {
-    entries.push_back(
-        absl::StrFormat("{\"%1$s\", reinterpret_cast<void*>(&%1$s)}", func));
+    sym_decls.push_back(absl::StrFormat(
+        "extern char sapi_sym_%1$s[] __asm__(\"%1$s\");", func));
+    entries.push_back(absl::StrFormat(
+        "{\"%1$s\", reinterpret_cast<void*>(SAPI_SYM(%1$s))}", func));
   }
   const std::string function_entries = absl::StrJoin(
       rendered_functions_unqualified_ordered, ",\n",
@@ -552,7 +587,8 @@ absl::StatusOr<std::string> Emitter::DoEmitSandboxeeSrc() {
                   kMergedSandboxeeSrcTemplate,
                   absl::StrJoin(rendered_sandboxee_prototypes_ordered_, "\n"),
                   absl::StrJoin(rendered_sandboxee_handler_ordered_, "\n"),
-                  function_entries, absl::StrJoin(entries, ",\n")));
+                  function_entries, absl::StrJoin(sym_decls, "\n  "),
+                  absl::StrJoin(entries, ",\n")));
     return out;
   }
 
@@ -570,7 +606,8 @@ absl::StatusOr<std::string> Emitter::DoEmitSandboxeeSrc() {
           kSandboxeeSrcTemplate,
           absl::StrJoin(rendered_sandboxee_prototypes_ordered_, "\n"),
           absl::StrJoin(rendered_sandboxee_handler_ordered_, "\n"),
-          call_msg_prefix, function_entries, absl::StrJoin(entries, ",\n")));
+          call_msg_prefix, function_entries, absl::StrJoin(sym_decls, "\n  "),
+          absl::StrJoin(entries, ",\n")));
   return out;
 }
 
