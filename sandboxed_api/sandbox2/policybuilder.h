@@ -593,11 +593,12 @@ class PolicyBuilder final {
   // - wait4
   PolicyBuilder& AllowWait();
 
-  // Appends code to allow setting alarms / interval timers.
+  // Appends code to allow setting and getting alarms / interval timers.
   //
   // Allows these syscalls:
   // - alarm (on architectures where it exists)
   // - setitimer
+  // - getitimer
   PolicyBuilder& AllowAlarm();
 
   // Appends code to allow setting posix timers.

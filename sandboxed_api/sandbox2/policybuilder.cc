@@ -1078,7 +1078,9 @@ PolicyBuilder& PolicyBuilder::AllowAlarm() {
 #ifdef __NR_alarm
       __NR_alarm,
 #endif
-      __NR_setitimer});
+      __NR_setitimer,
+      __NR_getitimer,
+  });
 }
 
 PolicyBuilder& PolicyBuilder::AllowPosixTimers() {
