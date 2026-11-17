@@ -1000,8 +1000,10 @@ TEST_F(SandboxeeTest, MergedSandboxeeRegistersIntoLwboxRegistry) {
   EXPECT_THAT(sandboxee_src,
               HasSubstr("::sapi::lwbox::RegisterSandboxeeFunctions("));
   EXPECT_THAT(sandboxee_src, HasSubstr("{\"Add\", HandleCall_Add}"));
-  EXPECT_THAT(sandboxee_src,
-              HasSubstr("extern char sapi_sym_Add[] __asm__(\"Add\");"));
+  EXPECT_THAT(
+      UglifyAll({sandboxee_src})[0],
+      ContainsRegex(
+          R"(namespace sapi::client \{.*extern char sapi_sym_Add\[\] __asm__\("Add"\);.*namespace \{)"));
   EXPECT_THAT(sandboxee_src,
               HasSubstr("{\"Add\", reinterpret_cast<void*>(SAPI_SYM(Add))}"));
   EXPECT_THAT(sandboxee_src, Not(HasSubstr("sapi_callback_trampolines")));

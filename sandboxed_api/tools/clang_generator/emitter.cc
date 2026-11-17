@@ -277,22 +277,22 @@ extern "C" {
 }
 
 namespace sapi::client {
-namespace {
-  %2$s
-
-[[maybe_unused]] const bool kSandboxeeRegistered = []() {
-  // DFSan appends a `.dfsan` suffix to instrumented function symbols, which
-  // does not apply to `char[]` asm aliases. Consider special-casing DFSan
-  // instead of kCFI in the future.
+// DFSan appends a `.dfsan` suffix to instrumented function symbols, which
+// does not apply to `char[]` asm aliases. Consider special-casing DFSan
+// instead of kCFI in the future.
 #ifdef __has_feature
 #if __has_feature(kcfi)
-  %4$s
+%4$s
 #define SAPI_SYM(sym) sapi_sym_##sym
 #endif
 #endif
 #ifndef SAPI_SYM
 #define SAPI_SYM(sym) &sym
 #endif
+namespace {
+  %2$s
+
+[[maybe_unused]] const bool kSandboxeeRegistered = []() {
   ::sapi::lwbox::RegisterSandboxeeFunctions(
       {
   %3$s
@@ -300,10 +300,10 @@ namespace {
       {
   %5$s
       });
-#undef SAPI_SYM
   return true;
 }();
 }  // namespace
+#undef SAPI_SYM
 }  // namespace sapi::client
 )";
 
