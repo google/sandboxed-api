@@ -51,6 +51,8 @@ Result& Result::operator=(const Result& other) {
   }
   prog_name_ = other.prog_name_;
   proc_maps_ = other.proc_maps_;
+  network_violation_ = other.network_violation_;
+  setup_error_detail_ = other.setup_error_detail_;
   rusage_monitor_ = other.rusage_monitor_;
   rusage_sandboxee_ = other.rusage_sandboxee_;
   return *this;
@@ -179,6 +181,9 @@ std::string Result::ToString() const {
       result = absl::StrCat(
           "SETUP_ERROR - Code: ",
           ReasonCodeEnumToString(static_cast<ReasonCodeEnum>(reason_code())));
+      if (!setup_error_detail_.empty()) {
+        absl::StrAppend(&result, " (", setup_error_detail_, ")");
+      }
       break;
     case VIOLATION:
       if (syscall_) {

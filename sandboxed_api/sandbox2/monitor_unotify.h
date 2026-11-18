@@ -71,12 +71,18 @@ class UnotifyMonitor : public MonitorBase {
     void operator()(void* p) { std::free(p); }
   };
 
+  struct ExitStatus {
+    int code = 0;
+    int status = 0;
+  };
+
   // Waits for events from monitored clients and signals from the main process.
   void RunInternal() override;
   void Join() override;
   void Run();
 
   void ModifyPolicy(std::vector<sock_filter>& policy) override;
+  void HandlePreSandboxCommsTermination() override;
 
   bool InitSetupUnotify();
   bool InitSetupNotifyEventFd();
@@ -88,6 +94,7 @@ class UnotifyMonitor : public MonitorBase {
   void RespondErrnoViaUnotify(seccomp_notif req, int error_code);
   void HandleViolation(const Syscall& syscall);
   void HandleUnotify();
+  absl::StatusOr<ExitStatus> ReadExitStatusFromStatusPipe();
   void SetExitStatusFromStatusPipe();
 
   void MaybeGetStackTrace(pid_t pid, Result::StatusEnum status);

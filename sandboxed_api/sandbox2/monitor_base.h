@@ -95,6 +95,11 @@ class MonitorBase {
   // Can be overridden by subclasses to save/modify policy before sending.
   virtual void ModifyPolicy(std::vector<sock_filter>& policy) {};
 
+  // Records setup error details when the sandboxee terminates before
+  // completing the initial handshake. Subclasses can override this to populate
+  // additional exit status details before delegating to MonitorBase.
+  virtual void HandlePreSandboxCommsTermination();
+
   bool wait_for_execveat() const { return wait_for_execveat_; }
   void set_wait_for_execveat(bool wait_for_execve) {
     wait_for_execveat_ = wait_for_execve;

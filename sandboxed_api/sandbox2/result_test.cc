@@ -36,6 +36,7 @@ using ::absl_testing::StatusIs;
 using ::testing::AllOf;
 using ::testing::Eq;
 using ::testing::HasSubstr;
+using ::testing::Not;
 using ::testing::NotNull;
 
 TEST(ResultTest, StatusEnumToString) {
@@ -179,7 +180,24 @@ TEST(ResultTest, StatusSetupError) {
   EXPECT_THAT(result.reason_code(), Eq(Result::FAILED_NAMESPACES));
   EXPECT_THAT(result.ToStatus(), StatusIs(absl::StatusCode::kInternal));
   EXPECT_THAT(result.ToString(),
-              HasSubstr("SETUP_ERROR - Code: FAILED_NAMESPACES"));
+              AllOf(HasSubstr("SETUP_ERROR - Code: FAILED_NAMESPACES"),
+                    Not(HasSubstr("("))));
+}
+
+TEST(ResultTest, StatusSetupErrorWithDetailAndCopy) {
+  Result result;
+  result.SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_CONNECTION);
+  result.SetSetupErrorDetail("process terminated with signal SIGTERM");
+  EXPECT_THAT(result.GetSetupErrorDetail(),
+              Eq("process terminated with signal SIGTERM"));
+  EXPECT_THAT(result.ToString(),
+              HasSubstr("SETUP_ERROR - Code: FAILED_CONNECTION "
+                        "(process terminated with signal SIGTERM)"));
+
+  Result copied(result);
+  EXPECT_THAT(copied.GetSetupErrorDetail(),
+              Eq("process terminated with signal SIGTERM"));
+  EXPECT_THAT(copied.ToString(), Eq(result.ToString()));
 }
 
 TEST(ResultTest, StatusSignaled) {
@@ -233,6 +251,11 @@ TEST(ResultTest, StatusViolationNetwork) {
               Eq("connect to 127.0.0.1:80 blocked"));
   EXPECT_THAT(result.ToString(),
               HasSubstr("NETWORK VIOLATION: connect to 127.0.0.1:80 blocked"));
+
+  Result copied(result);
+  EXPECT_THAT(copied.GetNetworkViolation(),
+              Eq("connect to 127.0.0.1:80 blocked"));
+  EXPECT_THAT(copied.ToString(), Eq(result.ToString()));
 }
 
 TEST(ResultTest, StatusViolationUnknown) {

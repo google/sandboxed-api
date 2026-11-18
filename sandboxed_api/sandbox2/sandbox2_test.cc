@@ -80,6 +80,7 @@ using ::absl_testing::IsOk;
 using ::absl_testing::StatusIs;
 using ::sapi::CreateDefaultPermissiveTestPolicy;
 using ::sapi::GetTestSourcePath;
+using ::testing::AllOf;
 using ::testing::Eq;
 using ::testing::Gt;
 using ::testing::HasSubstr;
@@ -89,6 +90,7 @@ using ::testing::IsFalse;
 using ::testing::IsTrue;
 using ::testing::Lt;
 using ::testing::Ne;
+using ::testing::Not;
 using ::testing::StartsWith;
 
 class ScopedVLogLevel {
@@ -1193,6 +1195,62 @@ TEST_P(Sandbox2Test, MainThreadExitSignaled) {
   EXPECT_THAT(result.final_status(), Eq(Result::SIGNALED));
   EXPECT_THAT(result.reason_code(), Eq(SIGTERM));
   EXPECT_THAT(result.GetRUsageSandboxee().has_value(), IsTrue());
+}
+
+TEST_P(Sandbox2Test, PreSandboxTerminationReportsStatus) {
+  const std::string path =
+      GetTestSourcePath("sandbox2/testcases/main_thread_exit");
+  std::vector<std::string> args = {path, "signal"};
+  auto executor = std::make_unique<Executor>(path, args);
+  executor->set_enable_sandbox_before_exec(false);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultTestPolicy(path).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
+  auto result = sandbox.Run();
+  EXPECT_THAT(result.final_status(), Eq(Result::SETUP_ERROR));
+  EXPECT_THAT(result.reason_code(), Eq(Result::FAILED_CONNECTION));
+  if (GetParam()) {
+    EXPECT_THAT(result.GetSetupErrorDetail(),
+                Eq("process terminated with signal SIGTERM [15]"));
+    EXPECT_THAT(result.ToString(),
+                StartsWith("SETUP_ERROR - Code: FAILED_CONNECTION "
+                           "(process terminated with signal SIGTERM [15])"));
+    EXPECT_THAT(result.GetRUsageSandboxee().has_value(), IsTrue());
+  } else {
+    EXPECT_THAT(result.GetSetupErrorDetail(), IsEmpty());
+    EXPECT_THAT(result.ToString(),
+                AllOf(StartsWith("SETUP_ERROR - Code: FAILED_CONNECTION"),
+                      Not(HasSubstr("("))));
+    EXPECT_THAT(result.GetRUsageSandboxee().has_value(), IsFalse());
+  }
+}
+
+TEST_P(Sandbox2Test, PreSandboxExitReportsStatus) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  std::vector<std::string> args = {path, "1"};
+  auto executor = std::make_unique<Executor>(path, args);
+  executor->set_enable_sandbox_before_exec(false);
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultTestPolicy(path).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_THAT(SetUpSandbox(&sandbox), IsOk());
+  auto result = sandbox.Run();
+  EXPECT_THAT(result.final_status(), Eq(Result::SETUP_ERROR));
+  EXPECT_THAT(result.reason_code(), Eq(Result::FAILED_CONNECTION));
+  if (GetParam()) {
+    EXPECT_THAT(result.GetSetupErrorDetail(), Eq("process exited with code 1"));
+    EXPECT_THAT(result.ToString(),
+                StartsWith("SETUP_ERROR - Code: FAILED_CONNECTION "
+                           "(process exited with code 1)"));
+    EXPECT_THAT(result.GetRUsageSandboxee().has_value(), IsTrue());
+  } else {
+    EXPECT_THAT(result.GetSetupErrorDetail(), IsEmpty());
+    EXPECT_THAT(result.ToString(),
+                AllOf(StartsWith("SETUP_ERROR - Code: FAILED_CONNECTION"),
+                      Not(HasSubstr("("))));
+    EXPECT_THAT(result.GetRUsageSandboxee().has_value(), IsFalse());
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(Sandbox2, Sandbox2Test, ::testing::Values(false, true),

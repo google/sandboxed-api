@@ -400,25 +400,49 @@ void UnotifyMonitor::Run() {
   }
 }
 
-void UnotifyMonitor::SetExitStatusFromStatusPipe() {
-  int code, status;
-  rusage usage;
-
+absl::StatusOr<UnotifyMonitor::ExitStatus>
+UnotifyMonitor::ReadExitStatusFromStatusPipe() {
+  ExitStatus exit_status;
+  rusage usage{};
   std::vector<iovec> iov = {
-      {.iov_base = &code, .iov_len = sizeof(code)},
-      {.iov_base = &status, .iov_len = sizeof(status)},
+      {.iov_base = &exit_status.code, .iov_len = sizeof(exit_status.code)},
+      {.iov_base = &exit_status.status, .iov_len = sizeof(exit_status.status)},
       {.iov_base = &usage, .iov_len = sizeof(usage)},
   };
+  ABSL_RETURN_IF_ERROR(ReadWholeWithDeadline(process_.status_fd.get(),
+                                             std::move(iov),
+                                             absl::Now() + absl::Seconds(1)));
+  result_.SetRUsageSandboxee(usage);
+  return exit_status;
+}
 
-  if (absl::Status status = ReadWholeWithDeadline(
-          process_.status_fd.get(), iov, absl::Now() + absl::Seconds(1));
-      !status.ok()) {
-    PLOG(ERROR) << "reading status pipe failed " << status;
+void UnotifyMonitor::HandlePreSandboxCommsTermination() {
+  if (absl::StatusOr<ExitStatus> exit_status = ReadExitStatusFromStatusPipe();
+      exit_status.ok()) {
+    if (exit_status->code == CLD_EXITED) {
+      result_.SetSetupErrorDetail(
+          absl::StrCat("process exited with code ", exit_status->status));
+    } else if (exit_status->code == CLD_KILLED ||
+               exit_status->code == CLD_DUMPED) {
+      result_.SetSetupErrorDetail(
+          absl::StrCat("process terminated with signal ",
+                       util::GetSignalName(exit_status->status)));
+    }
+  } else {
+    LOG(WARNING) << "reading status pipe failed " << exit_status.status();
+  }
+  MonitorBase::HandlePreSandboxCommsTermination();
+}
+
+void UnotifyMonitor::SetExitStatusFromStatusPipe() {
+  absl::StatusOr<ExitStatus> exit_status = ReadExitStatusFromStatusPipe();
+  if (!exit_status.ok()) {
+    PLOG(ERROR) << "reading status pipe failed " << exit_status.status();
     SetExitStatusCode(Result::INTERNAL_ERROR, Result::FAILED_MONITOR);
     return;
   }
+  const auto [code, status] = *exit_status;
 
-  result_.SetRUsageSandboxee(usage);
   if (code == CLD_EXITED) {
     SetExitStatusCode(Result::OK, status);
   } else if (code == CLD_KILLED || code == CLD_DUMPED) {

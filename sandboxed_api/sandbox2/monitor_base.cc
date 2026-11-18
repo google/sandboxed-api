@@ -228,6 +228,10 @@ void MonitorBase::Launch() {
   // We purposefully ignore the return value of InitVerifyVersion(), in case
   // there is a version mismatch.
   if (!InitVerifyVersion()) {
+    if (comms_->IsTerminated()) {
+      HandlePreSandboxCommsTermination();
+      return;
+    }
     LOG(ERROR)
         << "We detected a version mismatch between the host and the sandboxee. "
         << "This indicates a problem with packaging the host and/or the "
@@ -379,6 +383,13 @@ bool MonitorBase::InitApplyLimits() {
          InitApplyLimit(process_.main_pid, RLIMIT_NOFILE,
                         limits->rlimit_nofile()) &&
          InitApplyLimit(process_.main_pid, RLIMIT_CORE, limits->rlimit_core());
+}
+
+void MonitorBase::HandlePreSandboxCommsTermination() {
+  const std::string& detail = result_.GetSetupErrorDetail();
+  LOG(ERROR) << "Sandboxee terminated before completing handshake"
+             << (detail.empty() ? "" : absl::StrCat(": ", detail));
+  SetExitStatusCode(Result::SETUP_ERROR, Result::FAILED_CONNECTION);
 }
 
 bool MonitorBase::InitVerifyVersion() {

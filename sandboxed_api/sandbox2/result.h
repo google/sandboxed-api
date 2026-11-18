@@ -142,6 +142,10 @@ class Result {
     network_violation_ = std::move(network_violation);
   }
 
+  void SetSetupErrorDetail(std::string detail) {
+    setup_error_detail_ = std::move(detail);
+  }
+
   StatusEnum final_status() const { return final_status_; }
   uintptr_t reason_code() const { return reason_code_; }
 
@@ -173,6 +177,8 @@ class Result {
   const std::string& GetProgName() const { return prog_name_; }
 
   const std::string& GetNetworkViolation() const { return network_violation_; }
+
+  const std::string& GetSetupErrorDetail() const { return setup_error_detail_; }
 
   void SetProgName(const std::string& name) { prog_name_ = name; }
 
@@ -223,6 +229,8 @@ class Result {
   std::string proc_maps_;
   // IP and port if network violation occurred
   std::string network_violation_;
+  // Optional detail when SETUP_ERROR occurs (e.g. pre-sandbox child exit)
+  std::string setup_error_detail_;
   // Final resource usage as defined in <sys/resource.h> (man getrusage), for
   // the Monitor thread.
   rusage rusage_monitor_;
