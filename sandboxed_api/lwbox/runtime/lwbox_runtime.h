@@ -59,9 +59,11 @@
 #ifndef SANDBOXED_API_LWBOX_RUNTIME_LWBOX_RUNTIME_H_
 #define SANDBOXED_API_LWBOX_RUNTIME_LWBOX_RUNTIME_H_
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <optional>
 #include <string>
 #include <tuple>
@@ -309,11 +311,15 @@ class SandboxeeCallbackRegistry {
 // 1. No host `.text` address ever enters the sandboxee: the sandboxee only
 //    receives the address of a slot in its own `sapi_callback_trampolines`
 //    array, and upcalls identify the slot by integer index `[0, 64)`.
-// 2. Multiplicity / Idempotency: while a callback slot is registered, a
-//    compromised sandboxee can invoke that trampoline an arbitrary number of
-//    times during any active RPC call. Generated marshaling wrappers allocate
-//    fresh host buffers per invocation, but the user's host callback function
-//    itself must tolerate repeated invocation without corrupting host state.
+// 2. Multiplicity / Idempotency: by default (`idempotent == false`), a
+//    registered callback is armed for at most one invocation per registration
+//    and `CHECK`-fails if the sandboxee invokes it a second time without the
+//    host re-arming it via `TrampolineFor`. When opted in with
+//    `idempotent == true` (`SANDBOX_CALLBACK_IDEMPOTENT`), the sandboxee can
+//    invoke that trampoline an arbitrary number of times during any active RPC
+//    call; generated marshaling wrappers allocate fresh host buffers per
+//    invocation, and the user's host callback function must tolerate repeated
+//    invocation without corrupting host state.
 // 3. Callback-typedef-checked unwrapping: `LookUpTrampoline` verifies that the
 //    trampoline's recorded `typedef_name` matches the callback typedef of the
 //    return value or struct field through which it is leaving the sandbox,
@@ -321,8 +327,14 @@ class SandboxeeCallbackRegistry {
 //    callback typedefs with incompatible C ABI signatures.
 class HostCallbackRegistry {
  public:
+  struct CallState {
+    std::atomic<bool> called{false};
+    std::atomic<bool> idempotent{false};
+  };
+
   using RawHandler = absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)>;
-  using HandlerFactory = absl::AnyInvocable<RawHandler() &&>;
+  using HandlerFactory =
+      absl::AnyInvocable<RawHandler(std::shared_ptr<CallState>) &&>;
 
   static HostCallbackRegistry* Instance();
 
@@ -331,20 +343,35 @@ class HostCallbackRegistry {
   // `sandbox.rpc_channel()->RegisterCallback(...)` the first time this triple
   // is seen and returning the same trampoline address on every later call.
   //
+  // By default (`idempotent == false`), the callback is armed for at most one
+  // invocation and tombstoned (`CHECK`-failing on a second invocation from the
+  // sandboxee) until the host calls `TrampolineFor` again to re-arm it. When
+  // `idempotent == true` (`SANDBOX_CALLBACK_IDEMPOTENT`), the callback may be
+  // invoked an arbitrary number of times.
+  //
   // A null `fn` is not a callback: it is returned unchanged and consumes no
   // slot, so that a library's `if (s->cb)` keeps working.
   template <typename F>
   absl::StatusOr<uintptr_t> TrampolineFor(sapi::SandboxBase& sandbox,
                                           absl::string_view typedef_name,
-                                          uintptr_t fn, F&& handler) {
+                                          uintptr_t fn, F&& handler,
+                                          bool idempotent = false) {
     using Traits = sapi::v::callback_internal::FunctionTraits<std::decay_t<F>>;
     static_assert(Traits::kArgsCount <= 6,
                   "SAPI callbacks support a maximum of 6 arguments");
     return TrampolineForFactory(
-        sandbox, typedef_name, fn,
-        [f = std::forward<F>(handler)]() mutable -> RawHandler {
-          return [f = std::move(f)](
+        sandbox, typedef_name, fn, idempotent,
+        [f = std::forward<F>(handler),
+         typedef_name](std::shared_ptr<CallState> state) mutable -> RawHandler {
+          return [f = std::move(f), cb_typedef = std::string(typedef_name),
+                  state = std::move(state)](
                      absl::Span<const uint64_t> span) mutable -> uint64_t {
+            if (!state->idempotent.load(std::memory_order_acquire)) {
+              CHECK(!state->called.exchange(true, std::memory_order_acq_rel))
+                  << "Host callback for callback typedef '" << cb_typedef
+                  << "' was invoked more than once without "
+                     "SANDBOX_CALLBACK_IDEMPOTENT";
+            }
             using ArgsTuple = typename Traits::ArgsTuple;
             return sapi::v::callback_internal::CallHelper<ArgsTuple>(f, span);
           };
@@ -378,6 +405,7 @@ class HostCallbackRegistry {
   struct Binding {
     std::string typedef_name;
     uintptr_t fn;
+    std::shared_ptr<CallState> state;
   };
 
   // The same host function reached through two different callback typedefs
@@ -417,7 +445,7 @@ class HostCallbackRegistry {
 
   absl::StatusOr<uintptr_t> TrampolineForFactory(sapi::SandboxBase& sandbox,
                                                  absl::string_view typedef_name,
-                                                 uintptr_t fn,
+                                                 uintptr_t fn, bool idempotent,
                                                  HandlerFactory make_handler);
 
   void PurgeStaleSessionLocked(const sapi::SandboxBase& sandbox,

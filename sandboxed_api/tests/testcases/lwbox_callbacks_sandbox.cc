@@ -36,7 +36,8 @@ SANDBOX_LIFETIME_OUTER_CALL SANDBOX_ELEM_SIZED_BY(
 
 // Returns an uninitialized `size`-byte buffer that the library overwrites
 // completely, avoiding an initial copy into the sandbox.
-SANDBOX_LIFETIME_OUTER_CALL SANDBOX_ELEM_SIZED_BY(size) SANDBOX_UNINITIALIZED
+SANDBOX_CALLBACK_IDEMPOTENT SANDBOX_LIFETIME_OUTER_CALL
+    SANDBOX_ELEM_SIZED_BY(size) SANDBOX_UNINITIALIZED
     typedef uint8_t* (*out_chunk_allocator)(size_t size);
 
 void callback_returning_buffer(const uint8_t* input SANDBOX_IN_PTR
@@ -75,13 +76,15 @@ int64_t with_input_prim_pointer(
     int64_t (*cb)(const int64_t* input SANDBOX_IN_PTR), int64_t input);
 
 int with_input_elem_sized(
-    int (*cb)(const int* input SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(in_size),
-              size_t in_size),
+    SANDBOX_CALLBACK_IDEMPOTENT int (*cb)(const int* input SANDBOX_IN_PTR
+                                              SANDBOX_ELEM_SIZED_BY(in_size),
+                                          size_t in_size),
     size_t in_size);
 
 int with_input_byte_sized(
-    int (*cb)(const void* input SANDBOX_IN_PTR SANDBOX_BYTE_SIZED_BY(num_bytes),
-              size_t num_bytes),
+    SANDBOX_CALLBACK_IDEMPOTENT int (*cb)(const void* input SANDBOX_IN_PTR
+                                              SANDBOX_BYTE_SIZED_BY(num_bytes),
+                                          size_t num_bytes),
     size_t in_size);
 
 int with_input_null_term(
@@ -91,6 +94,7 @@ int with_input_null_term(
 // Callback declared through a typedef. Clang preserves parameter declarations
 // and annotations in the typedef's TypeSourceInfo, so the generator processes
 // them in the same way as inline callback parameters.
+SANDBOX_CALLBACK_IDEMPOTENT
 typedef int (*sum_ints_cb)(const int* input SANDBOX_IN_PTR
                                SANDBOX_ELEM_SIZED_BY(in_size),
                            size_t in_size);

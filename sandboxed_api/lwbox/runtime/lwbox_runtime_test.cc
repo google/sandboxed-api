@@ -787,6 +787,71 @@ TEST(HostCallbackRegistryTest,
 
   const uint64_t kArgs[] = {17, 25};
   EXPECT_EQ(scoped.InvokeLastHandler(kArgs), 42u);
+
+  // By default (`idempotent == false`), a second invocation from the sandboxee
+  // without the host re-registering the callback CHECK-fails.
+  EXPECT_DEATH(
+      scoped.InvokeLastHandler(kArgs),
+      "was invoked more than once without SANDBOX_CALLBACK_IDEMPOTENT");
+
+  // Re-registering the callback from the host re-arms the existing trampoline
+  // slot without allocating a second slot.
+  ASSERT_THAT(reg->TrampolineFor(scoped.sandbox(), "adder", 0x1111,
+                                 [](int a, int b) { return a + b; }),
+              IsOk());
+  EXPECT_EQ(scoped.InvokeLastHandler(kArgs), 42u);
+}
+
+TEST(HostCallbackRegistryTest,
+     IdempotentCallbackAllowsRepeatedInvocationsWithoutReArming) {
+  auto* reg = HostCallbackRegistry::Instance();
+  ScopedSandbox scoped;
+
+  ASSERT_THAT(reg->TrampolineFor(
+                  scoped.sandbox(), "adder_multi", 0x1111,
+                  [](int a, int b) { return a + b; }, /*idempotent=*/true),
+              IsOk());
+
+  const uint64_t kArgs1[] = {10, 20};
+  const uint64_t kArgs2[] = {30, 40};
+  EXPECT_EQ(scoped.InvokeLastHandler(kArgs1), 30u);
+  EXPECT_EQ(scoped.InvokeLastHandler(kArgs2), 70u);
+
+  // Re-registering the same target as single-shot (`idempotent = false`)
+  // updates the cached binding's idempotence policy.
+  ASSERT_THAT(reg->TrampolineFor(
+                  scoped.sandbox(), "adder_multi", 0x1111,
+                  [](int a, int b) { return a + b; }, /*idempotent=*/false),
+              IsOk());
+  EXPECT_EQ(scoped.InvokeLastHandler(kArgs1), 30u);
+  EXPECT_DEATH(
+      scoped.InvokeLastHandler(kArgs2),
+      "was invoked more than once without SANDBOX_CALLBACK_IDEMPOTENT");
+}
+
+TEST(HostCallbackRegistryTest,
+     CallScopedVarCallbackEnforcesSingleShotWhenNotIdempotent) {
+  ScopedSandbox scoped;
+
+  sapi::v::Callback single_shot([](int a, int b) { return a + b; },
+                                /*idempotent=*/false);
+  ASSERT_THAT(scoped.sandbox().Allocate(&single_shot, /*automatic_free=*/false),
+              IsOk());
+
+  const uint64_t kArgs1[] = {12, 30};
+  const uint64_t kArgs2[] = {5, 6};
+  EXPECT_EQ(scoped.InvokeLastHandler(kArgs1), 42u);
+  EXPECT_DEATH(
+      scoped.InvokeLastHandler(kArgs2),
+      "was invoked more than once without SANDBOX_CALLBACK_IDEMPOTENT");
+
+  sapi::v::Callback idempotent_cb([](int a, int b) { return a * b; },
+                                  /*idempotent=*/true);
+  ASSERT_THAT(
+      scoped.sandbox().Allocate(&idempotent_cb, /*automatic_free=*/false),
+      IsOk());
+  EXPECT_EQ(scoped.InvokeLastHandler(kArgs1), 360u);
+  EXPECT_EQ(scoped.InvokeLastHandler(kArgs2), 30u);
 }
 
 TEST(HostCallbackRegistryTest, ExhaustionPropagatesFromChannel) {

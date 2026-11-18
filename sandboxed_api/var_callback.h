@@ -15,14 +15,17 @@
 #ifndef SANDBOXED_API_VAR_CALLBACK_H_
 #define SANDBOXED_API_VAR_CALLBACK_H_
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 
 #include "absl/functional/any_invocable.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
 #include "absl/types/span.h"
@@ -145,13 +148,22 @@ uint64_t CallHelper(F&& f, absl::Span<const uint64_t> span) {
 //   values.
 class Callback : public Var {
  public:
+  // Defaults `idempotent` to `true` for backwards compatibility with direct
+  // SAPI callers; LWBox-generated wrappers pass `false` unless
+  // `SANDBOX_CALLBACK_IDEMPOTENT` is specified.
   template <typename F>
-  explicit Callback(F&& f) {
+  explicit Callback(F&& f, bool idempotent = true) {
     using Traits = callback_internal::FunctionTraits<std::decay_t<F>>;
     static_assert(Traits::kArgsCount <= 6,
                   "SAPI callbacks support a maximum of 6 arguments");
-    cb_ =
-        [f = std::forward<F>(f)](absl::Span<const uint64_t> span) -> uint64_t {
+    cb_ = [f = std::forward<F>(f), idempotent,
+           called = std::make_unique<std::atomic<bool>>(false)](
+              absl::Span<const uint64_t> span) mutable -> uint64_t {
+      if (!idempotent) {
+        CHECK(!called->exchange(true, std::memory_order_acq_rel))
+            << "Host callback was invoked more than once without "
+               "SANDBOX_CALLBACK_IDEMPOTENT";
+      }
       using ArgsTuple = typename Traits::ArgsTuple;
       return callback_internal::CallHelper<ArgsTuple>(f, span);
     };

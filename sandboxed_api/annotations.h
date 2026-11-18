@@ -627,4 +627,15 @@
 // Note: SANDBOX_MALLOCED is not a finalized annotation yet.
 #define SANDBOX_UNINITIALIZED [[clang::annotate("sandbox", "uninitialized")]]
 
+// Marks a callback (either on a callback parameter or on a callback typedef
+// declaration) as safe to be invoked multiple times by the sandboxee during a
+// call or across retained calls.
+//
+// Without this annotation, host callbacks default to single-shot ("at most
+// once per host registration/call"): the generated host wrapper tombstones the
+// callback after its first invocation and CHECK-fails if the sandboxee
+// attempts to invoke it a second time without the host re-arming it.
+#define SANDBOX_CALLBACK_IDEMPOTENT \
+  [[clang::annotate("sandbox", "callback_idempotent")]]
+
 #endif  // SANDBOXED_API_ANNOTATIONS_H_

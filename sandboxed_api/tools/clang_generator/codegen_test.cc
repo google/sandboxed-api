@@ -1023,5 +1023,42 @@ TEST(EmitHostSrcTest,
             HasSubstr("CopyToSandbox")));
 }
 
+TEST(EmitHostSrcTest,
+     CallbackIdempotentEmitsSingleShotByDefaultAndIdempotentWhenRequested) {
+  ir::Parameter single_shot_cb{
+      .name = "single_cb",
+      .type = ir::TypeInfo{.kind = ir::TypeKind::kCallback,
+                           .canonical_name = "int (*)(int)"},
+      .payload = ir::CallbackParam{.idempotent = false},
+  };
+  ir::Parameter idempotent_cb{
+      .name = "multi_cb",
+      .type = ir::TypeInfo{.kind = ir::TypeKind::kCallback,
+                           .canonical_name = "int (*)(int)"},
+      .payload = ir::CallbackParam{.idempotent = true},
+  };
+  absl::StatusOr<std::string> src = HostSrc(ir::Function{
+      .name = "run_both",
+      .parameters = {std::move(single_shot_cb), std::move(idempotent_cb)},
+  });
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(*src, AllOf(HasSubstr("sapi_cb_single_cb.emplace(single_cb, "
+                                    "/*idempotent=*/false);"),
+                          HasSubstr("sapi_cb_multi_cb.emplace(multi_cb);")));
+
+  ir::Function invoker{
+      .name = "sapi_invoke_multi_td",
+      .parameters =
+          {
+              ScalarArg("sapi_target", "uintptr_t"),
+              ScalarArg("x", "int"),
+          },
+      .invoker_for_typedef = "multi_td",
+      .is_idempotent_typedef = true,
+  };
+  absl::StatusOr<std::string> invoker_src = HostSrc(std::move(invoker));
+  ASSERT_THAT(invoker_src, IsOk());
+  EXPECT_THAT(*invoker_src, HasSubstr("/*idempotent=*/true);"));
+}
 }  // namespace
 }  // namespace sapi

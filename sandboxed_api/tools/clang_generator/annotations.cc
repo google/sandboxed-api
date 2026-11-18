@@ -223,7 +223,20 @@ std::optional<absl::string_view> FindUnsupportedCallbackAnnotation(
 absl::Status CheckCallbackPointerAnnotations(
     absl::string_view name, const Annotations& annotations,
     const clang::FunctionProtoType& callback_type,
-    const clang::TypedefNameDecl* callback_typedef) {
+    const clang::TypedefNameDecl* callback_typedef, AnnotationSite site) {
+  if (site == AnnotationSite::kFunctionReturn &&
+      annotations.callback_idempotent) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0: callback_idempotent can only be written on a callback or a "
+        "callback typedef",
+        name));
+  }
+  if (callback_typedef != nullptr && annotations.callback_idempotent) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0: callback_idempotent cannot be placed on a callback parameter that "
+        "uses callback typedef $1; move the annotation to the typedef",
+        name, callback_typedef->getNameAsString()));
+  }
   if (std::optional<absl::string_view> unsupported =
           FindUnsupportedCallbackAnnotation(annotations);
       unsupported.has_value()) {
@@ -311,6 +324,13 @@ absl::Status CheckReturnBufferAnnotations(absl::string_view name,
                                           AnnotationSite site,
                                           clang::QualType type) {
   const bool is_param = site == AnnotationSite::kParameter;
+  if (annotations.callback_idempotent &&
+      site != AnnotationSite::kCallbackTypedefReturn) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0: callback_idempotent can only be written on a callback or a "
+        "callback typedef",
+        name));
+  }
   // `uninitialized` is only valid on a pointer return value (either a function
   // return value or a callback typedef return value). On a parameter pointer,
   // `out_ptr` (instead of `inout_ptr`) already omits copying initial contents
@@ -355,8 +375,9 @@ absl::Status CheckParsedAnnotations(absl::string_view name,
   ABSL_RETURN_IF_ERROR(CheckContextBoundAnnotations(name, annotations));
   ABSL_RETURN_IF_ERROR(CheckStructSyncAnnotations(name, annotations, type));
   if (IsCallback(site, type)) {
-    return CheckCallbackPointerAnnotations(
-        name, annotations, *ast::GetFunctionProtoType(type), callback_typedef);
+    return CheckCallbackPointerAnnotations(name, annotations,
+                                           *ast::GetFunctionProtoType(type),
+                                           callback_typedef, site);
   }
   return CheckReturnBufferAnnotations(name, annotations, site, type);
 }
@@ -559,6 +580,8 @@ absl::StatusOr<Annotations> ParseReturnDeclAnnotations(
       // what the callback returns. `CheckParsedAnnotations` rejects it on a
       // plain function declaration.
       ABSL_RETURN_IF_ERROR(annotations.SetOuterCallLifetime());
+    } else if (ann.name == "callback_idempotent") {
+      annotations.callback_idempotent = true;
     } else if (ann.name == "bind_data") {
       if (ann.args.size() != 4) {
         return absl::InvalidArgumentError(
@@ -706,6 +729,8 @@ absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
       ABSL_RETURN_IF_ERROR(annotations.SetSandboxGlobalLifetime());
     } else if (ann.name == "lifetime_outer_call") {
       ABSL_RETURN_IF_ERROR(annotations.SetOuterCallLifetime());
+    } else if (ann.name == "callback_idempotent") {
+      annotations.callback_idempotent = true;
     } else if (ann.name == "copy_from_and_bind_out_ptr") {
       if (ann.args.size() != 2) {
         return absl::InvalidArgumentError(
@@ -1130,6 +1155,7 @@ absl::StatusOr<CallbackTypedef> ParseCallbackTypedef(
       cb_typedef.return_annotations,
       ParseReturnDeclAnnotations(typedef_name, &decl, proto->getReturnType(),
                                  AnnotationSite::kCallbackTypedefReturn));
+  cb_typedef.idempotent = cb_typedef.return_annotations.callback_idempotent;
   ABSL_RETURN_IF_ERROR(CheckCallbackTypedefAnnotationsAreContextIndependent(
       typedef_name, "return value", cb_typedef.return_annotations));
   ABSL_RETURN_IF_ERROR(CheckCallbackTypedefReturnAnnotations(

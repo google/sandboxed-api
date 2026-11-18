@@ -28,8 +28,10 @@ extern "C" {
 
 // What `apply_twice` calls. Nothing in it needs describing beyond its
 // existence, which is what makes it the smallest case the reverse direction
-// can be built against.
-typedef int (*adder)(int a, int b);
+// can be built against. Marked `SANDBOX_CALLBACK_IDEMPOTENT` because
+// `apply_twice` invokes `cb(cb(a, b), b)` twice within a single call and
+// `install_hook` + `run_hook` invokes it across multiple calls.
+SANDBOX_CALLBACK_IDEMPOTENT typedef int (*adder)(int a, int b);
 
 typedef int (*byte_summer)(
     const uint8_t* buf SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(len), size_t len);
@@ -74,7 +76,7 @@ int run_buffer_processor(
     const struct BufferProcessor* proc SANDBOX_IN_PTR,
     const uint8_t* data SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(len), size_t len);
 
-typedef void (*process_buf_cb)(
+SANDBOX_CALLBACK_IDEMPOTENT typedef void (*process_buf_cb)(
     const char* buf SANDBOX_IN_PTR SANDBOX_BYTE_SIZED_BY(size), size_t size);
 
 typedef void (*cstr_cb)(
@@ -103,5 +105,13 @@ void reset_sandbox_processed_acc();
 void init_nested_jpeg_pipeline(struct NestedJpegPipeline* p SANDBOX_OUT_PTR,
                                int id);
 int run_nested_jpeg_pipeline(const struct NestedJpegPipeline* p SANDBOX_IN_PTR);
+
+int is_reverse_cb_marshaled_copy(const int* probe SANDBOX_IN_PTR,
+                                 uintptr_t caller_addr);
+int invoke_single_shot_callback_n_times(int times, int (*cb)(int x));
+
+typedef int (*unary_a_cb)(int x);
+typedef int (*unary_b_cb)(int x);
+unary_b_cb swap_callback_typedef_trampoline(unary_a_cb cb);
 
 }  // extern "C"

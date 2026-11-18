@@ -964,6 +964,8 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                                           ? cb_typedef->return_annotations
                                           : kNoReturnAnnotations;
       cb.uninitialized = return_ann.uninitialized;
+      cb.idempotent = cb_typedef != nullptr ? cb_typedef->idempotent
+                                            : ann.callback_idempotent;
 
       std::vector<std::string> cb_names;
       std::vector<const clang::ParmVarDecl*> cb_decls;
@@ -1451,6 +1453,7 @@ absl::StatusOr<InvokerConversion> ConvertCallbackTypedefToInvokerIR(
   ir::Function invoker;
   invoker.name = ir::InvokerName(cb_typedef.name);
   invoker.invoker_for_typedef = cb_typedef.name;
+  invoker.is_idempotent_typedef = cb_typedef.idempotent;
 
   clang::QualType ret_type = proto->getReturnType();
   if (!ret_type->isVoidType()) {

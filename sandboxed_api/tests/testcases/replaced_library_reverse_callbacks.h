@@ -134,6 +134,13 @@ void reset_sandbox_processed_acc();
 void init_nested_jpeg_pipeline(struct NestedJpegPipeline* p, int id);
 int run_nested_jpeg_pipeline(const struct NestedJpegPipeline* p);
 
+int is_reverse_cb_marshaled_copy(const int* probe, uintptr_t caller_addr);
+int invoke_single_shot_callback_n_times(int times, int (*cb)(int x));
+
+typedef int (*unary_a_cb)(int x);
+typedef int (*unary_b_cb)(int x);
+unary_b_cb swap_callback_typedef_trampoline(unary_a_cb cb);
+
 }  // extern "C"
 
 #endif  // SANDBOXED_API_TESTS_TESTCASES_REPLACED_LIBRARY_REVERSE_CALLBACKS_H_

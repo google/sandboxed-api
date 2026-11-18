@@ -228,6 +228,7 @@ struct Annotations {
     lifetime = OuterCallLifetime{};
     return absl::OkStatus();
   }
+  bool callback_idempotent = false;
 };
 
 // Represents a parsed sandbox annotation attribute. For example:
@@ -271,6 +272,7 @@ struct CallbackTypedef {
   // which is the one place that decides; see
   // `ConvertCallbackTypedefToInvokerIR`.
   std::string no_reverse_reason;
+  bool idempotent = false;
 };
 
 // Returns the underlying `FunctionProtoType` if `decl` is a callback typedef

@@ -266,6 +266,7 @@ struct CallbackParam {
   std::optional<std::string> typedef_name;
   bool is_callback_return_aliased = false;
   bool uninitialized = false;
+  bool idempotent = false;
 };
 
 // A callback the sandbox implements, crossing outwards. Today that means a
@@ -361,6 +362,7 @@ struct Function {
   // differences are both on the sandboxee side: there is no library symbol to
   // declare, and the wrapper calls through the address rather than by name.
   std::optional<std::string> invoker_for_typedef;
+  bool is_idempotent_typedef = false;
 
   // Finds a parameter by name (returns nullptr if not found).
   const Parameter* FindParameter(absl::string_view param_name) const;

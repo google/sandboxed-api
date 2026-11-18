@@ -2213,6 +2213,70 @@ TEST_F(IrConvertTest,
                          "non-existent sibling parameter sapi_target")));
 }
 
+TEST_F(IrConvertTest, ConvertsCallbackIdempotentOnInlineCallbackAndTypedef) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
+                            ConvertSnippetToIR(R"(
+    [[clang::annotate("sandbox", "callback_idempotent")]]
+    typedef int (*multi_cb)(int x);
+    extern "C" void run_callbacks(
+        int (*single_cb)(int),
+        [[clang::annotate("sandbox", "callback_idempotent")]]
+        int (*inline_multi_cb)(int),
+        multi_cb td_multi_cb);
+  )",
+                                               "run_callbacks"));
+  ASSERT_EQ(func.parameters.size(), 3);
+  ASSERT_TRUE(func.parameters[0].Is<CallbackParam>());
+  EXPECT_FALSE(func.parameters[0].As<CallbackParam>()->idempotent);
+  ASSERT_TRUE(func.parameters[1].Is<CallbackParam>());
+  EXPECT_TRUE(func.parameters[1].As<CallbackParam>()->idempotent);
+  ASSERT_TRUE(func.parameters[2].Is<CallbackParam>());
+  EXPECT_TRUE(func.parameters[2].As<CallbackParam>()->idempotent);
+}
+
+TEST_F(IrConvertTest,
+       RejectsCallbackIdempotentOnNonCallbackAndTypedefParameter) {
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    extern "C" void bad_param(
+        int x [[clang::annotate("sandbox", "callback_idempotent")]]);
+  )",
+                                 "bad_param"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("callback_idempotent can only be written on a "
+                                 "callback or a callback typedef")));
+
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    typedef int (*adder)(int a, int b);
+    extern "C" void bad_td_param(
+        [[clang::annotate("sandbox", "callback_idempotent")]] adder cb);
+  )",
+                         "bad_td_param"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("callback_idempotent cannot be placed on a callback "
+                         "parameter that uses callback typedef adder; move "
+                         "the annotation to the typedef")));
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    typedef int (*adder)(int a, int b);
+    extern "C" [[clang::annotate("sandbox", "callback_idempotent")]]
+    adder bad_return_td();
+  )",
+                                 "bad_return_td"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("callback_idempotent can only be written on a "
+                                 "callback or a callback typedef")));
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    extern "C" [[clang::annotate("sandbox", "callback_idempotent")]]
+    int (*bad_return_raw())(int);
+  )",
+                                 "bad_return_raw"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("callback_idempotent can only be written on a "
+                                 "callback or a callback typedef")));
+}
+
 TEST_F(IrConvertTest, ConvertsNestedStructCallbackField) {
   absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
   RecordAnnotations inner_ann{.name = "Inner"};

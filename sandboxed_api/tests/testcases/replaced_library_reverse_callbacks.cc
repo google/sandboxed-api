@@ -216,4 +216,24 @@ ABSL_ATTRIBUTE_NO_SANITIZE_CFI int run_nested_jpeg_pipeline(
   return p->pipeline_id;
 }
 
+int is_reverse_cb_marshaled_copy(const int* probe, uintptr_t caller_addr) {
+  return reinterpret_cast<uintptr_t>(probe) != caller_addr ? 1 : 0;
+}
+
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI int invoke_single_shot_callback_n_times(
+    int times, int (*cb)(int x)) {
+  if (cb == nullptr) {
+    return 0;
+  }
+  int sum = 0;
+  for (int i = 0; i < times; ++i) {
+    sum += cb(i + 1);
+  }
+  return sum;
+}
+
+unary_b_cb swap_callback_typedef_trampoline(unary_a_cb cb) {
+  return reinterpret_cast<unary_b_cb>(cb);
+}
+
 }  // extern "C"

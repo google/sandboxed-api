@@ -1015,16 +1015,17 @@ std::string EmitCallbackHostPreCall(const ir::Parameter& cb_param,
         "      $1(reinterpret_cast<uintptr_t>($0))));\n",
         cb_param.name, RegisterCallbackName(*cb.typedef_name));
   }
+  std::string idempotent_arg = cb.idempotent ? "" : ", /*idempotent=*/false";
   if (!NeedsCallbackLambdaWrapper(cb)) {
     return absl::Substitute(
         R"(  std::optional<sapi::v::Callback> sapi_cb_$0;
   if ($0) {
-    sapi_cb_$0.emplace($0);
+    sapi_cb_$0.emplace($0$1);
     sandbox->Check(sandbox->Allocate(&sapi_cb_$0.value(),
                                      /*automatic_free=*/true));
   }
 )",
-        cb_param.name);
+        cb_param.name, idempotent_arg);
   }
 
   std::string ret_vars;
@@ -1151,12 +1152,13 @@ $1  // If the callback is not null, set the sapi_cb var to a lambda.
   if ($0) {
     auto sapi_lambda_$0 = [&]($2) -> $3 {
 $4    };
-    sapi_cb_$0.emplace(sapi_lambda_$0);
+    sapi_cb_$0.emplace(sapi_lambda_$0$5);
     sandbox->Check(sandbox->Allocate(&sapi_cb_$0.value(),
                                      /*automatic_free=*/true));
   }
 )",
-      cb_param.name, ret_vars, lambda_params_str, cb_ret_type, lambda_body);
+      cb_param.name, ret_vars, lambda_params_str, cb_ret_type, lambda_body,
+      idempotent_arg);
 }
 
 }  // namespace
@@ -2300,6 +2302,8 @@ std::string EmitThunkPool(const ir::Function& invoker) {
     }
   }
 
+  std::string idempotent_arg =
+      invoker.is_idempotent_typedef ? ", /*idempotent=*/true" : "";
   absl::SubstituteAndAppend(
       &out,
       "}  // namespace\n\n"
@@ -2355,13 +2359,13 @@ std::string EmitThunkPool(const ir::Function& invoker) {
       "      sapi::lwbox::HostCallbackRegistry::Instance()->TrampolineFor(\n"
       "          *sandbox, \"$0\", sapi_host_fn,\n"
       "          [sandbox, sapi_host_fn]($3) -> $4 {\n"
-      "$5          });\n"
+      "$5          }$6);\n"
       "  sandbox->Check(sapi_trampoline.status());\n"
       "  return *sapi_trampoline;\n"
       "}\n\n",
       typedef_name, absl::StrJoin(thunk_addresses, "\n"),
       EmitInvokerTargetType(invoker), absl::StrJoin(lambda_params, ", "),
-      ret_type, lambda_body);
+      ret_type, lambda_body, idempotent_arg);
   return out;
 }
 

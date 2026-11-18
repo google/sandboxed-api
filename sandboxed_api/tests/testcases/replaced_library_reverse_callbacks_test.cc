@@ -404,6 +404,45 @@ TEST(StructCallbackField, NestedStructCallbackFieldsRoundTrip) {
   EXPECT_EQ(run_nested_jpeg_pipeline(&pipeline), 77);
   EXPECT_EQ(get_sandbox_processed_acc(), 164 + 10);
   EXPECT_EQ(g_host_processed_acc, 154);
+
+  // `cstr_cb` is a single-shot callback typedef (`idempotent == false`), so
+  // passing `&pipeline` into a second RPC re-arms `HostUnusedCallback` for one
+  // more invocation.
+  EXPECT_EQ(run_nested_jpeg_pipeline(&pipeline), 77);
+  EXPECT_EQ(get_sandbox_processed_acc(), 174 + 10);
+  EXPECT_EQ(g_host_processed_acc, 154 + 154);
+}
+
+bool IsReverseCbSandboxed() {
+  int probe = 42;
+  return is_reverse_cb_marshaled_copy(&probe,
+                                      reinterpret_cast<uintptr_t>(&probe)) != 0;
+}
+
+TEST(SingleShotCallback, RejectsSecondInvocationWithoutIdempotentAnnotation) {
+  auto doubler = +[](int x) { return x * 2; };
+  EXPECT_EQ(invoke_single_shot_callback_n_times(1, doubler), 2);
+  EXPECT_EQ(invoke_single_shot_callback_n_times(0, doubler), 0);
+
+  if (IsReverseCbSandboxed()) {
+    EXPECT_DEATH(invoke_single_shot_callback_n_times(2, doubler), "");
+  } else {
+    EXPECT_EQ(invoke_single_shot_callback_n_times(2, doubler), 6);
+  }
+}
+
+TEST(ReverseCallback, CrossTypedefTrampolineSubstitutionFailsClosed) {
+  auto inc = +[](int x) { return x + 1; };
+  EXPECT_EQ(swap_callback_typedef_trampoline(nullptr), nullptr);
+
+  if (IsReverseCbSandboxed()) {
+    EXPECT_DEATH(swap_callback_typedef_trampoline(inc),
+                 "registered for callback typedef");
+  } else {
+    unary_b_cb returned = swap_callback_typedef_trampoline(inc);
+    ASSERT_NE(returned, nullptr);
+    EXPECT_EQ(returned(41), 42);
+  }
 }
 
 }  // namespace

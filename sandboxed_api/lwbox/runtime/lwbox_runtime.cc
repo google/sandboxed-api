@@ -15,9 +15,11 @@
 #include "sandboxed_api/lwbox/runtime/lwbox_runtime.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -362,7 +364,7 @@ void HostCallbackRegistry::PurgeStaleSessionLocked(
 
 absl::StatusOr<uintptr_t> HostCallbackRegistry::TrampolineForFactory(
     sapi::SandboxBase& sandbox, absl::string_view typedef_name, uintptr_t fn,
-    HandlerFactory make_handler) {
+    bool idempotent, HandlerFactory make_handler) {
   // Null is not a callback: keep it null and consume no trampoline slot.
   if (fn == 0) {
     return 0;
@@ -378,12 +380,22 @@ absl::StatusOr<uintptr_t> HostCallbackRegistry::TrampolineForFactory(
     absl::MutexLock lock(mutex_);
     PurgeStaleSessionLocked(sandbox, session_id);
     if (auto it = by_target_.find(key); it != by_target_.end()) {
+      auto tramp_it =
+          by_trampoline_.find(TrampolineKey{&sandbox, session_id, it->second});
+      if (tramp_it != by_trampoline_.end() &&
+          tramp_it->second.state != nullptr) {
+        tramp_it->second.state->idempotent.store(idempotent,
+                                                 std::memory_order_release);
+        tramp_it->second.state->called.store(false, std::memory_order_release);
+      }
       return it->second;
     }
   }
 
+  auto state = std::make_shared<CallState>();
+  state->idempotent.store(idempotent, std::memory_order_relaxed);
   absl::StatusOr<uintptr_t> trampoline =
-      channel->RegisterCallback(std::move(make_handler)());
+      channel->RegisterCallback(std::move(make_handler)(state));
   if (!trampoline.ok()) {
     return trampoline.status();
   }
@@ -397,11 +409,20 @@ absl::StatusOr<uintptr_t> HostCallbackRegistry::TrampolineForFactory(
         session_it->second == session_id) {
       auto [it, inserted] = by_target_.emplace(key, *trampoline);
       if (inserted) {
-        by_trampoline_.emplace(TrampolineKey{&sandbox, session_id, *trampoline},
-                               Binding{std::string(typedef_name), fn});
+        by_trampoline_.emplace(
+            TrampolineKey{&sandbox, session_id, *trampoline},
+            Binding{std::string(typedef_name), fn, std::move(state)});
         return *trampoline;
       }
       winner = it->second;
+      auto tramp_it =
+          by_trampoline_.find(TrampolineKey{&sandbox, session_id, winner});
+      if (tramp_it != by_trampoline_.end() &&
+          tramp_it->second.state != nullptr) {
+        tramp_it->second.state->idempotent.store(idempotent,
+                                                 std::memory_order_release);
+        tramp_it->second.state->called.store(false, std::memory_order_release);
+      }
     }
   }
   // Another thread registered the same (sandbox, session, typedef, fn)
