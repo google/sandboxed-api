@@ -99,4 +99,39 @@ TEST(StructSyncTest, NullSyncAccessPath) {
   EXPECT_EQ(CreateImage(&span, 3, 3), nullptr);
 }
 
+// The sandboxee installs a function pointer into a struct field, the host can
+// call it directly through the bound host thunk, and the host can hand the
+// struct back across the boundary or replace the field with a host function.
+TEST(StructSyncTest, CallbackFieldRoundTripsThroughHost) {
+  CallbackHolder holder;
+  memset(&holder, 0, sizeof(holder));
+
+  InitCallbackHolder(&holder, 3);
+
+  ASSERT_NE(holder.transform, nullptr);
+  EXPECT_EQ(holder.scale, 3);
+
+  // The host can call the sandboxee-populated callback directly.
+  EXPECT_EQ(holder.transform(5), 10);
+
+  // (5 * 2) * 3
+  EXPECT_EQ(ApplyCallbackHolder(&holder, 5), 30);
+
+  // Still valid on a second call: the field survives repeated round trips.
+  EXPECT_EQ(ApplyCallbackHolder(&holder, 7), 42);
+
+  // And the host can replace the field with one of its own functions.
+  holder.transform = [](int value) { return value + 10; };
+  EXPECT_EQ(ApplyCallbackHolder(&holder, 5), 45);
+}
+
+// A holder the sandboxee never initialized. The null travels across intact,
+// so the sandboxee takes its own null branch.
+TEST(StructSyncTest, CallbackFieldNull) {
+  CallbackHolder holder;
+  memset(&holder, 0, sizeof(holder));
+
+  EXPECT_EQ(ApplyCallbackHolder(&holder, 5), -1);
+}
+
 }  // namespace

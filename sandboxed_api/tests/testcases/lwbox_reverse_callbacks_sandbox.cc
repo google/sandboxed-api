@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "sandboxed_api/annotations.h"
+#include "sandboxed_api/tests/testcases/replaced_library_reverse_callbacks.h"
 
 // None of these signatures needs an annotation on its own account: every
 // argument is a scalar, and `apply_twice`'s callback neither takes nor returns
@@ -29,9 +31,24 @@ extern "C" {
 // can be built against.
 typedef int (*adder)(int a, int b);
 
+typedef int (*byte_summer)(
+    const uint8_t* buf SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(len), size_t len);
+
+SANDBOX_ANNOTATE_STRUCT(struct CalculatorHooks { adder combine; };)
+
+SANDBOX_ANNOTATE_STRUCT(struct BufferProcessor { byte_summer process_bytes; };)
+
 uintptr_t get_adder(int which);
 
 int apply_twice(adder cb, int a, int b);
+
+// The same callback typedef again, on a callback the library keeps rather than
+// uses and forgets.
+void install_hook(adder cb);
+
+int run_hook(int a, int b);
+
+adder get_hook();
 
 // The same callback typedef, naming what comes *out*.
 //
@@ -39,5 +56,52 @@ int apply_twice(adder cb, int a, int b);
 // point: a callback typedef says what a callback means, not which way it
 // travels.
 adder get_adder_fn(int which);
+
+void init_default_hooks(struct CalculatorHooks* hooks SANDBOX_OUT_PTR,
+                        int which);
+
+int run_with_hooks(const struct CalculatorHooks* hooks SANDBOX_IN_PTR, int a,
+                   int b);
+
+void install_struct_hooks(struct CalculatorHooks* hooks SANDBOX_INOUT_PTR);
+
+int run_installed_struct_hooks(int a, int b);
+
+void init_default_buffer_processor(
+    struct BufferProcessor* proc SANDBOX_OUT_PTR);
+
+int run_buffer_processor(
+    const struct BufferProcessor* proc SANDBOX_IN_PTR,
+    const uint8_t* data SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(len), size_t len);
+
+typedef void (*process_buf_cb)(
+    const char* buf SANDBOX_IN_PTR SANDBOX_BYTE_SIZED_BY(size), size_t size);
+
+typedef void (*cstr_cb)(
+    const char* cstr SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
+
+SANDBOX_ANNOTATE_STRUCT(struct JpegStyleCallbacks {
+  process_buf_cb process_buffer;
+  cstr_cb unused_callback;
+};)
+
+void init_jpeg_style_callbacks(struct JpegStyleCallbacks* s SANDBOX_OUT_PTR);
+
+void call_process_buffs(const struct JpegStyleCallbacks* s SANDBOX_IN_PTR);
+
+void call_process_buffer_callback(
+    process_buf_cb cb,
+    const char* buf SANDBOX_IN_PTR SANDBOX_BYTE_SIZED_BY(size), size_t size);
+
+void register_process_buffer_callback(int slot, process_buf_cb cb);
+
+process_buf_cb get_registered_process_buffer_callback(int slot);
+
+int get_sandbox_processed_acc();
+void reset_sandbox_processed_acc();
+
+void init_nested_jpeg_pipeline(struct NestedJpegPipeline* p SANDBOX_OUT_PTR,
+                               int id);
+int run_nested_jpeg_pipeline(const struct NestedJpegPipeline* p SANDBOX_IN_PTR);
 
 }  // extern "C"

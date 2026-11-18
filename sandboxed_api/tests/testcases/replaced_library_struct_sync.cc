@@ -75,3 +75,26 @@ void DeleteImage(Image* image) {
   image->data = nullptr;
   free(image);
 }
+
+namespace {
+
+// Private to the sandboxee: never declared in the header, so the host cannot
+// name it, let alone call it.
+int DoubleTransform(int value) { return value * 2; }
+
+}  // namespace
+
+void InitCallbackHolder(CallbackHolder* holder, int scale) {
+  holder->transform = &DoubleTransform;
+  holder->scale = scale;
+}
+
+#if defined(__clang__)
+__attribute__((no_sanitize("cfi")))
+#endif
+int ApplyCallbackHolder(const CallbackHolder* holder, int value) {
+  if (holder->transform == nullptr) {
+    return -1;
+  }
+  return holder->transform(value) * holder->scale;
+}

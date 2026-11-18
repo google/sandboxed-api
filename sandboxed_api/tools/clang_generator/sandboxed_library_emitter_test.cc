@@ -25,6 +25,7 @@
 #include "absl/status/status_macros.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/tools/clang_generator/frontend_action_test_util.h"
@@ -191,9 +192,10 @@ absl::StatusOr<std::pair<std::string, std::string>> EmitHostAndSandboxeeSrc(
 // Verifies that annotating callbacks via `typedef` declarations (including
 // `host_opaque_ptr` closures, input/output buffers, `lifetime_outer_call`
 // returned buffers, and typedef reuse across multiple library functions)
-// generates the same host and sandboxee wrapper code as writing callback
-// parameter annotations inline and using a `typedef` only for the
-// pointer-returning `alloc` callback.
+// generates the same sandboxee wrapper code as writing callback parameter
+// annotations inline and using a `typedef` only for the pointer-returning
+// `alloc` callback, while registering reversible `typedef` callbacks through
+// `sapi_register_callback_*` on the host.
 TEST_F(SandboxedLibraryEmitterTest,
        CallbackTypedefGeneratesSameCodeAsInlineForm) {
   SAPI_ASSERT_OK_AND_ASSIGN(const auto with_typedef, EmitHostAndSandboxeeSrc(R"(
@@ -251,20 +253,16 @@ TEST_F(SandboxedLibraryEmitterTest,
         void* user_data [[clang::annotate("sandbox", "host_opaque_ptr")]]);
   )"));
 
-  const size_t inline_shims_pos =
-      inline_form.first.find("extern \"C\" unsigned char* compress_stream");
-  const size_t inline_host_end = inline_form.first.rfind("}\n");
-  ASSERT_NE(inline_shims_pos, std::string::npos);
-  ASSERT_NE(inline_host_end, std::string::npos);
-  EXPECT_THAT(with_typedef.first,
-              HasSubstr(inline_form.first.substr(
-                  inline_shims_pos, inline_host_end + 2 - inline_shims_pos)));
   const size_t inline_sandboxee_end = inline_form.second.rfind("}\n");
   ASSERT_NE(inline_sandboxee_end, std::string::npos);
   EXPECT_THAT(with_typedef.second, StartsWith(inline_form.second.substr(
                                        0, inline_sandboxee_end + 2)));
+  EXPECT_THAT(with_typedef.first,
+              HasSubstr("sapi_register_callback_stream_write_cb"));
   EXPECT_THAT(with_typedef.first, HasSubstr("sapi_bind_thunk_stream_write_cb"));
   EXPECT_THAT(with_typedef.second, HasSubstr("sapi_invoke_stream_write_cb"));
+  EXPECT_THAT(inline_form.first,
+              HasSubstr("std::optional<sapi::v::Callback> sapi_cb_write"));
   EXPECT_THAT(inline_form.first,
               Not(HasSubstr("sapi_bind_thunk_stream_write_cb")));
   EXPECT_THAT(inline_form.second,
@@ -664,6 +662,119 @@ TEST_F(SandboxedLibraryEmitterErrorTest,
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("alias_ptr references parameter input_ptr "
                                  "which is not a host opaque pointer")));
+}
+
+TEST_F(SandboxedLibraryEmitterErrorTest,
+       CallbackTypedefTakingSyncedStructInStructFieldIsRejected) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  SandboxedLibraryEmitter emitter;
+  ASSERT_THAT(
+      RunFrontendAction(
+          R"cc(
+            struct Payload {
+              const char* msg;
+            };
+            typedef void (*payload_cb)(
+                Payload* p
+                [[clang::annotate("sandbox", "in_ptr")]] [[clang::annotate(
+                    "sandbox", "struct_sync", "b1", "{p->msg, in_ptr}", "$")]]);
+            struct Holder {
+              payload_cb cb;
+            };
+            inline void sandbox_annotation_1() {
+              struct Holder {
+                payload_cb cb;
+              };
+            }
+            extern "C" void register_holder(
+                Holder* h [[clang::annotate("sandbox", "in_ptr")]]);
+          )cc",
+          std::make_unique<GeneratorAction>(&emitter, &options)),
+      StatusIs(absl::StatusCode::kUnknown,
+               HasSubstr("Tool invocation failed")));
+}
+
+TEST_F(SandboxedLibraryEmitterErrorTest,
+       CallbackSizingExpressionsReferencingPointerParametersAreRejected) {
+  int case_idx = 0;
+  auto check_rejected = [&](absl::string_view code, absl::string_view substr) {
+    set_input_file(absl::StrCat("cb_size_case_", case_idx++, ".cc"));
+    GeneratorOptions options;
+    options.name = "MyLib";
+    SandboxedLibraryEmitter emitter;
+    ASSERT_THAT(RunFrontendAction(code, std::make_unique<GeneratorAction>(
+                                            &emitter, &options)),
+                IsOk());
+    EXPECT_THAT(
+        emitter.PostParseAllFiles(),
+        StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr(substr)));
+  };
+
+  check_rejected(
+      R"cc(
+        extern "C" void run_cb(void (*cb)(
+            const int* data [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "elem_sized_by", "*len")]],
+            const unsigned long* len [[clang::annotate("sandbox", "in_ptr")]]));
+      )cc",
+      "callback cb parameter data: callback sizing expression '*len' cannot "
+      "reference non-scalar parameter len");
+
+  check_rejected(
+      R"cc(
+        typedef void (*fill_cb)(
+            int* dst
+            [[clang::annotate("sandbox", "out_ptr")]] [[clang::annotate(
+                "sandbox", "elem_sized_by_outparam", "*len", "*len")]],
+            unsigned long* len [[clang::annotate("sandbox", "inout_ptr")]]);
+        extern "C" fill_cb get_fill_cb();
+      )cc",
+      "callback typedef fill_cb parameter dst: callback sizing expression "
+      "'*len' cannot reference non-scalar parameter len");
+
+  check_rejected(
+      R"cc(
+        extern "C" void run_compound_cb(void (*cb)(
+            const char* data [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "byte_sized_by", "*len * 4")]],
+            const unsigned long* len [[clang::annotate("sandbox", "in_ptr")]]));
+      )cc",
+      "callback cb parameter data: callback sizing expression '*len * 4' "
+      "cannot reference non-scalar parameter len");
+
+  check_rejected(
+      R"cc(
+        [[clang::annotate("sandbox", "lifetime_outer_call")]] [[clang::annotate(
+            "sandbox", "elem_sized_by",
+            "*out_len")]] typedef unsigned char* (*alloc_cb)(unsigned long*
+                                                                 out_len
+                                                             [[clang::annotate(
+                                                                 "sandbox",
+                                                                 "out_ptr")]]);
+        extern "C" void use_alloc(alloc_cb cb);
+      )cc",
+      "callback cb return value: callback sizing expression '*out_len' cannot "
+      "reference non-scalar parameter out_len");
+
+  // Scalar capacity (`cap`) and unevaluated `sizeof(*dst)` remain allowed.
+  set_input_file("cb_size_valid.cc");
+  GeneratorOptions ok_options;
+  ok_options.name = "MyLib";
+  SandboxedLibraryEmitter ok_emitter;
+  ASSERT_THAT(
+      RunFrontendAction(
+          R"cc(
+            extern "C" void run_valid_cb(void (*cb)(
+                int* dst [[clang::annotate("sandbox", "out_ptr")]]
+                [[clang::annotate("sandbox", "byte_sized_by_outparam", "*len",
+                                  "cap * sizeof(*dst)")]],
+                unsigned long* len [[clang::annotate("sandbox", "out_ptr")]],
+                unsigned long cap));
+          )cc",
+          std::make_unique<GeneratorAction>(&ok_emitter, &ok_options)),
+      IsOk());
+  EXPECT_THAT(ok_emitter.PostParseAllFiles(), IsOk());
 }
 
 }  // namespace

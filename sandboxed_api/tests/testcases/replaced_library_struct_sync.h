@@ -71,6 +71,26 @@ const uint8_t* GetRow(Image* image, size_t row);
 // Deletes the `image` and releases any retained references.
 void DeleteImage(Image* image);
 
+// Example of a struct that holds a callback.
+//
+// `InitCallbackHolder` points `transform` at a function implemented inside the
+// sandboxee. Under the sandbox, the generated struct sync binds `transform` to
+// a host thunk so the host can call `holder.transform` directly, pass `holder`
+// back to `ApplyCallbackHolder`, or replace `holder.transform` with a host
+// function.
+struct CallbackHolder {
+  int (*transform)(int value);
+  int scale;
+};
+
+// Points `holder->transform` at the sandboxee's default transform and records
+// `scale`.
+void InitCallbackHolder(CallbackHolder* holder, int scale);
+
+// Returns `holder->transform(value) * holder->scale`, or -1 if `transform` is
+// null.
+int ApplyCallbackHolder(const CallbackHolder* holder, int value);
+
 }  // extern "C"
 
 #endif  // SANDBOXED_API_TESTS_REPLACED_LIBRARY_STRUCT_SYNC_H_

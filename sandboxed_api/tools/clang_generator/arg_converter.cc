@@ -1492,12 +1492,16 @@ absl::StatusOr<InvokerConversion> ConvertCallbackTypedefToInvokerIR(
   });
   for (unsigned i = 0; i < ftl->getNumParams(); ++i) {
     const clang::ParmVarDecl* param = ftl->getParam(i);
+    Annotations param_ann = cb_typedef.params[i].annotations;
+    if (param_ann.ptr_dir != PointerDir::kSandboxOpaque) {
+      ABSL_RETURN_IF_ERROR(CheckCallbackParamAnnotations(
+          cb_typedef.name, cb_typedef.params[i].name, param_ann,
+          param->getType()));
+    }
     ABSL_ASSIGN_OR_RETURN(
         ir::Parameter ir_param,
-        ConvertParameterToIR(
-            cb_typedef.params[i].name, param->getType(),
-            CallbackParamSource{param, cb_typedef.params[i].annotations},
-            conv_ctx));
+        ConvertParameterToIR(cb_typedef.params[i].name, param->getType(),
+                             CallbackParamSource{param, param_ann}, conv_ctx));
     invoker.parameters.push_back(std::move(ir_param));
   }
   return InvokerConversion{.invoker = std::move(invoker)};

@@ -906,5 +906,122 @@ TEST(EmitHostSrcTest, StructSyncEmitsResolvedMemberSizeExprsAndConstants) {
             HasSubstr("sapi_member_size_Image_Palette = 256;")));
 }
 
+TEST(EmitHostSrcTest,
+     CallbackInvokerEmitsBidirectionalBindThunkAndRegisterCallback) {
+  ir::Function invoker{
+      .name = "sapi_invoke_adder",
+      .return_value =
+          ir::Parameter{
+              .name = "sapi_ret_arg",
+              .type = ScalarType("int"),
+              .is_return_value = true,
+              .payload = ir::ScalarParam{},
+          },
+      .parameters =
+          {
+              ScalarArg("sapi_target", "uintptr_t"),
+              ScalarArg("a", "int"),
+              ScalarArg("b", "int"),
+          },
+      .invoker_for_typedef = "adder",
+  };
+
+  absl::StatusOr<std::string> src = HostSrc(std::move(invoker));
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(HasSubstr("sapi_bind_thunk_adder(uintptr_t sapi_sandboxee_fn)"),
+            HasSubstr("HostCallbackRegistry::Instance()->LookUpTrampoline(\n"
+                      "              *sandbox, \"adder\", sapi_sandboxee_fn)"),
+            HasSubstr("sapi_register_callback_adder"),
+            HasSubstr("SandboxeeCallbackRegistry::Instance()->LookUpThunk(\n"
+                      "              *sandbox, *sapi_thunk_pool_adder(), "
+                      "sapi_host_fn)"),
+            HasSubstr("HostCallbackRegistry::Instance()->TrampolineFor")));
+}
+
+TEST(EmitHostSrcTest,
+     StructSyncParamWithCallbackFieldTranslatesInBothDirections) {
+  ir::Parameter hooks_param{
+      .name = "hooks",
+      .type = PointerTo(ir::TypeInfo{.kind = ir::TypeKind::kStruct,
+                                     .canonical_name = "CalculatorHooks"}),
+      .payload =
+          ir::StructSyncParam{
+              .direction = PointerDir::kInOut,
+              .callbacks =
+                  {
+                      ir::StructCallbackField{
+                          .member_name = "combine",
+                          .typedef_name = "adder",
+                      },
+                  },
+          },
+  };
+  ir::Function func{
+      .name = "install_struct_hooks",
+      .parameters = {std::move(hooks_param)},
+  };
+
+  absl::StatusOr<std::string> src = HostSrc(std::move(func));
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(HasSubstr("sapi_register_callback_adder("),
+            HasSubstr("reinterpret_cast<uintptr_t>(hooks->combine)"),
+            HasSubstr("sapi_bind_thunk_adder("),
+            HasSubstr(
+                "reinterpret_cast<uintptr_t>(sapi_tmp_hooks.data().combine)")));
+}
+
+TEST(EmitHostSrcTest,
+     CallbackTypedefInvokerWithNullTerminatedParamIncludesStringHeaders) {
+  ir::Function invoker{
+      .name = "sapi_invoke_log_msg",
+      .parameters =
+          {
+              ScalarArg("sapi_target", "uintptr_t"),
+              BufferArg("msg", ScalarType("const char"), PointerDir::kIn,
+                        ir::bounds::NullTerminated{}),
+          },
+      .invoker_for_typedef = "log_msg",
+  };
+
+  absl::StatusOr<std::string> src = HostSrc(std::move(invoker));
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(*src, AllOf(HasSubstr("#include <cstring>"),
+                          HasSubstr("#include <string>"),
+                          HasSubstr("sandbox->GetCString(")));
+}
+
+TEST(EmitHostSrcTest,
+     CallbackParamSizedByOutparamUsesCapacityAndActiveOutputBytes) {
+  ir::Function invoker{
+      .name = "sapi_invoke_fill_ints",
+      .parameters =
+          {
+              ScalarArg("sapi_target", "uintptr_t"),
+              BufferArg("buf", ScalarType("int"), PointerDir::kOut,
+                        ir::bounds::ElemSizedByOutparam{
+                            .outparam_name = "out_len",
+                            .capacity_expr = "cap_bytes",
+                        }),
+              BufferArg("out_len", ScalarType("size_t"), PointerDir::kOut,
+                        ir::bounds::Singleton{}),
+              ScalarArg("cap_bytes", "size_t"),
+          },
+      .invoker_for_typedef = "fill_ints",
+  };
+
+  absl::StatusOr<std::string> src = HostSrc(std::move(invoker));
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(HasSubstr("sapi_arr_buf.emplace(cap_bytes);"),
+            HasSubstr("*sapi_host_out_len"),
+            HasSubstr("CHECK_LE(sapi_out_bytes_buf, sapi_arr_buf->GetSize());"),
+            HasSubstr("CopyToSandbox")));
+}
+
 }  // namespace
 }  // namespace sapi

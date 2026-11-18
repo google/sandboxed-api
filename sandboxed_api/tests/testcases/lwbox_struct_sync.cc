@@ -55,4 +55,23 @@ const uint8_t* GetRow(Image* image SANDBOX_OPAQUE_PTR, size_t row);
 
 void DeleteImage(Image* image SANDBOX_OPAQUE_PTR SANDBOX_CLEAR_BINDINGS);
 
+// Struct callback field example.
+//
+// `transform` is a function pointer carried inside `CallbackHolder` in both
+// directions: `InitCallbackHolder` populates it inside the sandbox for the
+// host to call or pass back, and `ApplyCallbackHolder` accepts either that
+// callback or one the host wrote. Using the `transform_cb` typedef on the
+// field in `SANDBOX_ANNOTATE_STRUCT` generates the bidirectional translation
+// on both shims.
+typedef int (*transform_cb)(int value);
+
+SANDBOX_ANNOTATE_STRUCT(struct CallbackHolder {
+  transform_cb transform;
+  int scale;
+};)
+
+void InitCallbackHolder(CallbackHolder* holder SANDBOX_OUT_PTR, int scale);
+
+int ApplyCallbackHolder(const CallbackHolder* holder SANDBOX_IN_PTR, int value);
+
 }  // extern "C"

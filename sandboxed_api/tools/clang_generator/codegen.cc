@@ -367,6 +367,12 @@ std::string BindThunkName(absl::string_view typedef_name) {
   return absl::StrCat("sapi_bind_thunk_", typedef_name);
 }
 
+// The entry point that turns a host function following `typedef_name` into a
+// sandboxee-callable trampoline address. Defined by EmitThunkPool.
+std::string RegisterCallbackName(absl::string_view typedef_name) {
+  return absl::StrCat("sapi_register_callback_", typedef_name);
+}
+
 // An alias for the function pointer type a callback typedef describes.
 //
 // A function that returns a function pointer cannot be declared by writing
@@ -566,6 +572,19 @@ std::string EmitStructMemberSyncsPreCall(
 )",
                               suffix, param.name, host_ptr_expr, size_calc,
                               copy_code, update_host_to_sb_ptr_code);
+  }
+  if (param.direction() != PointerDir::kOut) {
+    for (const auto& cb_field : sync_param.callbacks) {
+      absl::SubstituteAndAppend(&ret,
+                                R"(  if ($0 != nullptr) {
+    sapi_tmp_$0.mutable_data()->$1 =
+        reinterpret_cast<decltype(sapi_tmp_$0.mutable_data()->$1)>(
+            $2(reinterpret_cast<uintptr_t>($0->$1)));
+  }
+)",
+                                param.name, cb_field.member_name,
+                                RegisterCallbackName(cb_field.typedef_name));
+    }
   }
   return ret;
 }
@@ -776,6 +795,20 @@ std::string GetCallbackReturnSizeAsBytesExpr(const ir::Parameter& cb_param,
 
 // Emits parameter marshaling blocks (pre-call and post-call) for a host-side
 // callback wrapper lambda given the callback's parameter list.
+//
+// Security note (Host-Private Buffer Copies & TOCTOU Protection):
+// Every pointer/buffer argument arriving from the sandboxee (`SANDBOX_IN_PTR`,
+// `SANDBOX_OUT_PTR`, `SANDBOX_INOUT_PTR`) is copied into a freshly allocated
+// host-owned buffer (`sapi::v::Array<char>`) before the user's host callback is
+// invoked, and copied back out only after the callback returns. The raw
+// sandboxee pointer is never passed to the host callback. This guarantees:
+//   1. Under Sandbox2 (out-of-process), `TransferFromSandboxee` /
+//      `TransferToSandboxee` target the sandboxee's PID rather than host
+//      memory, so a forged host address in `req.args` cannot read or corrupt
+//      host memory.
+//   2. Under both Sandbox2 and future LFI (in-process sandboxing), the host
+//      callback operates on a private host buffer that a concurrent thread
+//      inside the sandboxee cannot race-modify (TOCTOU) during execution.
 void EmitCallbackParamMarshaling(absl::Span<const ir::Parameter> parameters,
                                  std::vector<std::string>& lambda_params,
                                  std::vector<std::string>& lambda_call_args,
@@ -809,18 +842,7 @@ void EmitCallbackParamMarshaling(absl::Span<const ir::Parameter> parameters,
                     p_name, p_type));
                 return;
               }
-              std::string size_expr;
-              if (const auto* byte =
-                      std::get_if<ir::bounds::ByteCount>(&p_buf.bounds)) {
-                size_expr = byte->size_expr;
-              } else if (const auto* elem = std::get_if<ir::bounds::ElemCount>(
-                             &p_buf.bounds)) {
-                size_expr = absl::Substitute(
-                    "sandbox->CheckedMultiply(sizeof(*$0), ($1))", p_name,
-                    elem->size_expr);
-              } else {
-                size_expr = absl::Substitute("sizeof(*$0)", p_name);
-              }
+              std::string size_expr = GetParamCapacityAsBytesExpr(p, p_buf);
               std::string maybe_transfer_from =
                   p_buf.direction == PointerDir::kOut
                       ? ""
@@ -842,13 +864,74 @@ $3        sapi_host_$0 = reinterpret_cast<$1>(sapi_arr_$0->GetData());
                   p_name, p_type, size_expr, maybe_transfer_from));
               if (p_buf.direction == PointerDir::kOut ||
                   p_buf.direction == PointerDir::kInOut) {
-                absl::SubstituteAndAppend(
-                    &param_sync_post_call,
-                    R"(      if (sapi_arr_$0.has_value()) {
+                std::visit(
+                    absl::Overload{
+                        [&](const ir::bounds::ElemSizedByOutparam& elem_out) {
+                          std::string active_bytes_expr = absl::Substitute(
+                              "(sapi_host_$1 == nullptr ? 0 : "
+                              "sandbox->CheckedMultiply(sizeof(*$0), "
+                              "(*sapi_host_$1)))",
+                              p_name, elem_out.outparam_name);
+                          absl::SubstituteAndAppend(
+                              &param_sync_post_call,
+                              R"(      if (sapi_arr_$0.has_value()) {
+        size_t sapi_out_bytes_$0 = $1;
+        CHECK_LE(sapi_out_bytes_$0, sapi_arr_$0->GetSize());
+        if (sapi_out_bytes_$0 > 0) {
+          sandbox->Check(
+              sandbox->rpc_channel()
+                  ->CopyToSandbox(
+                      reinterpret_cast<uintptr_t>($0),
+                      absl::MakeSpan(sapi_arr_$0->GetData(),
+                                     sapi_out_bytes_$0))
+                  .status());
+        }
+      }
+)",
+                              p_name, active_bytes_expr);
+                        },
+                        [&](const ir::bounds::ByteSizedByOutparam& byte_out) {
+                          std::string active_bytes_expr = absl::Substitute(
+                              "(sapi_host_$0 == nullptr ? 0 : "
+                              "static_cast<size_t>(*sapi_host_$0))",
+                              byte_out.outparam_name);
+                          absl::SubstituteAndAppend(
+                              &param_sync_post_call,
+                              R"(      if (sapi_arr_$0.has_value()) {
+        size_t sapi_out_bytes_$0 = $1;
+        CHECK_LE(sapi_out_bytes_$0, sapi_arr_$0->GetSize());
+        if (sapi_out_bytes_$0 > 0) {
+          sandbox->Check(
+              sandbox->rpc_channel()
+                  ->CopyToSandbox(
+                      reinterpret_cast<uintptr_t>($0),
+                      absl::MakeSpan(sapi_arr_$0->GetData(),
+                                     sapi_out_bytes_$0))
+                  .status());
+        }
+      }
+)",
+                              p_name, active_bytes_expr);
+                        },
+                        [&](const auto& b) {
+                          using B = std::decay_t<decltype(b)>;
+                          static_assert(IsOneOf<B, ir::bounds::Singleton,
+                                                ir::bounds::ElemCount,
+                                                ir::bounds::ByteCount,
+                                                ir::bounds::SizedByBinding,
+                                                ir::bounds::NullTerminated>,
+                                        "Unhandled BufferBounds in "
+                                        "EmitCallbackParamMarshaling!");
+                          absl::SubstituteAndAppend(
+                              &param_sync_post_call,
+                              R"(      if (sapi_arr_$0.has_value()) {
         sandbox->Check(sandbox->TransferToSandboxee(&sapi_arr_$0.value()));
       }
 )",
-                    p_name);
+                              p_name);
+                        },
+                    },
+                    p_buf.bounds);
               }
             },
             [&](const ir::OpaquePointerParam& op) {
@@ -869,28 +952,24 @@ $3        sapi_host_$0 = reinterpret_cast<$1>(sapi_arr_$0->GetData());
               pre_call_blocks.push_back(absl::Substitute(
                   R"(      $1 sapi_host_$0 = $0;)", p_name, p_type));
             },
-            [&](const auto& inner) {
-              using T = std::decay_t<decltype(inner)>;
-              static_assert(
-                  IsOneOf<T, ir::VoidParam, ir::ScalarParam, ir::CppStringParam,
-                          ir::StructSyncParam, ir::CallbackParam,
-                          ir::SandboxeeCallbackParam>,
-                  "Unhandled callback parameter payload in "
-                  "EmitCallbackParamMarshaling!");
-              if (p.direction().has_value()) {
-                lambda_call_args.push_back(absl::StrCat("sapi_host_", p_name));
-                std::string size_expr = absl::Substitute("sizeof(*$0)", p_name);
-                std::string maybe_transfer_from =
-                    p.direction() == PointerDir::kOut
-                        ? ""
-                        : absl::Substitute(
-                              "        "
-                              "sandbox->Check(sandbox->"
-                              "TransferFromSandboxee(&sapi_arr_$0."
-                              "value()));\n",
-                              p_name);
-                pre_call_blocks.push_back(absl::Substitute(
-                    R"(      $1 sapi_host_$0 = nullptr;
+            [&](const ir::StructSyncParam& sync) {
+              CHECK(sync.members.empty() && sync.callbacks.empty())
+                  << "Deeply synced or callback-bearing StructSyncParam is not "
+                     "supported in callbacks: "
+                  << p_name;
+              lambda_call_args.push_back(absl::StrCat("sapi_host_", p_name));
+              std::string size_expr = absl::Substitute("sizeof(*$0)", p_name);
+              std::string maybe_transfer_from =
+                  sync.direction == PointerDir::kOut
+                      ? ""
+                      : absl::Substitute(
+                            "        "
+                            "sandbox->Check(sandbox->"
+                            "TransferFromSandboxee(&sapi_arr_$0."
+                            "value()));\n",
+                            p_name);
+              pre_call_blocks.push_back(absl::Substitute(
+                  R"(      $1 sapi_host_$0 = nullptr;
       std::optional<sapi::v::Array<char>> sapi_arr_$0;
       if ($0 != nullptr) {
         sapi_arr_$0.emplace($2);
@@ -898,32 +977,44 @@ $3        sapi_host_$0 = reinterpret_cast<$1>(sapi_arr_$0->GetData());
             const_cast<void*>(reinterpret_cast<const void*>($0)));
 $3        sapi_host_$0 = reinterpret_cast<$1>(sapi_arr_$0->GetData());
       })",
-                    p_name, p_type, size_expr, maybe_transfer_from));
-                if (p.direction() == PointerDir::kOut ||
-                    p.direction() == PointerDir::kInOut) {
-                  absl::SubstituteAndAppend(
-                      &param_sync_post_call,
-                      R"(      if (sapi_arr_$0.has_value()) {
+                  p_name, p_type, size_expr, maybe_transfer_from));
+              if (sync.direction == PointerDir::kOut ||
+                  sync.direction == PointerDir::kInOut) {
+                absl::SubstituteAndAppend(
+                    &param_sync_post_call,
+                    R"(      if (sapi_arr_$0.has_value()) {
         sandbox->Check(sandbox->TransferToSandboxee(&sapi_arr_$0.value()));
       }
 )",
-                      p_name);
-                }
-              } else {
-                lambda_call_args.push_back(p_name);
+                    p_name);
               }
+            },
+            [&](const auto& inner) {
+              using T = std::decay_t<decltype(inner)>;
+              static_assert(
+                  IsOneOf<T, ir::VoidParam, ir::ScalarParam, ir::CppStringParam,
+                          ir::CallbackParam, ir::SandboxeeCallbackParam>,
+                  "Unhandled callback parameter payload in "
+                  "EmitCallbackParamMarshaling!");
+              lambda_call_args.push_back(p_name);
             },
         },
         p.payload);
   }
 }
 
-// Emits host pre-call setup for callback arguments. Simple scalar callbacks are
-// passed directly, while pointer/buffer callbacks are wrapped in a lambda
-// trampoline that synchronizes parameters into host memory before invocation
-// and transfers callback return values to sandbox memory.
+// Emits host pre-call setup for callback arguments. Plain C function pointers
+// with a callback typedef register through `sapi_register_callback_<typedef>`
+// so that a callback retained by the library survives the call that installed
+// it and unwraps host thunks back to their native sandboxee addresses.
 std::string EmitCallbackHostPreCall(const ir::Parameter& cb_param,
                                     const ir::CallbackParam& cb) {
+  if (cb.typedef_name.has_value() && !cb.functor_template_name.has_value()) {
+    return absl::Substitute(
+        "  sapi::v::RemotePtr sapi_cb_$0(reinterpret_cast<void*>(\n"
+        "      $1(reinterpret_cast<uintptr_t>($0))));\n",
+        cb_param.name, RegisterCallbackName(*cb.typedef_name));
+  }
   if (!NeedsCallbackLambdaWrapper(cb)) {
     return absl::Substitute(
         R"(  std::optional<sapi::v::Callback> sapi_cb_$0;
@@ -1479,13 +1570,23 @@ void EmitHostSrcParam(const ir::Parameter& param, std::string& pre_call,
       absl::Overload{
           [&](const ir::CallbackParam& cb) {
             absl::StrAppend(&pre_call, EmitCallbackHostPreCall(param, cb));
-            absl::StrAppend(
-                &call_args,
-                absl::Substitute(
-                    "sapi_cb_$0 ? sapi_cb_$0->PtrBefore() : nullptr",
-                    param.name));
-            if (NeedsCallbackLambdaWrapper(cb) && CallbackReturnsPointer(cb) &&
-                cb.return_value->IsOutput()) {
+            if (cb.typedef_name.has_value() &&
+                !cb.functor_template_name.has_value()) {
+              absl::StrAppend(
+                  &call_args,
+                  absl::Substitute("$0 == nullptr ? nullptr : &sapi_cb_$0",
+                                   param.name));
+            } else {
+              absl::StrAppend(
+                  &call_args,
+                  absl::Substitute(
+                      "sapi_cb_$0 ? sapi_cb_$0->PtrBefore() : nullptr",
+                      param.name));
+            }
+            if (NeedsCallbackLambdaWrapper(cb) &&
+                !(cb.typedef_name.has_value() &&
+                  !cb.functor_template_name.has_value()) &&
+                CallbackReturnsPointer(cb) && cb.return_value->IsOutput()) {
               absl::SubstituteAndAppend(
                   &post_call,
                   "  for (auto& var : sapi_cb_ret_vars_$0) {\n"
@@ -1583,7 +1684,7 @@ void EmitHostSrcParam(const ir::Parameter& param, std::string& pre_call,
                     "  sapi::v::Struct<$0> sapi_tmp_$1($1 != nullptr ? *$1 "
                     ": ($0){});\n",
                     struct_type, param.name));
-            if (!sync.members.empty()) {
+            if (!sync.members.empty() || !sync.callbacks.empty()) {
               absl::StrAppend(&pre_call,
                               EmitStructMemberSyncsPreCall(param, sync));
             }
@@ -1596,7 +1697,7 @@ void EmitHostSrcParam(const ir::Parameter& param, std::string& pre_call,
                 &call_args,
                 absl::Substitute("$0 == nullptr ? nullptr : sapi_tmp_$0.$1",
                                  param.name, ptr_access));
-            if (!sync.members.empty()) {
+            if (!sync.members.empty() || !sync.callbacks.empty()) {
               std::string save_ptrs;
               std::string restore_ptrs;
               for (const auto& s : sync.members) {
@@ -1617,8 +1718,18 @@ void EmitHostSrcParam(const ir::Parameter& param, std::string& pre_call,
                                           "    }\n",
                                           host_ptr_expr, suffix);
               }
+              for (const auto& cb_field : sync.callbacks) {
+                absl::SubstituteAndAppend(
+                    &restore_ptrs,
+                    "    $0->$1 = reinterpret_cast<decltype($0->$1)>(\n"
+                    "        $2(reinterpret_cast<uintptr_t>(\n"
+                    "            sapi_tmp_$0.data().$1)));\n",
+                    param.name, cb_field.member_name,
+                    BindThunkName(cb_field.typedef_name));
+              }
               if (param.direction() != PointerDir::kIn &&
-                  !param.type.is_const) {
+                  !param.type.is_const &&
+                  !(param.type.pointee && param.type.pointee->is_const)) {
                 absl::SubstituteAndAppend(
                     &post_call,
                     "  if ($0 != nullptr) {\n"
@@ -1986,6 +2097,14 @@ absl::flat_hash_set<std::string> GatherHostIncludes(
           absl::Substitute("\"$0absl/log/check.h\"", kIncludePrefix));
       host_includes.insert(
           absl::Substitute("\"$0absl/status/statusor.h\"", kIncludePrefix));
+      for (size_t i = 1; i < func->parameters.size(); ++i) {
+        if (const auto* buf = func->parameters[i].As<ir::BufferParam>()) {
+          if (std::holds_alternative<ir::bounds::NullTerminated>(buf->bounds)) {
+            host_includes.insert("<string>");
+            host_includes.insert("<cstring>");
+          }
+        }
+      }
     }
     for (const auto& param : func->parameters) {
       std::visit(
@@ -2140,6 +2259,47 @@ std::string EmitThunkPool(const ir::Function& invoker) {
         "      reinterpret_cast<uintptr_t>(&$0),", thunk_name));
   }
 
+  absl::Span<const ir::Parameter> typedef_params =
+      absl::MakeConstSpan(invoker.parameters).subspan(1);
+  std::vector<std::string> lambda_params;
+  std::vector<std::string> lambda_call_args;
+  std::vector<std::string> pre_call_blocks;
+  std::string param_sync_post_call;
+  EmitCallbackParamMarshaling(typedef_params, lambda_params, lambda_call_args,
+                              pre_call_blocks, param_sync_post_call);
+  std::string param_sync_pre_call;
+  if (!pre_call_blocks.empty()) {
+    param_sync_pre_call =
+        absl::StrCat(absl::StrJoin(pre_call_blocks, "\n\n"), "\n\n");
+  }
+  std::string lambda_call_str = absl::StrJoin(lambda_call_args, ", ");
+  std::string lambda_body;
+  if (ret_type == "void") {
+    if (param_sync_post_call.empty()) {
+      lambda_body = absl::Substitute(
+          "$0      reinterpret_cast<CallbackFn>(sapi_host_fn)($1);\n",
+          param_sync_pre_call, lambda_call_str);
+    } else {
+      lambda_body = absl::Substitute(
+          "$0      reinterpret_cast<CallbackFn>(sapi_host_fn)($1);\n\n$2",
+          param_sync_pre_call, lambda_call_str, param_sync_post_call);
+    }
+  } else {
+    if (param_sync_post_call.empty()) {
+      lambda_body = absl::Substitute(
+          "$0      $1 sapi_cb_ret = "
+          "reinterpret_cast<CallbackFn>(sapi_host_fn)($2);\n"
+          "      return sapi_cb_ret;\n",
+          param_sync_pre_call, ret_type, lambda_call_str);
+    } else {
+      lambda_body = absl::Substitute(
+          "$0      $1 sapi_cb_ret = "
+          "reinterpret_cast<CallbackFn>(sapi_host_fn)($2);\n\n"
+          "$3      return sapi_cb_ret;\n",
+          param_sync_pre_call, ret_type, lambda_call_str, param_sync_post_call);
+    }
+  }
+
   absl::SubstituteAndAppend(
       &out,
       "}  // namespace\n\n"
@@ -2151,18 +2311,57 @@ std::string EmitThunkPool(const ir::Function& invoker) {
       "  return &kPool;\n"
       "}\n\n"
       "// Returns the host-callable stand-in for a sandboxee function with\n"
-      "// callback typedef `$0`'s signature. A null function stays null.\n"
+      "// callback typedef `$0`'s signature. A null function stays null, and "
+      "a\n"
+      "// trampoline that stands in for one of our own host callbacks unwraps\n"
+      "// back to that host function after verifying that it was registered\n"
+      "// under callback typedef `$0`.\n"
       "extern \"C\" uintptr_t sapi_bind_thunk_$0(uintptr_t sapi_sandboxee_fn) "
       "{\n"
       "  auto* sandbox = &::sapi::lwbox::SharedSandboxInstance("
       "&CreateMergedSandboxConfig);\n"
+      "  if (std::optional<uintptr_t> sapi_host_fn =\n"
+      "          sapi::lwbox::HostCallbackRegistry::Instance()"
+      "->LookUpTrampoline(\n"
+      "              *sandbox, \"$0\", sapi_sandboxee_fn);\n"
+      "      sapi_host_fn.has_value()) {\n"
+      "    return *sapi_host_fn;\n"
+      "  }\n"
       "  absl::StatusOr<uintptr_t> sapi_thunk =\n"
       "      sapi::lwbox::SandboxeeCallbackRegistry::Instance()->ThunkFor(\n"
       "          *sandbox, *sapi_thunk_pool_$0(), sapi_sandboxee_fn);\n"
       "  sandbox->Check(sapi_thunk.status());\n"
       "  return *sapi_thunk;\n"
+      "}\n\n"
+      "// Returns the sandboxee-callable stand-in for a host function with\n"
+      "// callback typedef `$0`'s signature. A null function stays null, and "
+      "a\n"
+      "// host thunk that stands in for a sandboxee function unwraps back to "
+      "that\n"
+      "// sandboxee function after verifying its thunk pool.\n"
+      "extern \"C\" uintptr_t sapi_register_callback_$0(\n"
+      "    uintptr_t sapi_host_fn) {\n"
+      "  auto* sandbox = &::sapi::lwbox::SharedSandboxInstance("
+      "&CreateMergedSandboxConfig);\n"
+      "  if (std::optional<uintptr_t> sapi_bound =\n"
+      "          sapi::lwbox::SandboxeeCallbackRegistry::Instance()"
+      "->LookUpThunk(\n"
+      "              *sandbox, *sapi_thunk_pool_$0(), sapi_host_fn);\n"
+      "      sapi_bound.has_value()) {\n"
+      "    return *sapi_bound;\n"
+      "  }\n"
+      "  using CallbackFn = $2;\n"
+      "  absl::StatusOr<uintptr_t> sapi_trampoline =\n"
+      "      sapi::lwbox::HostCallbackRegistry::Instance()->TrampolineFor(\n"
+      "          *sandbox, \"$0\", sapi_host_fn,\n"
+      "          [sandbox, sapi_host_fn]($3) -> $4 {\n"
+      "$5          });\n"
+      "  sandbox->Check(sapi_trampoline.status());\n"
+      "  return *sapi_trampoline;\n"
       "}\n\n",
-      typedef_name, absl::StrJoin(thunk_addresses, "\n"));
+      typedef_name, absl::StrJoin(thunk_addresses, "\n"),
+      EmitInvokerTargetType(invoker), absl::StrJoin(lambda_params, ", "),
+      ret_type, lambda_body);
   return out;
 }
 
@@ -2185,15 +2384,17 @@ absl::StatusOr<std::string> EmitHostSrc(
   }
 
   // The pools are emitted after the shims, because a thunk calls the shim for
-  // its callback typedef's invoker. A shim that hands a callback back out calls
-  // the pool's bind entry point, so that much has to be declared first.
+  // its callback typedef's invoker. A shim that hands a callback in or back out
+  // calls the pool's entry points, so those have to be declared first.
   std::string bind_decls;
   for (const auto* func : sorted_funcs) {
     if (func->invoker_for_typedef) {
       absl::SubstituteAndAppend(
           &bind_decls,
-          "extern \"C\" uintptr_t $0(uintptr_t sapi_sandboxee_fn);\n",
-          BindThunkName(*func->invoker_for_typedef));
+          "extern \"C\" uintptr_t $0(uintptr_t sapi_sandboxee_fn);\n"
+          "extern \"C\" uintptr_t $1(uintptr_t sapi_host_fn);\n",
+          BindThunkName(*func->invoker_for_typedef),
+          RegisterCallbackName(*func->invoker_for_typedef));
     }
   }
   if (!bind_decls.empty()) {
@@ -2293,14 +2494,21 @@ absl::StatusOr<std::string> EmitHostSrc(
                 } else if (const auto* alias_cb =
                                std::get_if<ir::lifetime::AliasCallbackReturn>(
                                    &ret_buf.lifetime)) {
+                  // Security invariant: `sapi_ret_arg.GetValue()` comes from
+                  // the untrusted sandboxee and under `SANDBOX_RETURN_ALIAS`
+                  // must be either nullptr or one of the remote buffers
+                  // allocated on behalf of `cb` during this call. Using
+                  // `operator[]` would silently default-insert `nullptr` for a
+                  // forged address; `.at()` fails closed if the sandboxee
+                  // returns an unaliased non-null pointer.
                   absl::SubstituteAndAppend(
                       &out,
                       "  return sapi_ret_arg.GetValue()\n"
                       "             ? static_cast<$0>(\n"
                       "                   "
-                      "sapi_alias_cb_return_map_$1[reinterpret_cast<uintptr_"
+                      "sapi_alias_cb_return_map_$1.at(reinterpret_cast<uintptr_"
                       "t>(\n"
-                      "                       sapi_ret_arg.GetValue())])\n"
+                      "                       sapi_ret_arg.GetValue())))\n"
                       "             : nullptr;\n",
                       func->return_value->type.canonical_name,
                       alias_cb->callback_param_name);
