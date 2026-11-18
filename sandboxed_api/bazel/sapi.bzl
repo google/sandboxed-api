@@ -433,19 +433,9 @@ def sapi_library(
             **common
         )
 
-    if in_process:
-        sandboxee_lib_dep = lib
-    else:
-        _unsandboxed_cc_deps(
-            name = "_" + name + ".unsandboxed_lib",
-            deps = [lib],
-            **common
-        )
-        sandboxee_lib_dep = ":_" + name + ".unsandboxed_lib"
-
     cc_library(
         name = name + ".lib",
-        deps = [sandboxee_lib_dep],
+        deps = [lib],
         alwayslink = 1,  # All functions are linked into depending binaries
         copts = default_copts,
         **common
@@ -483,111 +473,3 @@ def sapi_library(
 
     _clang_format_file(generated_header + ".unformatted", generated_header, **common)
     _clang_format_file(generated_sandboxee_src + ".unformatted", generated_sandboxee_src, **common)
-
-_SandboxedLibraryInfo = provider(
-    doc = "Marker provider indicating a _sandboxed_library target.",
-    fields = [],
-)
-
-_UnsandboxedCcInfo = provider(
-    doc = "Carries a CcInfo with transitive _sandboxed_library deps replaced by their unsandboxed counterparts.",
-    fields = {
-        "cc_info": "Unsandboxed CcInfo for linking inside a sandboxee.",
-        "has_sandboxed_dep": "Whether any transitive dependency was a _sandboxed_library.",
-    },
-)
-
-def _unsandboxed_deps_aspect_impl(target, ctx):
-    if _SandboxedLibraryInfo in target:
-        return [_UnsandboxedCcInfo(
-            cc_info = ctx.rule.attr.lib[_UnsandboxedCcInfo].cc_info,
-            has_sandboxed_dep = True,
-        )]
-
-    direct_deps = []
-    for attr_name in ("deps", "implementation_deps"):
-        attr_val = getattr(ctx.rule.attr, attr_name, None)
-        if type(attr_val) == "list":
-            direct_deps.extend(attr_val)
-
-    has_sandboxed_dep = False
-    for dep in direct_deps:
-        if _UnsandboxedCcInfo in dep and dep[_UnsandboxedCcInfo].has_sandboxed_dep:
-            has_sandboxed_dep = True
-            break
-
-    if not has_sandboxed_dep:
-        return [_UnsandboxedCcInfo(
-            cc_info = target[CcInfo],
-            has_sandboxed_dep = False,
-        )]
-
-    dep_owners = {}
-    child_linking_contexts = []
-    for dep in direct_deps:
-        if _UnsandboxedCcInfo in dep:
-            child_linking_contexts.append(dep[_UnsandboxedCcInfo].cc_info.linking_context)
-        if CcInfo in dep:
-            for li in dep[CcInfo].linking_context.linker_inputs.to_list():
-                dep_owners[li.owner] = True
-
-    own_linker_inputs = [
-        li
-        for li in target[CcInfo].linking_context.linker_inputs.to_list()
-        if li.owner not in dep_owners
-    ]
-    contexts = []
-    if own_linker_inputs:
-        contexts.append(
-            cc_common.create_linking_context(
-                linker_inputs = depset(own_linker_inputs, order = "topological"),
-            ),
-        )
-    contexts.extend(child_linking_contexts)
-    return [_UnsandboxedCcInfo(
-        cc_info = CcInfo(
-            compilation_context = target[CcInfo].compilation_context,
-            linking_context = cc_common.merge_linking_contexts(
-                linking_contexts = contexts,
-            ),
-        ),
-        has_sandboxed_dep = True,
-    )]
-
-_unsandboxed_deps_aspect = aspect(
-    implementation = _unsandboxed_deps_aspect_impl,
-    attr_aspects = [
-        "deps",
-        "implementation_deps",
-        "lib",
-    ],
-    required_providers = [CcInfo],
-)
-
-def _unsandboxed_cc_deps_impl(ctx):
-    cc_info = cc_common.merge_cc_infos(
-        direct_cc_infos = [
-            dep[_UnsandboxedCcInfo].cc_info
-            for dep in ctx.attr.deps
-            if _UnsandboxedCcInfo in dep
-        ],
-    )
-    runfiles = ctx.runfiles().merge_all([
-        dep[DefaultInfo].default_runfiles
-        for dep in ctx.attr.deps
-    ])
-    return [
-        DefaultInfo(runfiles = runfiles),
-        cc_info,
-    ]
-
-_unsandboxed_cc_deps = rule(
-    implementation = _unsandboxed_cc_deps_impl,
-    provides = [CcInfo],
-    attrs = {
-        "deps": attr.label_list(
-            aspects = [_unsandboxed_deps_aspect],
-            providers = [CcInfo],
-        ),
-    },
-)
