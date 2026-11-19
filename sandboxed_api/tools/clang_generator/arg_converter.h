@@ -35,6 +35,8 @@ struct ConversionContext {
   // a typedef that has already been seen, so this being a snapshot of the
   // declarations preceding the current one is what enforces declare-before-use.
   const absl::flat_hash_map<std::string, CallbackTypedef>& callback_typedefs;
+  // Pointee contracts parsed from pointer `typedef` declarations so far.
+  const absl::flat_hash_map<std::string, PointeeContract>& pointee_contracts;
 };
 
 // Builds a declarative Function IR from a Clang FunctionDecl and its AST

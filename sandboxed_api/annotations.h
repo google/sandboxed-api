@@ -638,4 +638,23 @@
 #define SANDBOX_CALLBACK_IDEMPOTENT \
   [[clang::annotate("sandbox", "callback_idempotent")]]
 
+// Multi-level pointer parameters (`T**`, `T***`) are annotated by defining a
+// pointer `typedef` for each inner pointer level (`*p`, `p[i]`, `**p`, etc.)
+// and attaching that level's direction, bounds, and lifetime annotations to
+// the `typedef`. Multi-level pointers of depth 3 or more (`T***`) chain
+// pointer `typedef`s.
+//
+// Example (out-parameter returning an opaque handle, `DbHandle**`):
+//   typedef DbHandle* db_handle_pointee SANDBOX_OPAQUE_PTR;
+//   int open_db(const char* path SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED,
+//               db_handle_pointee* out_db SANDBOX_OUT_PTR);
+//
+// Example (3-level pointer, `int***`):
+//   typedef int* row_pointee SANDBOX_INOUT_PTR SANDBOX_ELEM_SIZED_BY(cols);
+//   typedef row_pointee* matrix_pointee SANDBOX_INOUT_PTR
+//       SANDBOX_ELEM_SIZED_BY(rows);
+//   void update_matrix_handle(
+//       matrix_pointee* matrix_out SANDBOX_INOUT_PTR,
+//       size_t rows, size_t cols);
+
 #endif  // SANDBOXED_API_ANNOTATIONS_H_

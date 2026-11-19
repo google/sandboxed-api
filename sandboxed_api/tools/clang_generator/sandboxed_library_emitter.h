@@ -74,6 +74,7 @@ class SandboxedLibraryEmitter : public EmitterBase {
     return absl::OkStatus();
   }
   absl::Status ParseCallbackTypedef(const clang::TypedefNameDecl& decl);
+  absl::Status ParsePointeeContract(const clang::TypedefNameDecl& decl);
 
   absl::flat_hash_set<std::string> includes_;
   absl::flat_hash_set<std::string> sandbox_funcs_;
@@ -87,6 +88,10 @@ class SandboxedLibraryEmitter : public EmitterBase {
   // struct annotation, used to prune unused reverse-callback invokers and thunk
   // pools.
   absl::flat_hash_set<std::string> used_callback_typedefs_;
+  // Names of pointee typedefs referenced by at least one parameter or outer
+  // pointee typedef, used to detect and report unused pointee typedefs in the
+  // annotation file.
+  absl::flat_hash_set<std::string> used_pointee_contracts_;
   std::optional<std::string> funcs_loc_;
   ir::Library library_ir_;
 };

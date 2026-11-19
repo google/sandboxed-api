@@ -109,6 +109,25 @@ struct TypeInfo {
     }
     return std::string(name);
   }
+
+  // Returns the pointee type suitable for declaring a mutable local variable of
+  // the pointee's value type. For pointer pointees (e.g. `const char* const*`),
+  // strips only a trailing top-level `const` on the inner pointer while
+  // preserving pointee constness (`const char *`).
+  std::string pointee_value_type_name() const {
+    if (pointee == nullptr) return "";
+    if (pointee->is_pointer()) {
+      absl::string_view name = pointee->canonical_name;
+      if (pointee->is_const && absl::EndsWith(name, "const")) {
+        name.remove_suffix(5);
+        while (!name.empty() && name.back() == ' ') {
+          name.remove_suffix(1);
+        }
+      }
+      return std::string(name);
+    }
+    return unqualified_pointee_type_name();
+  }
 };
 
 // Structured representation of how a buffer's bounds/size are computed. Each
@@ -208,15 +227,21 @@ struct VoidParam {};
 // Scalar parameter (arithmetic, enum, or record passed by value).
 struct ScalarParam {};
 
+struct Parameter;
+
 // Buffer pointer parameter (contiguous elements or bytes in memory).
 // Null-terminated C-strings are buffers whose `bounds.kind` is
 // `BufferBounds::Kind::kNullTerminated`.
+// When `pointee` is non-null, this parameter is a multi-level pointer
+// (`T**`, `T***`, etc.) whose dereferenced level (`*p` or `p[i]`) is
+// described by `*pointee`.
 struct BufferParam {
   PointerDir direction = PointerDir::kIn;
   BufferBounds bounds;
   LifetimePolicy lifetime;
   ContextBoundAnnotations context_bound;
   bool uninitialized = false;
+  std::shared_ptr<Parameter> pointee = nullptr;
 };
 
 // C++ string parameter (std::string, std::string_view, std::string*).
@@ -377,6 +402,9 @@ struct Library {
   // Callback typedefs parsed from callback `typedef` declarations, keyed by
   // typedef name and populated in source order to enforce declare-before-use.
   absl::flat_hash_map<std::string, CallbackTypedef> callback_typedefs;
+  // Pointee contracts parsed from pointer `typedef` declarations, keyed by
+  // typedef name and populated in source order to enforce declare-before-use.
+  absl::flat_hash_map<std::string, PointeeContract> pointee_contracts;
   std::vector<std::string> host_state_vars;
   std::optional<std::string> host_code;
   std::optional<std::string> sandboxee_code;

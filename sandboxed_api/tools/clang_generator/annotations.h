@@ -229,6 +229,9 @@ struct Annotations {
     return absl::OkStatus();
   }
   bool callback_idempotent = false;
+  // Name of the pointee `typedef` contract referenced by a multi-level pointer
+  // parameter or an outer pointee `typedef`.
+  std::optional<std::string> pointee_contract;
 };
 
 // Represents a parsed sandbox annotation attribute. For example:
@@ -275,6 +278,19 @@ struct CallbackTypedef {
   bool idempotent = false;
 };
 
+// Parsed representation of a pointer `typedef` describing an inner pointer
+// level (`*p`, `p[i]`, `**p`, etc.) for multi-level pointer parameters.
+struct PointeeContract {
+  std::string name;
+  // Canonical unqualified pointer type string (e.g. "int *", "const char *",
+  // "int **"), checked against the outer pointer's pointee type.
+  std::string canonical_type;
+  // Annotations on the pointer `typedef` declaration describing this pointer
+  // indirection level. May itself carry `pointee_contract` for 3+ levels of
+  // indirection (`T***`).
+  Annotations annotations;
+};
+
 // Returns the underlying `FunctionProtoType` if `decl` is a callback typedef
 // (a typedef for a function pointer, function type, or supported functor), or
 // `nullptr` otherwise.
@@ -286,6 +302,11 @@ const clang::FunctionProtoType* GetCallbackTypedefProto(
 // arguments such as `std::function<cb_fn>`), or `nullptr` if `type` does not
 // reference a callback typedef.
 const clang::TypedefNameDecl* FindCallbackTypedef(clang::QualType type);
+
+// Returns the most recent declaration of the pointer `typedef` referenced by
+// `type->getPointeeType()` when `type` is a multi-level pointer (e.g.
+// `db_handle_pointee*` or `const c_str_in_pointee*`), or `nullptr` otherwise.
+const clang::TypedefNameDecl* FindPointeeTypedef(clang::QualType type);
 
 // Returns true if `decl` or any of its callback parameter declarations carry a
 // `[[clang::annotate("sandbox", ...)]]` attribute.
@@ -309,6 +330,10 @@ absl::StatusOr<RecordAnnotations> ParseRecordAnnotations(
 
 // Parses a callback `typedef` declaration.
 absl::StatusOr<CallbackTypedef> ParseCallbackTypedef(
+    const clang::TypedefNameDecl& decl);
+
+// Parses a pointee contract from an annotated pointer `typedef` declaration.
+absl::StatusOr<PointeeContract> ParsePointeeContract(
     const clang::TypedefNameDecl& decl);
 
 std::string ResolveContextName(absl::string_view context);

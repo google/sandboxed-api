@@ -1060,5 +1060,179 @@ TEST(EmitHostSrcTest,
   ASSERT_THAT(invoker_src, IsOk());
   EXPECT_THAT(*invoker_src, HasSubstr("/*idempotent=*/true);"));
 }
+
+TEST(EmitHostSrcTest,
+     MultiLevelPointer2DGridRecordsLeafOutputsInHostSyncVector) {
+  auto row_pointee = std::make_shared<ir::Parameter>(
+      BufferArg("int_row_inout_pointee", ScalarType("int"), PointerDir::kInOut,
+                ElemCount("cols")));
+  ir::Parameter grid_param{
+      .name = "grid",
+      .type = PointerTo(row_pointee->type),
+      .payload =
+          ir::BufferParam{
+              .direction = PointerDir::kInOut,
+              .bounds = ElemCount("rows"),
+              .pointee = row_pointee,
+          },
+  };
+  absl::StatusOr<std::string> src = HostSrc(ir::Function{
+      .name = "scale_2d_grid",
+      .parameters =
+          {
+              std::move(grid_param),
+              ScalarArg("rows", "size_t"),
+              ScalarArg("cols", "size_t"),
+          },
+  });
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(
+          HasSubstr("std::vector<sapi::v::Var*> sapi_sync_out_grid;"),
+          HasSubstr("sapi_sync_out_grid.push_back(sapi_arr.get());"),
+          HasSubstr("grid == nullptr ? nullptr : sapi_tmp_grid.PtrBefore()"),
+          HasSubstr("for (sapi::v::Var* sapi_out_var : sapi_sync_out_grid)")));
+}
+
+TEST(EmitHostSrcTest,
+     ThreeLevelPointerChecksOverflowWhenAllocatingMiddlePointerTable) {
+  auto row_pointee = std::make_shared<ir::Parameter>(
+      BufferArg("int_row_inout_pointee", ScalarType("int"), PointerDir::kInOut,
+                ElemCount("cols")));
+  auto matrix_pointee = std::make_shared<ir::Parameter>(ir::Parameter{
+      .name = "int_matrix_inout_pointee",
+      .type = PointerTo(row_pointee->type),
+      .payload =
+          ir::BufferParam{
+              .direction = PointerDir::kInOut,
+              .bounds = ElemCount("rows"),
+              .pointee = row_pointee,
+          },
+  });
+  ir::Parameter matrix_ptr{
+      .name = "matrix_ptr",
+      .type = PointerTo(matrix_pointee->type),
+      .payload =
+          ir::BufferParam{
+              .direction = PointerDir::kInOut,
+              .bounds = ir::bounds::Singleton{},
+              .pointee = matrix_pointee,
+          },
+  };
+  absl::StatusOr<std::string> src = HostSrc(ir::Function{
+      .name = "add_to_matrix",
+      .parameters =
+          {
+              std::move(matrix_ptr),
+              ScalarArg("rows", "size_t"),
+              ScalarArg("cols", "size_t"),
+          },
+  });
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(*src, HasSubstr("sandbox->CheckedMultiply(sizeof(int*),\n"
+                              "                                   "
+                              "std::max<size_t>(sapi_cnt_d1, 1))"));
+}
+
+TEST(EmitHostSrcTest,
+     MultiLevelPointerWithCopyFromAndBindPointeeEmitsPtrAfter) {
+  ir::Parameter db{
+      .name = "db",
+      .type = PointerTo(ScalarType("struct DbHandle")),
+      .payload =
+          ir::OpaquePointerParam{.direction = PointerDir::kSandboxOpaque},
+  };
+  auto bound_pointee = std::make_shared<ir::Parameter>(ir::Parameter{
+      .name = "bound_pair_td",
+      .type = PointerTo(ScalarType("const int")),
+      .payload =
+          ir::BufferParam{
+              .direction = PointerDir::kOut,
+              .bounds = ElemCount("2"),
+              .context_bound =
+                  ContextBoundAnnotations{
+                      .copy_from_and_bind =
+                          CopyFromAndBindOutPtr{
+                              .context = "db",
+                              .binding_name = "get_slice_out_slice_b0",
+                          },
+                  },
+          },
+  });
+  ir::Parameter out_slice{
+      .name = "out_slice",
+      .type = PointerTo(bound_pointee->type),
+      .payload =
+          ir::BufferParam{
+              .direction = PointerDir::kOut,
+              .bounds = ir::bounds::Singleton{},
+              .pointee = bound_pointee,
+          },
+  };
+  absl::StatusOr<std::string> src = HostSrc(ir::Function{
+      .name = "get_slice",
+      .parameters = {std::move(db), std::move(out_slice)},
+  });
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(*src,
+              AllOf(HasSubstr("sapi_tmp_out_slice.PtrAfter()"),
+                    HasSubstr("*out_slice = sapi_tmp_out_slice.GetValue();")));
+}
+
+TEST(EmitHostSrcTest,
+     MultiLevelPointerInOuterWithGlobalCStringPointeeDeclaresOwnedVars) {
+  auto global_cstr_pointee = std::make_shared<ir::Parameter>(ir::Parameter{
+      .name = "static_c_str_pointee",
+      .type = PointerTo(ScalarType("const char")),
+      .payload =
+          ir::BufferParam{
+              .direction = PointerDir::kInOut,
+              .bounds = ir::bounds::NullTerminated{},
+              .lifetime = ir::lifetime::SandboxGlobal{},
+          },
+  });
+  ir::Parameter singleton_in{
+      .name = "single_str_ptr",
+      .type = PointerTo(global_cstr_pointee->type),
+      .payload =
+          ir::BufferParam{
+              .direction = PointerDir::kIn,
+              .bounds = ir::bounds::Singleton{},
+              .pointee = global_cstr_pointee,
+          },
+  };
+  ir::Parameter array_in{
+      .name = "str_array",
+      .type = PointerTo(global_cstr_pointee->type),
+      .payload =
+          ir::BufferParam{
+              .direction = PointerDir::kIn,
+              .bounds = ElemCount("count"),
+              .pointee = global_cstr_pointee,
+          },
+  };
+  absl::StatusOr<std::string> src = HostSrc(ir::Function{
+      .name = "inspect_global_strings",
+      .parameters =
+          {
+              std::move(singleton_in),
+              std::move(array_in),
+              ScalarArg("count", "size_t"),
+          },
+  });
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(
+          HasSubstr("std::vector<std::unique_ptr<sapi::v::Var>> "
+                    "sapi_owned_single_str_ptr;"),
+          HasSubstr("sapi_owned_single_str_ptr.push_back(std::move(sapi_cstr)"
+                    ");"),
+          HasSubstr("std::vector<std::unique_ptr<sapi::v::Var>> "
+                    "sapi_owned_str_array;"),
+          HasSubstr("sapi_owned_str_array.push_back(std::move(sapi_cstr));")));
+}
+
 }  // namespace
 }  // namespace sapi

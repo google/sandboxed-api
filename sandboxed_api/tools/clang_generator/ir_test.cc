@@ -248,10 +248,12 @@ class IrConvertTest : public ::sapi::FrontendActionTest {
         record_annotations;
     absl::flat_hash_map<std::string, CallbackTypedef> typedefs =
         callback_typedefs;
+    absl::flat_hash_map<std::string, PointeeContract> pointee_contracts;
     // Outlives the frontend action below, which only holds a reference.
     const ConversionContext conv_ctx{
         .record_annotations = records,
         .callback_typedefs = typedefs,
+        .pointee_contracts = pointee_contracts,
     };
 
     class ExtractAction : public clang::ASTFrontendAction {
@@ -261,11 +263,13 @@ class IrConvertTest : public ::sapi::FrontendActionTest {
           absl::flat_hash_map<std::string, RecordAnnotations>&
               record_annotations,
           absl::flat_hash_map<std::string, CallbackTypedef>& callback_typedefs,
+          absl::flat_hash_map<std::string, PointeeContract>& pointee_contracts,
           std::optional<Function>& out_func, absl::Status& out_status)
           : target_name_(target_name),
             conv_ctx_(conv_ctx),
             record_annotations_(record_annotations),
             callback_typedefs_(callback_typedefs),
+            pointee_contracts_(pointee_contracts),
             out_func_(out_func),
             out_status_(out_status) {}
 
@@ -280,11 +284,14 @@ class IrConvertTest : public ::sapi::FrontendActionTest {
                        record_annotations,
                    absl::flat_hash_map<std::string, CallbackTypedef>&
                        callback_typedefs,
+                   absl::flat_hash_map<std::string, PointeeContract>&
+                       pointee_contracts,
                    std::optional<Function>& out_func, absl::Status& out_status)
               : target_name_(target_name),
                 conv_ctx_(conv_ctx),
                 record_annotations_(record_annotations),
                 callback_typedefs_(callback_typedefs),
+                pointee_contracts_(pointee_contracts),
                 out_func_(out_func),
                 out_status_(out_status) {}
 
@@ -348,6 +355,28 @@ class IrConvertTest : public ::sapi::FrontendActionTest {
                     std::move(conversion->no_reverse_reason);
               }
             }
+            for (const clang::TypedefNameDecl* td : pointee_typedefs_) {
+              absl::StatusOr<PointeeContract> contract =
+                  ParsePointeeContract(*td);
+              if (!contract.ok()) {
+                out_status_ = contract.status();
+                return;
+              }
+              if (contract->annotations.pointee_contract.has_value() &&
+                  !pointee_contracts_.contains(
+                      *contract->annotations.pointee_contract)) {
+                contract->annotations.pointee_contract = std::nullopt;
+              }
+              std::string contract_name = contract->name;
+              auto [it, inserted] = pointee_contracts_.try_emplace(
+                  std::move(contract_name), *std::move(contract));
+              if (!inserted) {
+                out_status_ = absl::InvalidArgumentError(
+                    absl::StrCat("pointee typedef ", it->first,
+                                 " is annotated more than once"));
+                return;
+              }
+            }
             for (const clang::FunctionDecl* func_decl : functions_) {
               if (func_decl->getIdentifier() != nullptr &&
                   func_decl->getName().starts_with("sandbox_annotation_")) {
@@ -373,6 +402,8 @@ class IrConvertTest : public ::sapi::FrontendActionTest {
           bool VisitTypedefNameDecl(clang::TypedefNameDecl* td) {
             if (GetCallbackTypedefProto(*td) != nullptr) {
               typedefs_.push_back(td);
+            } else if (HasSandboxAnnotations(*td)) {
+              pointee_typedefs_.push_back(td);
             }
             return true;
           }
@@ -388,14 +419,16 @@ class IrConvertTest : public ::sapi::FrontendActionTest {
           absl::flat_hash_map<std::string, RecordAnnotations>&
               record_annotations_;
           absl::flat_hash_map<std::string, CallbackTypedef>& callback_typedefs_;
+          absl::flat_hash_map<std::string, PointeeContract>& pointee_contracts_;
           std::optional<Function>& out_func_;
           absl::Status& out_status_;
           std::vector<const clang::TypedefNameDecl*> typedefs_;
+          std::vector<const clang::TypedefNameDecl*> pointee_typedefs_;
           std::vector<const clang::FunctionDecl*> functions_;
         };
         return std::make_unique<Consumer>(
             target_name_, conv_ctx_, record_annotations_, callback_typedefs_,
-            out_func_, out_status_);
+            pointee_contracts_, out_func_, out_status_);
       }
 
      private:
@@ -403,14 +436,15 @@ class IrConvertTest : public ::sapi::FrontendActionTest {
       const ConversionContext& conv_ctx_;
       absl::flat_hash_map<std::string, RecordAnnotations>& record_annotations_;
       absl::flat_hash_map<std::string, CallbackTypedef>& callback_typedefs_;
+      absl::flat_hash_map<std::string, PointeeContract>& pointee_contracts_;
       std::optional<Function>& out_func_;
       absl::Status& out_status_;
     };
 
-    absl::Status run_status =
-        RunFrontendAction(code, std::make_unique<ExtractAction>(
-                                    target_name, conv_ctx, records, typedefs,
-                                    result_func, conversion_status));
+    absl::Status run_status = RunFrontendAction(
+        code, std::make_unique<ExtractAction>(target_name, conv_ctx, records,
+                                              typedefs, pointee_contracts,
+                                              result_func, conversion_status));
     if (!run_status.ok()) return run_status;
     if (!conversion_status.ok()) return conversion_status;
     return *std::move(result_func);
@@ -2424,6 +2458,399 @@ TEST_F(IrConvertTest, RejectsReturnPointerToStructWithCallbackField) {
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("structs with callback fields cannot be "
                          "returned by pointer")));
+}
+
+TEST_F(IrConvertTest, ConvertsTwoLevelPointerWithPointeeContract) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
+                            ConvertSnippetToIR(R"(
+    struct DbHandle;
+    typedef DbHandle* db_handle_pointee
+        [[clang::annotate("sandbox", "sandbox_opaque_ptr")]];
+    typedef const char* c_str_in_pointee
+        [[clang::annotate("sandbox", "in_ptr")]]
+        [[clang::annotate("sandbox", "null_terminated")]];
+    extern "C" int open_db_with_args(
+        int argc,
+        const c_str_in_pointee* argv
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "elem_sized_by", "argc")]],
+        db_handle_pointee* out_db
+            [[clang::annotate("sandbox", "out_ptr")]]);
+  )",
+                                               "open_db_with_args"));
+  ASSERT_EQ(func.parameters.size(), 3);
+
+  const auto* argv_buf = func.parameters[1].As<BufferParam>();
+  ASSERT_NE(argv_buf, nullptr);
+  EXPECT_EQ(argv_buf->direction, PointerDir::kIn);
+  ASSERT_TRUE(std::holds_alternative<bounds::ElemCount>(argv_buf->bounds));
+  EXPECT_EQ(std::get<bounds::ElemCount>(argv_buf->bounds).size_expr, "argc");
+  ASSERT_NE(argv_buf->pointee, nullptr);
+  const auto* inner_str = argv_buf->pointee->As<BufferParam>();
+  ASSERT_NE(inner_str, nullptr);
+  EXPECT_EQ(inner_str->direction, PointerDir::kIn);
+  EXPECT_TRUE(
+      std::holds_alternative<bounds::NullTerminated>(inner_str->bounds));
+
+  const auto* out_db_buf = func.parameters[2].As<BufferParam>();
+  ASSERT_NE(out_db_buf, nullptr);
+  EXPECT_EQ(out_db_buf->direction, PointerDir::kOut);
+  EXPECT_TRUE(std::holds_alternative<bounds::Singleton>(out_db_buf->bounds));
+  ASSERT_NE(out_db_buf->pointee, nullptr);
+  const auto* inner_db = out_db_buf->pointee->As<OpaquePointerParam>();
+  ASSERT_NE(inner_db, nullptr);
+  EXPECT_EQ(inner_db->direction, PointerDir::kSandboxOpaque);
+
+  Library lib{.name = "MyLib", .functions = {func}};
+  EXPECT_THAT(ValidateAndLinkLibraryIR(lib), IsOk());
+}
+
+TEST_F(IrConvertTest, ConvertsThreeLevelPointerWithChainedPointeeContracts) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
+                            ConvertSnippetToIR(R"(
+    typedef int* row_pointee
+        [[clang::annotate("sandbox", "inout_ptr")]]
+        [[clang::annotate("sandbox", "elem_sized_by", "cols")]];
+    typedef row_pointee* matrix_pointee
+        [[clang::annotate("sandbox", "inout_ptr")]]
+        [[clang::annotate("sandbox", "elem_sized_by", "rows")]];
+    extern "C" void transform_matrix_handle(
+        matrix_pointee* matrix_ptr
+            [[clang::annotate("sandbox", "inout_ptr")]],
+        unsigned long rows,
+        unsigned long cols);
+  )",
+                                               "transform_matrix_handle"));
+  ASSERT_EQ(func.parameters.size(), 3);
+  const auto* level1 = func.parameters[0].As<BufferParam>();
+  ASSERT_NE(level1, nullptr);
+  EXPECT_EQ(level1->direction, PointerDir::kInOut);
+  EXPECT_TRUE(std::holds_alternative<bounds::Singleton>(level1->bounds));
+
+  ASSERT_NE(level1->pointee, nullptr);
+  const auto* level2 = level1->pointee->As<BufferParam>();
+  ASSERT_NE(level2, nullptr);
+  EXPECT_EQ(level2->direction, PointerDir::kInOut);
+  ASSERT_TRUE(std::holds_alternative<bounds::ElemCount>(level2->bounds));
+  EXPECT_EQ(std::get<bounds::ElemCount>(level2->bounds).size_expr, "rows");
+
+  ASSERT_NE(level2->pointee, nullptr);
+  const auto* level3 = level2->pointee->As<BufferParam>();
+  ASSERT_NE(level3, nullptr);
+  EXPECT_EQ(level3->direction, PointerDir::kInOut);
+  ASSERT_TRUE(std::holds_alternative<bounds::ElemCount>(level3->bounds));
+  EXPECT_EQ(std::get<bounds::ElemCount>(level3->bounds).size_expr, "cols");
+  EXPECT_EQ(level3->pointee, nullptr);
+
+  Library lib{.name = "MyLib", .functions = {func}};
+  EXPECT_THAT(ValidateAndLinkLibraryIR(lib), IsOk());
+}
+
+TEST_F(IrConvertTest,
+       ValidateAndLinkLibraryIRNestedPointeeContractMissingSiblingError) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
+                            ConvertSnippetToIR(R"(
+    typedef int* row_pointee
+        [[clang::annotate("sandbox", "inout_ptr")]]
+        [[clang::annotate("sandbox", "elem_sized_by", "missing_cols")]];
+    typedef row_pointee* matrix_pointee
+        [[clang::annotate("sandbox", "inout_ptr")]]
+        [[clang::annotate("sandbox", "elem_sized_by", "rows")]];
+    extern "C" void transform_matrix_handle(
+        matrix_pointee* matrix_ptr
+            [[clang::annotate("sandbox", "inout_ptr")]],
+        unsigned long rows);
+  )",
+                                               "transform_matrix_handle"));
+
+  Library lib{.name = "MyLib", .functions = {func}};
+  EXPECT_THAT(ValidateAndLinkLibraryIR(lib),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("references non-existent sibling parameter "
+                                 "missing_cols")));
+}
+
+TEST_F(IrConvertTest, RejectsMultiLevelPointerWithoutPointeeContract) {
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    extern "C" void take_double_ptr(
+        int** out_ptr [[clang::annotate("sandbox", "out_ptr")]]);
+  )",
+                                 "take_double_ptr"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("pointer argument out_ptr has unsupported "
+                                 "pointee type: 'int *' is a pointer")));
+}
+
+TEST_F(IrConvertTest, RejectsPointeeTypedefWithoutDirection) {
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    typedef int* bad_pointee [[clang::annotate("sandbox", "elem_sized_by", "n")]];
+    extern "C" void take_double_ptr(
+        bad_pointee* out_ptr [[clang::annotate("sandbox", "out_ptr")]],
+        unsigned long n);
+  )",
+                                 "take_double_ptr"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("pointee typedef bad_pointee with type "
+                                 "'int *': missing pointer direction "
+                                 "annotation")));
+}
+
+TEST_F(IrConvertTest, RejectsMultiLevelPointerWithUnannotatedTypedef) {
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    typedef int* unannotated_ptr;
+    extern "C" void take_double_ptr(
+        unannotated_ptr* out_ptr [[clang::annotate("sandbox", "out_ptr")]]);
+  )",
+                                 "take_double_ptr"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("pointer argument out_ptr has unsupported "
+                                 "pointee type: 'unannotated_ptr' is a "
+                                 "pointer")));
+}
+
+TEST_F(IrConvertTest, RejectsFourLevelPointerAndReturnPointeeContract) {
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    typedef int* l1_td [[clang::annotate("sandbox", "inout_ptr")]];
+    typedef l1_td* l2_td [[clang::annotate("sandbox", "inout_ptr")]];
+    typedef l2_td* l3_td [[clang::annotate("sandbox", "inout_ptr")]];
+    extern "C" void take_4level(
+        l3_td* p [[clang::annotate("sandbox", "inout_ptr")]]);
+  )",
+                                 "take_4level"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("multi-level pointers deeper than 3 levels "
+                                 "are not supported")));
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    typedef int* ret_td [[clang::annotate("sandbox", "inout_ptr")]];
+    extern "C" [[clang::annotate("sandbox", "out_ptr")]]
+    ret_td* ret_pointee();
+  )",
+                                 "ret_pointee"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("return pointer sapi_ret_arg has unsupported "
+                                 "pointee type")));
+}
+
+TEST_F(IrConvertTest,
+       RejectsHostOpaqueOutAndOutWrapperAroundCallerAllocatedPointee) {
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    typedef void* host_ctx_td
+        [[clang::annotate("sandbox", "host_opaque_ptr")]];
+    typedef int* caller_row_out_td
+        [[clang::annotate("sandbox", "out_ptr")]]
+        [[clang::annotate("sandbox", "elem_sized_by", "cols")]];
+    typedef caller_row_out_td* bad_middle_out_td
+        [[clang::annotate("sandbox", "out_ptr")]]
+        [[clang::annotate("sandbox", "elem_sized_by", "rows")]];
+    extern "C" void bad_host_opaque_out(
+        host_ctx_td* out_ctx [[clang::annotate("sandbox", "out_ptr")]]);
+    extern "C" void bad_host_opaque_inout(
+        host_ctx_td* inout_ctx [[clang::annotate("sandbox", "inout_ptr")]]);
+    extern "C" void ok_host_opaque_in(
+        const host_ctx_td* in_ctx [[clang::annotate("sandbox", "in_ptr")]]);
+    extern "C" void bad_caller_row_out(
+        caller_row_out_td* out_row [[clang::annotate("sandbox", "out_ptr")]],
+        unsigned long cols);
+    extern "C" void ok_caller_row_in(
+        caller_row_out_td* out_row [[clang::annotate("sandbox", "in_ptr")]],
+        unsigned long cols);
+    extern "C" void bad_3level_middle_out(
+        bad_middle_out_td* mat [[clang::annotate("sandbox", "inout_ptr")]],
+        unsigned long rows, unsigned long cols);
+  )",
+                                 "bad_host_opaque_out"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("pointer argument out_ctx: host_opaque_ptr "
+                                 "pointee typedef host_ctx_td is not supported "
+                                 "on output or in-out multi-level pointers")));
+  EXPECT_THAT(ConvertSnippetToIR("", "bad_host_opaque_inout"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("pointer argument inout_ctx: host_opaque_ptr "
+                                 "pointee typedef host_ctx_td is not supported "
+                                 "on output or in-out multi-level pointers")));
+  EXPECT_THAT(ConvertSnippetToIR("", "ok_host_opaque_in"), IsOk());
+  EXPECT_THAT(ConvertSnippetToIR("", "bad_caller_row_out"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("pointer argument out_row: SANDBOX_OUT_PTR "
+                                 "cannot wrap caller-allocated pointee typedef "
+                                 "caller_row_out_td")));
+  EXPECT_THAT(ConvertSnippetToIR("", "ok_caller_row_in"), IsOk());
+  EXPECT_THAT(ConvertSnippetToIR("", "bad_3level_middle_out"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("pointee typedef bad_middle_out_td: "
+                                 "SANDBOX_OUT_PTR cannot wrap caller-allocated "
+                                 "pointee typedef caller_row_out_td")));
+}
+
+TEST_F(IrConvertTest,
+       QualifiesSharedCopyFromAndBindPointeeTypedefPerFunctionAndParam) {
+  const char* snippet = R"(
+    struct DbHandle;
+    typedef const int* bound_pair_td
+        [[clang::annotate("sandbox", "out_ptr")]]
+        [[clang::annotate("sandbox", "elem_sized_by", "2")]]
+        [[clang::annotate("sandbox", "copy_from_and_bind_out_ptr",
+                          "db", "binding_10")]];
+    extern "C" void get_two_slices(
+        DbHandle* db [[clang::annotate("sandbox", "sandbox_opaque_ptr")]],
+        bound_pair_td* out_a [[clang::annotate("sandbox", "out_ptr")]],
+        bound_pair_td* out_b [[clang::annotate("sandbox", "out_ptr")]]);
+    extern "C" void get_other_slice(
+        DbHandle* db [[clang::annotate("sandbox", "sandbox_opaque_ptr")]],
+        bound_pair_td* out_a [[clang::annotate("sandbox", "out_ptr")]]);
+  )";
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function fn1,
+                            ConvertSnippetToIR(snippet, "get_two_slices"));
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function fn2,
+                            ConvertSnippetToIR("", "get_other_slice"));
+
+  const auto* a1 =
+      fn1.parameters[1].As<BufferParam>()->pointee->As<BufferParam>();
+  const auto* b1 =
+      fn1.parameters[2].As<BufferParam>()->pointee->As<BufferParam>();
+  const auto* a2 =
+      fn2.parameters[1].As<BufferParam>()->pointee->As<BufferParam>();
+  ASSERT_TRUE(a1->context_bound.copy_from_and_bind.has_value());
+  ASSERT_TRUE(b1->context_bound.copy_from_and_bind.has_value());
+  ASSERT_TRUE(a2->context_bound.copy_from_and_bind.has_value());
+  EXPECT_EQ(a1->context_bound.copy_from_and_bind->binding_name,
+            "get_two_slices_out_a_binding_10");
+  EXPECT_EQ(b1->context_bound.copy_from_and_bind->binding_name,
+            "get_two_slices_out_b_binding_10");
+  EXPECT_EQ(a2->context_bound.copy_from_and_bind->binding_name,
+            "get_other_slice_out_a_binding_10");
+}
+
+TEST_F(IrConvertTest, RejectsUnsupportedOuterAnnotationsWithPointeeContract) {
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    struct Ctx;
+    typedef int* item_td [[clang::annotate("sandbox", "inout_ptr")]];
+    extern "C" void bad_outparam_sized(
+        item_td* items [[clang::annotate("sandbox", "out_ptr")]]
+                       [[clang::annotate("sandbox", "elem_sized_by_outparam",
+                                         "*out_n", "cap")]],
+        unsigned long* out_n [[clang::annotate("sandbox", "out_ptr")]],
+        unsigned long cap);
+    extern "C" void bad_binding_sized(
+        Ctx* ctx [[clang::annotate("sandbox", "sandbox_opaque_ptr")]],
+        item_td* items [[clang::annotate("sandbox", "out_ptr")]]
+                       [[clang::annotate("sandbox", "sized_by_binding",
+                                         "ctx", "$sz")]]);
+    extern "C" void bad_outer_lifetime(
+        item_td* items [[clang::annotate("sandbox", "out_ptr")]]
+                       [[clang::annotate("sandbox",
+                                         "lifetime_sandbox_global")]]);
+    extern "C" void bad_outer_clear_bindings(
+        item_td* items [[clang::annotate("sandbox", "inout_ptr")]]
+                       [[clang::annotate("sandbox", "clear_bindings")]]);
+  )",
+                                 "bad_outparam_sized"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("pointer argument items: sized_by_outparam "
+                                 "and sized_by_binding cannot be combined "
+                                 "with a pointee contract on the outer "
+                                 "pointer")));
+  EXPECT_THAT(ConvertSnippetToIR("", "bad_binding_sized"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("pointer argument items: sized_by_outparam "
+                                 "and sized_by_binding cannot be combined "
+                                 "with a pointee contract on the outer "
+                                 "pointer")));
+  EXPECT_THAT(ConvertSnippetToIR("", "bad_outer_lifetime"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("pointer argument items: lifetime annotations "
+                                 "cannot be combined with a pointee contract "
+                                 "on the outer pointer")));
+  EXPECT_THAT(ConvertSnippetToIR("", "bad_outer_clear_bindings"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("pointer argument items: bind_data and "
+                                 "clear_bindings cannot be combined with a "
+                                 "pointee contract on the outer pointer")));
+}
+
+TEST_F(IrConvertTest,
+       RejectsNonOutOuterPointerWithOutputOnlyCalleeWrittenPointeeTypedef) {
+  constexpr absl::string_view kSnippet = R"(
+    struct DbHandle;
+    typedef const int* bound_pair_td
+        [[clang::annotate("sandbox", "out_ptr")]]
+        [[clang::annotate("sandbox", "elem_sized_by", "2")]]
+        [[clang::annotate("sandbox", "copy_from_and_bind_out_ptr",
+                          "db", "binding_10")]];
+    typedef const char* global_cstr_out_td
+        [[clang::annotate("sandbox", "out_ptr")]]
+        [[clang::annotate("sandbox", "null_terminated")]]
+        [[clang::annotate("sandbox", "lifetime_sandbox_global")]];
+    typedef const char* global_cstr_inout_td
+        [[clang::annotate("sandbox", "inout_ptr")]]
+        [[clang::annotate("sandbox", "null_terminated")]]
+        [[clang::annotate("sandbox", "lifetime_sandbox_global")]];
+    typedef const global_cstr_out_td* bad_middle_in_td
+        [[clang::annotate("sandbox", "in_ptr")]];
+    typedef global_cstr_out_td* bad_middle_inout_td
+        [[clang::annotate("sandbox", "inout_ptr")]];
+
+    extern "C" void bad_bound_in(
+        DbHandle* db [[clang::annotate("sandbox", "sandbox_opaque_ptr")]],
+        const bound_pair_td* p [[clang::annotate("sandbox", "in_ptr")]]);
+    extern "C" void bad_bound_inout(
+        DbHandle* db [[clang::annotate("sandbox", "sandbox_opaque_ptr")]],
+        bound_pair_td* p [[clang::annotate("sandbox", "inout_ptr")]]);
+    extern "C" void bad_global_out_in(
+        const global_cstr_out_td* p [[clang::annotate("sandbox", "in_ptr")]]);
+    extern "C" void bad_global_out_inout(
+        global_cstr_out_td* p [[clang::annotate("sandbox", "inout_ptr")]]);
+    extern "C" void bad_3level_middle_in(
+        bad_middle_in_td* p [[clang::annotate("sandbox", "in_ptr")]]);
+    extern "C" void bad_3level_middle_inout(
+        bad_middle_inout_td* p [[clang::annotate("sandbox", "out_ptr")]]);
+    extern "C" void ok_global_out_out(
+        global_cstr_out_td* p [[clang::annotate("sandbox", "out_ptr")]]);
+    extern "C" void ok_global_inout_in(
+        const global_cstr_inout_td* p [[clang::annotate("sandbox", "in_ptr")]]);
+    extern "C" void ok_global_inout_inout(
+        global_cstr_inout_td* p [[clang::annotate("sandbox", "inout_ptr")]]);
+  )";
+  EXPECT_THAT(
+      ConvertSnippetToIR(kSnippet, "bad_bound_in"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("pointer argument p: output-only callee-written "
+                         "pointee typedef bound_pair_td requires "
+                         "SANDBOX_OUT_PTR on the wrapping pointer")));
+  EXPECT_THAT(
+      ConvertSnippetToIR("", "bad_bound_inout"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("pointer argument p: output-only callee-written "
+                         "pointee typedef bound_pair_td requires "
+                         "SANDBOX_OUT_PTR on the wrapping pointer")));
+  EXPECT_THAT(
+      ConvertSnippetToIR("", "bad_global_out_in"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("pointer argument p: output-only callee-written "
+                         "pointee typedef global_cstr_out_td requires "
+                         "SANDBOX_OUT_PTR on the wrapping pointer")));
+  EXPECT_THAT(
+      ConvertSnippetToIR("", "bad_global_out_inout"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("pointer argument p: output-only callee-written "
+                         "pointee typedef global_cstr_out_td requires "
+                         "SANDBOX_OUT_PTR on the wrapping pointer")));
+  EXPECT_THAT(
+      ConvertSnippetToIR("", "bad_3level_middle_in"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("pointee typedef bad_middle_in_td: output-only "
+                         "callee-written pointee typedef global_cstr_out_td "
+                         "requires SANDBOX_OUT_PTR on the wrapping pointer")));
+  EXPECT_THAT(
+      ConvertSnippetToIR("", "bad_3level_middle_inout"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("pointee typedef bad_middle_inout_td: output-only "
+                         "callee-written pointee typedef global_cstr_out_td "
+                         "requires SANDBOX_OUT_PTR on the wrapping pointer")));
+  EXPECT_THAT(ConvertSnippetToIR("", "ok_global_out_out"), IsOk());
+  EXPECT_THAT(ConvertSnippetToIR("", "ok_global_inout_in"), IsOk());
+  EXPECT_THAT(ConvertSnippetToIR("", "ok_global_inout_inout"), IsOk());
 }
 
 }  // namespace

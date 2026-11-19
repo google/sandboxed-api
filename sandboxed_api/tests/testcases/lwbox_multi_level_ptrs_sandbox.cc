@@ -1,0 +1,119 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include <stddef.h>
+
+#include "sandboxed_api/annotations.h"
+#include "sandboxed_api/tests/testcases/replaced_library_multi_level_ptrs.h"
+
+extern "C" {
+
+// ---------------------------------------------------------------------------
+// 1. 2-level opaque handle pointers (`DbHandle**`)
+// ---------------------------------------------------------------------------
+// A pointer `typedef` describes one level of dereference (`*out_db` /
+// `*inout_db` of type `DbHandle*`), while the outer parameter
+// (`db_handle_pointee*`, which is `DbHandle**`) carries its own direction
+// (`SANDBOX_OUT_PTR` or `SANDBOX_INOUT_PTR`).
+typedef struct DbHandle* db_handle_pointee SANDBOX_OPAQUE_PTR;
+
+int open_db_handle(int initial_value,
+                   db_handle_pointee* out_db SANDBOX_OUT_PTR);
+
+int read_db_handle(struct DbHandle* db SANDBOX_OPAQUE_PTR);
+
+int update_or_close_db_handle(db_handle_pointee* inout_db SANDBOX_INOUT_PTR,
+                              int new_value);
+
+void close_db_handle(
+    struct DbHandle* db SANDBOX_OPAQUE_PTR SANDBOX_CLEAR_BINDINGS);
+
+typedef const int* db_bound_pair_pointee SANDBOX_OUT_PTR
+    SANDBOX_ELEM_SIZED_BY(2) SANDBOX_COPY_FROM_AND_BIND_OUT_PTR(db);
+
+int get_db_header_and_footer(struct DbHandle* db SANDBOX_OPAQUE_PTR,
+                             db_bound_pair_pointee* out_header SANDBOX_OUT_PTR,
+                             db_bound_pair_pointee* out_footer SANDBOX_OUT_PTR);
+
+int get_db_alt_slice(struct DbHandle* db SANDBOX_OPAQUE_PTR,
+                     db_bound_pair_pointee* out_alt SANDBOX_OUT_PTR);
+
+// ---------------------------------------------------------------------------
+// 2. 2-level C-string pointers (`const char* const*` and `const char**`)
+// ---------------------------------------------------------------------------
+typedef const char* c_str_in_pointee SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED;
+
+typedef const char* static_c_str_out_pointee SANDBOX_OUT_PTR
+    SANDBOX_NULL_TERMINATED SANDBOX_LIFETIME_GLOBAL;
+
+typedef const char* static_c_str_inout_pointee SANDBOX_INOUT_PTR
+    SANDBOX_NULL_TERMINATED SANDBOX_LIFETIME_GLOBAL;
+
+size_t sum_string_lengths(size_t count,
+                          const c_str_in_pointee* strings SANDBOX_IN_PTR
+                              SANDBOX_ELEM_SIZED_BY(count),
+                          static_c_str_out_pointee* out_status SANDBOX_OUT_PTR);
+
+int match_or_replace_status(
+    const static_c_str_inout_pointee* expected_status SANDBOX_IN_PTR,
+    static_c_str_inout_pointee* inout_status SANDBOX_INOUT_PTR);
+
+// ---------------------------------------------------------------------------
+// 3. 2-level 2D buffer (`int**`)
+// ---------------------------------------------------------------------------
+// Size expressions on a pointer `typedef` (such as `cols` below) are resolved
+// against the sibling parameters of the function where the `typedef` is used.
+typedef int* int_row_inout_pointee SANDBOX_INOUT_PTR
+    SANDBOX_ELEM_SIZED_BY(cols);
+
+int scale_2d_grid(int_row_inout_pointee* grid SANDBOX_INOUT_PTR
+                      SANDBOX_ELEM_SIZED_BY(rows),
+                  size_t rows, size_t cols, int factor);
+
+// ---------------------------------------------------------------------------
+// 4. 3-level pointers (`int***` and `DbHandle***`)
+// ---------------------------------------------------------------------------
+// For a 3-level pointer (`T***`), chain two pointer `typedef`s:
+//   - The innermost `typedef` describes `T*` (depth 2, `**param`).
+//   - The middle `typedef` describes `T**` (depth 1, `*param`) and uses the
+//     innermost `typedef` as its pointee type.
+//   - The function parameter (`T***`, depth 0) uses a pointer to the middle
+//     `typedef`.
+typedef int_row_inout_pointee* int_matrix_inout_pointee SANDBOX_INOUT_PTR
+    SANDBOX_ELEM_SIZED_BY(rows);
+
+// Case A: `int*** matrix_ptr` is a singleton pointer to a `rows x cols` 2D
+// array (`(*matrix_ptr)[rows][cols]`).
+int add_to_matrix_via_3level_ptr(int_matrix_inout_pointee* matrix_ptr
+                                     SANDBOX_INOUT_PTR,
+                                 size_t rows, size_t cols, int delta);
+
+// Case B: `int*** tensor` is a 3D jagged array (`tensor[layers][rows][cols]`),
+// reusing the same `int_matrix_inout_pointee` -> `int_row_inout_pointee` chain
+// with `SANDBOX_ELEM_SIZED_BY(layers)` on the outer parameter.
+int increment_3d_tensor(int_matrix_inout_pointee* tensor SANDBOX_INOUT_PTR
+                            SANDBOX_ELEM_SIZED_BY(layers),
+                        size_t layers, size_t rows, size_t cols, int delta);
+
+// Case C: `DbHandle*** handle_list_ptr` is a singleton pointer to a
+// caller-allocated array `(*handle_list_ptr)[0..count)` of `DbHandle*` opaque
+// handles filled by the callee.
+typedef db_handle_pointee* db_handle_array_out_pointee SANDBOX_OUT_PTR
+    SANDBOX_ELEM_SIZED_BY(count);
+
+int open_db_batch_via_3level_ptr(size_t count, int base_value,
+                                 db_handle_array_out_pointee* handle_list_ptr
+                                     SANDBOX_INOUT_PTR);
+
+}  // extern "C"

@@ -65,9 +65,6 @@ list(APPEND _sapi_generator_llvm_comp
   MCParser
   Option
   ProfileData
-  Support
-  BinaryFormat
-  Demangle
 )
 list(APPEND _sapi_generator_llvm_comp
   WindowsDriver # Always needed
@@ -125,9 +122,12 @@ endif()
 target_link_libraries(sapi_generator PUBLIC
   sapi::base
   absl::btree
+  absl::check
+  absl::cord
   absl::die_if_null
   absl::flat_hash_map
   absl::flat_hash_set
+  absl::log
   absl::node_hash_set
   absl::overload
   absl::random_random
@@ -137,6 +137,7 @@ target_link_libraries(sapi_generator PUBLIC
   absl::statusor
   absl::strings
   absl::str_format
+  sapi::file_base
   sapi::fileops
   ${_sapi_generator_clang_libs}
   ${_sapi_generator_llvm_libs}

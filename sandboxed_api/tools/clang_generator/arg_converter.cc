@@ -43,6 +43,7 @@
 #include "clang/AST/TypeLoc.h"
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Casting.h"
 #include "sandboxed_api/tools/clang_generator/annotations.h"
 #include "sandboxed_api/tools/clang_generator/ast_utils.h"
 #include "sandboxed_api/tools/clang_generator/ir.h"
@@ -200,6 +201,19 @@ bool IsSupportedOutParamContextBoundType(const clang::ASTContext& context,
 
 bool IsSupportedArgByteSizedByType(clang::QualType type) {
   return type->isPointerType() && type->getPointeeType()->isVoidType();
+}
+
+bool HasSizedByOutparam(const ArraySizedByType& size_type) {
+  return std::visit(absl::Overload{
+                        [](const ElemSizedBy& e) {
+                          return e.sized_by_outparam_data.has_value();
+                        },
+                        [](const ByteSizedBy& b) {
+                          return b.sized_by_outparam_data.has_value();
+                        },
+                        [](const auto&) { return false; },
+                    },
+                    size_type);
 }
 
 absl::Status CheckCallbackParamAnnotations(absl::string_view cb_name,
@@ -547,7 +561,8 @@ ir::LifetimePolicy AnnotationsToLifetimePolicy(const Annotations& ann) {
 absl::Status ValidateParamAnnotations(absl::string_view name,
                                       clang::QualType type, Annotations& ann,
                                       bool is_return_value,
-                                      bool is_callback_param) {
+                                      bool is_callback_param,
+                                      bool is_pointee_contract = false) {
   // Validate that raw buffer pointers have an explicit direction annotation.
   // Function pointers, pointer-to-pointers and callback parameters (which are
   // defaulted just below) are exempted.
@@ -566,11 +581,87 @@ absl::Status ValidateParamAnnotations(absl::string_view name,
   if (type->isPointerType() && !is_return_value && !is_callback_param) {
     bool is_buffer_pointer = !type->getPointeeType()->isPointerType() &&
                              !type->isFunctionPointerType();
-    if (is_buffer_pointer && !ann.ptr_dir.has_value()) {
+    if ((is_buffer_pointer || ann.pointee_contract.has_value()) &&
+        !ann.ptr_dir.has_value()) {
       return absl::InvalidArgumentError(
           absl::Substitute("argument $0 with type $1: missing sandbox "
                            "annotation",
                            name, type.getAsString()));
+    }
+  }
+
+  if (ann.pointee_contract.has_value()) {
+    if (ann.ptr_dir == PointerDir::kSandboxOpaque ||
+        ann.ptr_dir == PointerDir::kHostOpaque) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "pointer argument $0 is opaque and cannot have a pointee contract",
+          name));
+    }
+    if (HasSizedByOutparam(ann.size_type) ||
+        std::holds_alternative<SizedByBinding>(ann.size_type)) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "pointer argument $0: sized_by_outparam and sized_by_binding cannot "
+          "be combined with a pointee contract on the outer pointer",
+          name));
+    }
+    if (std::holds_alternative<NullTerminated>(ann.size_type)) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "pointer argument $0: null_terminated cannot be combined with a "
+          "pointee contract on the outer pointer; place "
+          "SANDBOX_NULL_TERMINATED on the pointer typedef "
+          "declaration instead",
+          name));
+    }
+    if (ann.context_bound.copy_from_and_bind.has_value() ||
+        ann.context_bound.retain_and_bind.has_value()) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "pointer argument $0: context-binding annotations cannot be "
+          "combined with a pointee contract on the outer pointer; place them "
+          "on the pointer typedef declaration instead",
+          name));
+    }
+    if (!ann.context_bound.bind_data.empty() ||
+        ann.context_bound.clear_bindings) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "pointer argument $0: bind_data and clear_bindings cannot be "
+          "combined with a pointee contract on the outer pointer",
+          name));
+    }
+    if (is_return_value) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "return pointer $0 cannot have a pointee contract", name));
+    }
+    if (!std::holds_alternative<std::monostate>(ann.lifetime)) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "pointer argument $0: lifetime annotations cannot be combined with a "
+          "pointee contract on the outer pointer; place them on the pointer "
+          "typedef declaration instead",
+          name));
+    }
+  }
+
+  if (is_pointee_contract) {
+    if (HasSizedByOutparam(ann.size_type) ||
+        std::holds_alternative<SizedByBinding>(ann.size_type)) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "pointee typedef $0: sized_by_outparam and sized_by_binding are not "
+          "supported on a pointee typedef",
+          name));
+    }
+    if (std::holds_alternative<AliasHostPtrLifetime>(ann.lifetime) ||
+        std::holds_alternative<AliasCallbackReturnLifetime>(ann.lifetime)) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "pointee typedef $0: alias lifetime annotations are not supported "
+          "on a pointee typedef",
+          name));
+    }
+    if (ann.context_bound.retain_and_bind.has_value() ||
+        !ann.context_bound.bind_data.empty() ||
+        ann.context_bound.clear_bindings) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "pointee typedef $0: only copy_from_and_bind_out_ptr context "
+          "binding is supported on a pointee typedef",
+          name));
     }
   }
 
@@ -640,7 +731,9 @@ absl::Status ValidateParamAnnotations(absl::string_view name,
         }
       } else if (ann.ptr_dir != PointerDir::kIn) {
         if (std::holds_alternative<SandboxGlobalLifetime>(ann.lifetime)) {
-          if (!IsSupportedOutParamNullTerminatedType(type)) {
+          if (!IsSupportedOutParamNullTerminatedType(type) &&
+              !(is_pointee_contract &&
+                IsSupportedArgRetNullTerminatedType(type))) {
             return absl::InvalidArgumentError(absl::Substitute(
                 "pointer argument $0 with lifetime_sandbox_global must "
                 "be a const char**",
@@ -682,9 +775,36 @@ struct CallbackReturnSource {
   // typedef apply to the returned buffer.
   const Annotations& callback_annotations;
 };
+struct PointeeContractSource {
+  const clang::ASTContext* ast_ctx;
+  const Annotations& annotations;
+};
 
-using ParamSource = std::variant<FunctionParamSource, CallbackParamSource,
-                                 FunctionReturnSource, CallbackReturnSource>;
+using ParamSource =
+    std::variant<FunctionParamSource, CallbackParamSource, FunctionReturnSource,
+                 CallbackReturnSource, PointeeContractSource>;
+
+const clang::ASTContext* GetASTContext(const ParamSource& source) {
+  return std::visit(
+      absl::Overload{
+          [](const FunctionParamSource& s) -> const clang::ASTContext* {
+            return &s.decl->getASTContext();
+          },
+          [](const CallbackParamSource& s) -> const clang::ASTContext* {
+            return &s.decl->getASTContext();
+          },
+          [](const FunctionReturnSource& s) -> const clang::ASTContext* {
+            return &s.decl->getASTContext();
+          },
+          [](const CallbackReturnSource&) -> const clang::ASTContext* {
+            return nullptr;
+          },
+          [](const PointeeContractSource& s) -> const clang::ASTContext* {
+            return s.ast_ctx;
+          },
+      },
+      source);
+}
 
 // Maximum number of parameters a callback trampoline saves. x86-64 passes six
 // arguments in integer registers (`rdi`, `rsi`, `rdx`, `rcx`, `r8`, `r9`) and
@@ -766,6 +886,37 @@ const CallbackTypedef* LookupCallbackTypedef(
   return &it->second;
 }
 
+// Looks up the `PointeeContract` referenced by `ann.pointee_contract` and
+// verifies that the contract has been declared and matches the outer pointer's
+// pointee type.
+absl::StatusOr<const PointeeContract*> ResolvePointeeContract(
+    absl::string_view name, clang::QualType type, const Annotations& ann,
+    const ConversionContext& conv_ctx) {
+  if (!ann.pointee_contract.has_value()) {
+    return absl::InternalError(
+        absl::StrCat("pointer ", name, " has no pointee_contract"));
+  }
+  const std::string& contract_name = *ann.pointee_contract;
+  auto it = conv_ctx.pointee_contracts.find(contract_name);
+  if (it == conv_ctx.pointee_contracts.end()) {
+    return absl::InvalidArgumentError(
+        absl::Substitute("pointer argument $0 names unknown pointee typedef $1",
+                         name, contract_name));
+  }
+  const PointeeContract& contract = it->second;
+  std::string actual_pointee_type = type->getPointeeType()
+                                        .getCanonicalType()
+                                        .getUnqualifiedType()
+                                        .getAsString();
+  if (actual_pointee_type != contract.canonical_type) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "pointer argument $0 has pointee type '$1', which does not match "
+        "pointee typedef $2 of type '$3'",
+        name, actual_pointee_type, contract_name, contract.canonical_type));
+  }
+  return &contract;
+}
+
 // Collects the annotations for each parameter of a callback (from `cb_typedef`
 // if non-null, or parsed from `cb_decls` otherwise) and validates them against
 // the parameter types in `cb_decls`.
@@ -798,6 +949,8 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
       std::holds_alternative<CallbackReturnSource>(source);
   const bool is_callback_param =
       std::holds_alternative<CallbackParamSource>(source);
+  const bool is_pointee_contract =
+      std::holds_alternative<PointeeContractSource>(source);
 
   ABSL_ASSIGN_OR_RETURN(
       Annotations ann,
@@ -825,11 +978,22 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                 // return value.
                 return Annotations{};
               },
+              [](const PointeeContractSource& s)
+                  -> absl::StatusOr<Annotations> { return s.annotations; },
           },
           source));
 
-  ABSL_RETURN_IF_ERROR(ValidateParamAnnotations(
-      name, type, ann, is_return_value, is_callback_param));
+  if (!is_return_value && !ann.pointee_contract.has_value()) {
+    if (const clang::TypedefNameDecl* pt_td = FindPointeeTypedef(type)) {
+      if (conv_ctx.pointee_contracts.contains(pt_td->getNameAsString())) {
+        ann.pointee_contract = pt_td->getNameAsString();
+      }
+    }
+  }
+
+  ABSL_RETURN_IF_ERROR(
+      ValidateParamAnnotations(name, type, ann, is_return_value,
+                               is_callback_param, is_pointee_contract));
 
   ABSL_ASSIGN_OR_RETURN(ir::TypeInfo type_info, QualTypeToTypeInfo(type));
 
@@ -849,20 +1013,19 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
 
   // Note: functors need no exemption here; they are record types, so they
   // never satisfy isPointerType().
-  if (type->isPointerType() && !type->getPointeeType()->isPointerType() &&
+  if (type->isPointerType() && !ann.pointee_contract.has_value() &&
+      (ann.ptr_dir.has_value() || !type->getPointeeType()->isPointerType()) &&
       !type->isFunctionPointerType() &&
       ann.ptr_dir != PointerDir::kSandboxOpaque &&
       ann.ptr_dir != PointerDir::kHostOpaque &&
       !(ir_param.type.kind == ir::TypeKind::kString ||
         (ir_param.type.is_pointer() && ir_param.type.is_pointee_string()))) {
-    const clang::ParmVarDecl* param_decl = nullptr;
-    if (const auto* fp = std::get_if<FunctionParamSource>(&source)) {
-      param_decl = fp->decl;
-    } else if (const auto* cb = std::get_if<CallbackParamSource>(&source)) {
-      param_decl = cb->decl;
-    }
-    if (param_decl != nullptr) {
-      const clang::ASTContext& context = param_decl->getASTContext();
+    const clang::ASTContext* ast_ctx = GetASTContext(source);
+    if ((std::holds_alternative<FunctionParamSource>(source) ||
+         std::holds_alternative<CallbackParamSource>(source) ||
+         is_pointee_contract) &&
+        ast_ctx != nullptr) {
+      const clang::ASTContext& context = *ast_ctx;
       // Set only when the check below runs and fails, which is exactly when
       // the chain can reach the error return.
       std::string copyability_reason;
@@ -871,7 +1034,19 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                                          conv_ctx, &copyability_reason) &&
           !((std::holds_alternative<ByteSizedBy>(ann.size_type) ||
              std::holds_alternative<SizedByBinding>(ann.size_type)) &&
-            IsSupportedArgByteSizedByType(type))) {
+            IsSupportedArgByteSizedByType(type)) &&
+          !(std::holds_alternative<NullTerminated>(ann.size_type) &&
+            std::holds_alternative<SandboxGlobalLifetime>(ann.lifetime) &&
+            ann.ptr_dir != PointerDir::kIn &&
+            (IsSupportedOutParamNullTerminatedType(type) ||
+             (is_pointee_contract &&
+              IsSupportedArgRetNullTerminatedType(type)))) &&
+          !(ann.context_bound.copy_from_and_bind.has_value() &&
+            ann.ptr_dir == PointerDir::kOut &&
+            (IsSupportedOutParamContextBoundType(context, type, conv_ctx) ||
+             (is_pointee_contract &&
+              IsDeeplyTriviallyCopyableType(context, type->getPointeeType(),
+                                            conv_ctx))))) {
         return absl::InvalidArgumentError(absl::Substitute(
             "pointer argument $0 has unsupported pointee type: $1", name,
             copyability_reason));
@@ -902,22 +1077,7 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
   // Populate callback parameter metadata if applicable
   if (ir_param.type.kind == ir::TypeKind::kCallback) {
     ir::CallbackParam cb;
-    const clang::ASTContext* ast_ctx = std::visit(
-        absl::Overload{
-            [](const FunctionParamSource& s) -> const clang::ASTContext* {
-              return &s.decl->getASTContext();
-            },
-            [](const CallbackParamSource& s) -> const clang::ASTContext* {
-              return &s.decl->getASTContext();
-            },
-            [](const FunctionReturnSource& s) -> const clang::ASTContext* {
-              return &s.decl->getASTContext();
-            },
-            [](const CallbackReturnSource&) -> const clang::ASTContext* {
-              return nullptr;
-            },
-        },
-        source);
+    const clang::ASTContext* ast_ctx = GetASTContext(source);
     // Check ABI compatibility before resolving annotations or typedefs.
     // Callbacks without a function prototype (`FunctionNoProtoType`) are
     // rejected below by `ExtractCallbackParams`.
@@ -938,6 +1098,9 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
               return nullptr;
             },
             [](const CallbackReturnSource&) -> const clang::ParmVarDecl* {
+              return nullptr;
+            },
+            [](const PointeeContractSource&) -> const clang::ParmVarDecl* {
               return nullptr;
             },
         },
@@ -1339,6 +1502,126 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
           .lifetime = AnnotationsToLifetimePolicy(cr->callback_annotations),
       };
     } else {
+      std::shared_ptr<ir::Parameter> pointee = nullptr;
+      if (ann.pointee_contract.has_value()) {
+        ABSL_ASSIGN_OR_RETURN(
+            const PointeeContract* contract,
+            ResolvePointeeContract(name, type, ann, conv_ctx));
+        ABSL_ASSIGN_OR_RETURN(
+            ir::Parameter pointee_param,
+            ConvertParameterToIR(contract->name, type->getPointeeType(),
+                                 PointeeContractSource{GetASTContext(source),
+                                                       contract->annotations},
+                                 conv_ctx));
+        if (!pointee_param.Is<ir::BufferParam>() &&
+            !pointee_param.Is<ir::OpaquePointerParam>()) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "pointer argument $0: unsupported pointee contract target kind "
+              "on typedef $1",
+              name, contract->name));
+        }
+        if (const auto* inner_op = pointee_param.As<ir::OpaquePointerParam>();
+            inner_op != nullptr &&
+            inner_op->direction == PointerDir::kHostOpaque &&
+            (ann.ptr_dir == PointerDir::kOut ||
+             ann.ptr_dir == PointerDir::kInOut)) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "$0 $1: host_opaque_ptr pointee typedef $2 is not supported on "
+              "output or in-out multi-level pointers",
+              is_pointee_contract ? "pointee typedef" : "pointer argument",
+              name, contract->name));
+        }
+        if (auto* inner_buf =
+                std::get_if<ir::BufferParam>(&pointee_param.payload)) {
+          const bool pointee_is_callee_written =
+              inner_buf->pointee == nullptr &&
+              (inner_buf->context_bound.copy_from_and_bind.has_value() ||
+               (pointee_param.IsOutput() &&
+                !std::holds_alternative<ir::lifetime::ScopedCall>(
+                    inner_buf->lifetime)));
+          if (ann.ptr_dir == PointerDir::kOut && !pointee_is_callee_written) {
+            return absl::InvalidArgumentError(absl::Substitute(
+                "$0 $1: SANDBOX_OUT_PTR cannot wrap caller-allocated pointee "
+                "typedef $2 because *$1 is read before the call; use "
+                "SANDBOX_IN_PTR or SANDBOX_INOUT_PTR, or annotate $2 with a "
+                "callee-allocated output lifetime",
+                is_pointee_contract ? "pointee typedef" : "pointer argument",
+                name, contract->name));
+          }
+          const bool pointee_is_output_only_callee_written =
+              pointee_is_callee_written &&
+              (inner_buf->context_bound.copy_from_and_bind.has_value() ||
+               inner_buf->direction == PointerDir::kOut);
+          if (ann.ptr_dir != PointerDir::kOut &&
+              pointee_is_output_only_callee_written) {
+            return absl::InvalidArgumentError(absl::Substitute(
+                "$0 $1: output-only callee-written pointee typedef $2 requires "
+                "SANDBOX_OUT_PTR on the wrapping pointer",
+                is_pointee_contract ? "pointee typedef" : "pointer argument",
+                name, contract->name));
+          }
+          if (inner_buf->context_bound.copy_from_and_bind.has_value()) {
+            if (is_pointee_contract ||
+                !std::holds_alternative<std::monostate>(ann.size_type) ||
+                inner_buf->pointee != nullptr) {
+              return absl::InvalidArgumentError(absl::Substitute(
+                  "pointer argument $0: copy_from_and_bind_out_ptr on pointee "
+                  "typedef $1 is only supported on a singleton 2-level pointer",
+                  name, contract->name));
+            }
+            // `SANDBOX_COPY_FROM_AND_BIND_OUT_PTR` generates
+            // `binding_<__LINE__>` once at the pointee `typedef` declaration
+            // site. Prefix the slot key with `<func>_<param>_` at each
+            // parameter use site so parameters or functions sharing that
+            // `typedef` on the same context handle do not overwrite and free
+            // each other's host buffer.
+            std::string func_prefix;
+            if (const auto* fp = std::get_if<FunctionParamSource>(&source);
+                fp != nullptr && fp->decl != nullptr) {
+              if (const auto* fn = llvm::dyn_cast<clang::FunctionDecl>(
+                      fp->decl->getDeclContext())) {
+                func_prefix =
+                    clang::ASTNameGenerator(fn->getASTContext()).getName(fn);
+                if (func_prefix.empty()) {
+                  func_prefix = fn->getNameAsString();
+                }
+              }
+            }
+            inner_buf->context_bound.copy_from_and_bind->binding_name =
+                func_prefix.empty()
+                    ? absl::StrCat(name, "_",
+                                   inner_buf->context_bound.copy_from_and_bind
+                                       ->binding_name)
+                    : absl::StrCat(func_prefix, "_", name, "_",
+                                   inner_buf->context_bound.copy_from_and_bind
+                                       ->binding_name);
+          }
+          if (inner_buf->pointee != nullptr) {
+            if (is_pointee_contract) {
+              return absl::InvalidArgumentError(absl::Substitute(
+                  "pointee typedef $0: multi-level pointers deeper than 3 "
+                  "levels are not supported",
+                  name));
+            }
+            const auto* leaf_buf = inner_buf->pointee->As<ir::BufferParam>();
+            const bool leaf_is_callee_written =
+                inner_buf->pointee->Is<ir::OpaquePointerParam>() ||
+                (leaf_buf != nullptr &&
+                 (leaf_buf->context_bound.copy_from_and_bind.has_value() ||
+                  !std::holds_alternative<ir::lifetime::ScopedCall>(
+                      leaf_buf->lifetime)));
+            if (!std::holds_alternative<std::monostate>(ann.size_type) &&
+                pointee_param.IsOutput() && leaf_is_callee_written) {
+              return absl::InvalidArgumentError(absl::Substitute(
+                  "pointer argument $0: 3-level output pointers with "
+                  "callee-written leaf pointers require a singleton outer "
+                  "pointer",
+                  name));
+            }
+          }
+        }
+        pointee = std::make_shared<ir::Parameter>(std::move(pointee_param));
+      }
       // `ann.ptr_dir` is absent for function return values, which the
       // direction validation above exempts, and for pointer-to-pointer
       // arguments, which it does not classify as buffers. Buffer pointers on
@@ -1350,6 +1633,7 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
           .lifetime = AnnotationsToLifetimePolicy(ann),
           .context_bound = std::move(ann.context_bound),
           .uninitialized = ann.uninitialized,
+          .pointee = std::move(pointee),
       };
     }
     return ir_param;
@@ -1401,11 +1685,14 @@ absl::StatusOr<sapi::ir::Function> ConvertFunctionToIR(
   ir_func.parameters.reserve(func_decl->getNumParams());
   for (size_t i = 0; i < func_decl->getNumParams(); ++i) {
     const clang::ParmVarDecl* param = func_decl->getParamDecl(i);
-    if (FindCallbackTypedef(param->getType()) == nullptr) {
+    if (FindCallbackTypedef(param->getType()) == nullptr &&
+        FindPointeeTypedef(param->getType()) == nullptr) {
       for (const clang::FunctionDecl* redecl : func_decl->redecls()) {
         if (i < redecl->getNumParams() &&
-            FindCallbackTypedef(redecl->getParamDecl(i)->getType()) !=
-                nullptr) {
+            (FindCallbackTypedef(redecl->getParamDecl(i)->getType()) !=
+                 nullptr ||
+             FindPointeeTypedef(redecl->getParamDecl(i)->getType()) !=
+                 nullptr)) {
           param = redecl->getParamDecl(i);
           break;
         }

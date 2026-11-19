@@ -472,6 +472,95 @@ TEST_F(SandboxedLibraryEmitterTest,
   EXPECT_THAT(emitted.second, HasSubstr("sapi_invoke_active_const_ptr_cb"));
 }
 
+TEST_F(SandboxedLibraryEmitterTest,
+       MultiLevelPointerWithPointeeContractEmission) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  options.sandboxed_library_gen = true;
+  SandboxedLibraryEmitter emitter;
+  ASSERT_THAT(
+      RunFrontendAction(R"(
+    struct DbHandle;
+
+    typedef DbHandle* db_handle_pointee
+        [[clang::annotate("sandbox", "sandbox_opaque_ptr")]];
+
+    typedef int* row_pointee
+        [[clang::annotate("sandbox", "inout_ptr")]]
+        [[clang::annotate("sandbox", "elem_sized_by", "cols")]];
+
+    typedef row_pointee* matrix_pointee
+        [[clang::annotate("sandbox", "inout_ptr")]]
+        [[clang::annotate("sandbox", "elem_sized_by", "rows")]];
+
+    extern "C" int open_db(
+        db_handle_pointee* out_db
+            [[clang::annotate("sandbox", "out_ptr")]]);
+
+    extern "C" void transform_matrix_handle(
+        matrix_pointee* matrix_ptr
+            [[clang::annotate("sandbox", "inout_ptr")]],
+        unsigned long rows,
+        unsigned long cols);
+  )",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+
+  ASSERT_THAT(emitter.PostParseAllFiles(), IsOk());
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string host_src, emitter.EmitHostSrc(options));
+  EXPECT_THAT(host_src, HasSubstr("sapi_remote_out_db"));
+  EXPECT_THAT(host_src, HasSubstr("sapi_owned_matrix_ptr"));
+  EXPECT_THAT(host_src, HasSubstr("sapi_tables_matrix_ptr"));
+  EXPECT_THAT(host_src, HasSubstr("sapi_sync_out_matrix_ptr"));
+}
+
+TEST_F(SandboxedLibraryEmitterTest, UnusedPointeeContractIsReported) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  options.sandboxed_library_gen = true;
+  SandboxedLibraryEmitter emitter;
+  ASSERT_THAT(
+      RunFrontendAction(R"(
+    struct DbHandle;
+
+    typedef DbHandle* referenced_pointee
+        [[clang::annotate("sandbox", "sandbox_opaque_ptr")]];
+
+    typedef int* transitive_leaf_pointee
+        [[clang::annotate("sandbox", "inout_ptr")]]
+        [[clang::annotate("sandbox", "elem_sized_by", "cols")]];
+
+    typedef transitive_leaf_pointee* outer_matrix_pointee
+        [[clang::annotate("sandbox", "inout_ptr")]]
+        [[clang::annotate("sandbox", "elem_sized_by", "rows")]];
+
+    typedef int* unused_inner_pointee [[clang::annotate("sandbox", "out_ptr")]];
+    typedef unused_inner_pointee* unused_outer_pointee
+        [[clang::annotate("sandbox", "out_ptr")]];
+
+    extern "C" int open_db(
+        referenced_pointee* out_db
+            [[clang::annotate("sandbox", "out_ptr")]]);
+
+    extern "C" void transform_matrix(
+        outer_matrix_pointee* matrix
+            [[clang::annotate("sandbox", "inout_ptr")]],
+        unsigned long rows,
+        unsigned long cols);
+  )",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+
+  EXPECT_THAT(
+      emitter.PostParseAllFiles(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstr("unused pointee typedefs: "
+                               "unused_inner_pointee, unused_outer_pointee"),
+                     Not(HasSubstr("referenced_pointee")),
+                     Not(HasSubstr("transitive_leaf_pointee")),
+                     Not(HasSubstr("outer_matrix_pointee")))));
+}
+
 using SandboxedLibraryEmitterErrorTest = SandboxedLibraryEmitterTest;
 
 TEST_F(SandboxedLibraryEmitterErrorTest, ReturnsIntAnnotatedUninitialized) {

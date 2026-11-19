@@ -1566,6 +1566,516 @@ absl::StatusOr<std::string> EmitSandboxeeMain(const GeneratorOptions& options,
 
 namespace {
 
+// Returns true if the pointer value described by `pointee_param` is written or
+// returned directly by the sandboxee as a remote pointer/handle (which must be
+// transferred out of the pointer cell and translated on the host), as opposed
+// to a host-allocated shadow buffer whose remote address is placed into the
+// pointer cell before the call.
+bool IsCalleeWrittenPointerValue(const ir::Parameter& pointee_param) {
+  if (pointee_param.Is<ir::OpaquePointerParam>()) {
+    return true;
+  }
+  if (const auto* buf = pointee_param.As<ir::BufferParam>()) {
+    if (buf->pointee != nullptr) {
+      return false;
+    }
+    if (buf->context_bound.copy_from_and_bind.has_value()) {
+      return true;
+    }
+    if (UsesCStringEmission(*buf) &&
+        std::holds_alternative<ir::lifetime::SandboxGlobal>(buf->lifetime)) {
+      return pointee_param.IsOutput();
+    }
+  }
+  return false;
+}
+
+// Returns true if the leaf buffer at the bottom of a multi-level pointer chain
+// transfers output data back to the host via `sapi_sync_out_<param>`.
+bool HasShadowLeafOutputBuffer(const ir::Parameter& pointee_param) {
+  const ir::Parameter* cur = &pointee_param;
+  while (const auto* buf = cur->As<ir::BufferParam>()) {
+    if (buf->pointee == nullptr) {
+      return !IsCalleeWrittenPointerValue(*cur) && cur->IsOutput();
+    }
+    cur = buf->pointee.get();
+  }
+  return false;
+}
+
+// Emits pre-call conversion of a single host pointer expression `host_expr`
+// (described by `inner_param` when `IsCalleeWrittenPointerValue(inner_param)`
+// is true) into a remote pointer value stored in `remote_lhs`.
+void EmitCalleeWrittenPointerPreCall(
+    const ir::Parameter& inner_param, absl::string_view top_param_name,
+    absl::string_view host_expr, absl::string_view remote_lhs,
+    absl::string_view indent, bool uses_owned_vars, std::string& pre_call) {
+  if (inner_param.Is<ir::OpaquePointerParam>()) {
+    absl::SubstituteAndAppend(&pre_call, "$0$1 = $2;\n", indent, remote_lhs,
+                              host_expr);
+    return;
+  }
+  if (const auto* buf = inner_param.As<ir::BufferParam>()) {
+    if (UsesCStringEmission(*buf)) {
+      if (uses_owned_vars && inner_param.IsInput()) {
+        absl::SubstituteAndAppend(
+            &pre_call,
+            "$0if (($1) != nullptr) {\n"
+            "$0  auto sapi_cstr = std::make_unique<sapi::v::ConstCStr>($1);\n"
+            "$0  sandbox->Check(sandbox->Allocate(sapi_cstr.get(), "
+            "/*automatic_free=*/true));\n"
+            "$0  "
+            "sandbox->Check(sandbox->TransferToSandboxee(sapi_cstr.get()));\n"
+            "$0  $2 = reinterpret_cast<const char*>(sapi_cstr->GetRemote());\n"
+            "$0  sapi_owned_$3.push_back(std::move(sapi_cstr));\n"
+            "$0}\n",
+            indent, host_expr, remote_lhs, top_param_name);
+      }
+    }
+  }
+}
+
+// Emits post-call translation of a remote pointer expression `remote_expr`
+// back into the host lvalue `host_lhs` (when
+// `IsCalleeWrittenPointerValue(inner_param)` is true).
+void EmitCalleeWrittenPointerPostCall(const ir::Parameter& inner_param,
+                                      absl::string_view host_lhs,
+                                      absl::string_view remote_expr,
+                                      absl::string_view indent,
+                                      std::string& post_call) {
+  if (inner_param.Is<ir::OpaquePointerParam>()) {
+    absl::SubstituteAndAppend(&post_call, "$0$1 = $2;\n", indent, host_lhs,
+                              remote_expr);
+    return;
+  }
+  if (const auto* buf = inner_param.As<ir::BufferParam>()) {
+    if (UsesCStringEmission(*buf) &&
+        std::holds_alternative<ir::lifetime::SandboxGlobal>(buf->lifetime)) {
+      absl::SubstituteAndAppend(
+          &post_call,
+          "$0$1 = sapi::lwbox::GlobalStringRegistry::Instance()->GetOrFetch(\n"
+          "$0    *sandbox, $2);\n",
+          indent, host_lhs, remote_expr);
+    }
+  }
+}
+
+// Recursively emits pre-call allocation and transfer for a shadow pointer
+// element `host_expr` at depth >= 1, storing its sandboxee remote address in
+// `remote_lhs`.
+void EmitShadowPointerElement(const ir::Parameter& inner_param,
+                              absl::string_view top_param_name,
+                              absl::string_view host_expr,
+                              absl::string_view remote_lhs, int depth,
+                              absl::string_view indent, std::string& pre_call,
+                              std::string& post_call) {
+  if (IsCalleeWrittenPointerValue(inner_param)) {
+    EmitCalleeWrittenPointerPreCall(inner_param, top_param_name, host_expr,
+                                    remote_lhs, indent,
+                                    /*uses_owned_vars=*/true, pre_call);
+    return;
+  }
+
+  const auto* inner_buf = inner_param.As<ir::BufferParam>();
+  if (inner_buf == nullptr) {
+    return;
+  }
+
+  std::string inner_type = inner_param.type.canonical_name;
+  if (inner_param.type.is_const && absl::EndsWith(inner_type, "const")) {
+    inner_type = std::string(absl::StripAsciiWhitespace(
+        absl::string_view(inner_type).substr(0, inner_type.size() - 5)));
+  }
+
+  if (UsesCStringEmission(*inner_buf)) {
+    absl::SubstituteAndAppend(
+        &pre_call,
+        "$0if (($1) != nullptr) {\n"
+        "$0  auto sapi_cstr = std::make_unique<sapi::v::ConstCStr>($1);\n"
+        "$0  sandbox->Check(sandbox->Allocate(sapi_cstr.get(), "
+        "/*automatic_free=*/true));\n"
+        "$0  sandbox->Check(sandbox->TransferToSandboxee(sapi_cstr.get()));\n"
+        "$0  $2 = reinterpret_cast<const char*>(sapi_cstr->GetRemote());\n"
+        "$0  sapi_owned_$3.push_back(std::move(sapi_cstr));\n"
+        "$0}\n",
+        indent, host_expr, remote_lhs, top_param_name);
+    return;
+  }
+
+  if (inner_buf->pointee == nullptr) {
+    ir::Parameter synthetic_param{
+        .name = absl::StrCat("(", host_expr, ")"),
+        .type = inner_param.type,
+    };
+    std::string cap_expr =
+        GetParamCapacityAsBytesExpr(synthetic_param, *inner_buf);
+    std::string transfer_in;
+    if (inner_param.IsInput()) {
+      transfer_in = absl::Substitute(
+          "$0  sandbox->Check(sandbox->TransferToSandboxee(sapi_arr.get()));\n",
+          indent);
+    }
+    std::string record_out;
+    if (inner_param.IsOutput()) {
+      record_out =
+          absl::Substitute("$0  sapi_sync_out_$1.push_back(sapi_arr.get());\n",
+                           indent, top_param_name);
+    }
+    absl::SubstituteAndAppend(
+        &pre_call,
+        "$0if (($1) != nullptr) {\n"
+        "$0  auto sapi_arr = std::make_unique<sapi::v::Array<char>>(\n"
+        "$0      const_cast<char*>(reinterpret_cast<const char*>($1)),\n"
+        "$0      $2);\n"
+        "$0  sandbox->Check(sandbox->Allocate(sapi_arr.get(), "
+        "/*automatic_free=*/true));\n"
+        "$3"
+        "$0  $4 = reinterpret_cast<$5>(sapi_arr->GetRemote());\n"
+        "$6"
+        "$0  sapi_owned_$7.push_back(std::move(sapi_arr));\n"
+        "$0}\n",
+        indent, host_expr, cap_expr, transfer_in, remote_lhs, inner_type,
+        record_out, top_param_name);
+    return;
+  }
+
+  // Nested multi-level pointer (`inner_buf->pointee != nullptr`, e.g., T***).
+  std::string child_ptr_type = inner_param.type.pointee_value_type_name();
+  std::string count_expr = std::visit(
+      absl::Overload{
+          [](const ir::bounds::Singleton&) -> std::string { return "1"; },
+          [](const ir::bounds::ElemCount& e) -> std::string {
+            return e.size_expr;
+          },
+          [&](const ir::bounds::ByteCount& b) -> std::string {
+            return absl::Substitute("(($0) / sizeof($1))", b.size_expr,
+                                    child_ptr_type);
+          },
+          [](const auto&) -> std::string { return "1"; },
+      },
+      inner_buf->bounds);
+  bool is_singleton =
+      std::holds_alternative<ir::bounds::Singleton>(inner_buf->bounds);
+  bool child_is_callee_written =
+      IsCalleeWrittenPointerValue(*inner_buf->pointee);
+
+  std::string idx_var = absl::StrCat("sapi_idx_d", depth);
+  std::string cnt_var = absl::StrCat("sapi_cnt_d", depth);
+  std::string child_indent = absl::StrCat(indent, "  ");
+
+  absl::SubstituteAndAppend(
+      &pre_call,
+      "$0if (($1) != nullptr) {\n"
+      "$0  size_t $2 = static_cast<size_t>($3);\n"
+      "$0  auto sapi_tbl = std::make_unique<std::vector<char>>(\n"
+      "$0      sandbox->CheckedMultiply(sizeof($4), std::max<size_t>($2, 1)), "
+      "0);\n",
+      indent, host_expr, cnt_var, count_expr, child_ptr_type);
+
+  if (!child_is_callee_written || inner_param.IsInput()) {
+    absl::SubstituteAndAppend(&pre_call,
+                              "$0  auto* sapi_child_ptrs = "
+                              "reinterpret_cast<$1*>(sapi_tbl->data());\n",
+                              indent, child_ptr_type);
+    if (is_singleton) {
+      std::string child_host = absl::Substitute("*($0)", host_expr);
+      EmitShadowPointerElement(*inner_buf->pointee, top_param_name, child_host,
+                               "sapi_child_ptrs[0]", depth + 1, child_indent,
+                               pre_call, post_call);
+    } else {
+      std::string loop_indent = absl::StrCat(child_indent, "  ");
+      absl::SubstituteAndAppend(&pre_call,
+                                "$0for (size_t $1 = 0; $1 < $2; ++$1) {\n",
+                                child_indent, idx_var, cnt_var);
+      std::string child_host = absl::Substitute("($0)[$1]", host_expr, idx_var);
+      std::string child_lhs = absl::Substitute("sapi_child_ptrs[$0]", idx_var);
+      EmitShadowPointerElement(*inner_buf->pointee, top_param_name, child_host,
+                               child_lhs, depth + 1, loop_indent, pre_call,
+                               post_call);
+      absl::SubstituteAndAppend(&pre_call, "$0}\n", child_indent);
+    }
+  }
+
+  absl::SubstituteAndAppend(
+      &pre_call,
+      "$0  auto sapi_tbl_arr = std::make_unique<sapi::v::Array<char>>(\n"
+      "$0      sapi_tbl->data(),\n"
+      "$0      sandbox->CheckedMultiply(sizeof($1), $2));\n"
+      "$0  sandbox->Check(sandbox->Allocate(sapi_tbl_arr.get(), "
+      "/*automatic_free=*/true));\n"
+      "$0  sandbox->Check(sandbox->TransferToSandboxee(sapi_tbl_arr.get()));\n"
+      "$0  $3 = reinterpret_cast<$4>(sapi_tbl_arr->GetRemote());\n",
+      indent, child_ptr_type, cnt_var, remote_lhs, inner_type);
+
+  if (child_is_callee_written && inner_param.IsOutput() && depth == 1) {
+    absl::SubstituteAndAppend(&pre_call,
+                              "$0  sapi_callee_tbl_$1 = sapi_tbl_arr.get();\n"
+                              "$0  sapi_callee_cnt_$1 = $2;\n",
+                              indent, top_param_name, cnt_var);
+    if (is_singleton) {
+      std::string child_host = absl::Substitute("*($0)", host_expr);
+      std::string remote_val = absl::Substitute(
+          "reinterpret_cast<$0*>(sapi_callee_tbl_$1->GetLocal())[0]",
+          child_ptr_type, top_param_name);
+      std::string sync_stmt;
+      EmitCalleeWrittenPointerPostCall(*inner_buf->pointee, child_host,
+                                       remote_val, "    ", sync_stmt);
+      absl::SubstituteAndAppend(
+          &post_call,
+          "  if (sapi_callee_tbl_$0 != nullptr) {\n"
+          "    sandbox->Check(\n"
+          "        sandbox->TransferFromSandboxee(sapi_callee_tbl_$0));\n"
+          "$1"
+          "  }\n",
+          top_param_name, sync_stmt);
+    } else {
+      std::string child_host = absl::Substitute("($0)[sapi_i]", host_expr);
+      std::string remote_val = absl::Substitute(
+          "reinterpret_cast<$0*>(sapi_callee_tbl_$1->GetLocal())[sapi_i]",
+          child_ptr_type, top_param_name);
+      std::string sync_stmt;
+      EmitCalleeWrittenPointerPostCall(*inner_buf->pointee, child_host,
+                                       remote_val, "      ", sync_stmt);
+      absl::SubstituteAndAppend(
+          &post_call,
+          "  if (sapi_callee_tbl_$0 != nullptr) {\n"
+          "    sandbox->Check(\n"
+          "        sandbox->TransferFromSandboxee(sapi_callee_tbl_$0));\n"
+          "    for (size_t sapi_i = 0; sapi_i < sapi_callee_cnt_$0; ++sapi_i) "
+          "{\n"
+          "$1"
+          "    }\n"
+          "  }\n",
+          top_param_name, sync_stmt);
+    }
+  }
+
+  absl::SubstituteAndAppend(
+      &pre_call,
+      "$0  sapi_tables_$1.push_back(std::move(sapi_tbl));\n"
+      "$0  sapi_owned_$1.push_back(std::move(sapi_tbl_arr));\n"
+      "$0}\n",
+      indent, top_param_name);
+}
+
+// Emits host-side pre-call, call argument, and post-call marshaling for a
+// multi-level pointer parameter (`buf.pointee != nullptr`).
+//
+// Security invariant (pointer-table integrity & double-fetch prevention):
+// When `!child_is_callee_written` (e.g., `int** grid` or `int*** tensor` where
+// the leaf pointees are caller-owned buffers), the pointer tables (`sapi_ptrs_`
+// and `sapi_tbl`) are transferred one-way into the sandboxee (`PtrBefore()`)
+// and all leaf output buffers are recorded on the host in `sapi_sync_out_`
+// before the call. Post-call synchronization iterates over `sapi_sync_out_`
+// directly rather than re-reading the pointer table from sandboxee memory, so a
+// compromised sandboxee that overwrites `grid[r]` in its own address space
+// cannot redirect host writebacks or corrupt the caller's host pointers.
+// When `child_is_callee_written` is true (`SANDBOX_OPAQUE_PTR` or
+// `SANDBOX_LIFETIME_GLOBAL` C-strings), the pointer table is copied into a
+// host staging buffer once after the call and translated from that host copy
+// (`GlobalStringRegistry::GetOrFetch`).
+void EmitMultiLevelPointerParam(const ir::Parameter& param,
+                                const ir::BufferParam& buf,
+                                std::string& pre_call, std::string& call_args,
+                                std::string& post_call) {
+  const ir::Parameter& inner_param = *buf.pointee;
+  std::string inner_ptr_type = param.type.pointee_value_type_name();
+  bool is_singleton = std::holds_alternative<ir::bounds::Singleton>(buf.bounds);
+  bool child_is_callee_written = IsCalleeWrittenPointerValue(inner_param);
+  bool has_leaf_out = HasShadowLeafOutputBuffer(inner_param);
+
+  // Check if any inner level is itself a multi-level pointer (depth >= 3) or
+  // allocates shadow `sapi::v::Var` instances.
+  const auto* inner_buf = inner_param.As<ir::BufferParam>();
+  bool is_depth_3_or_more =
+      inner_buf != nullptr && inner_buf->pointee != nullptr;
+  bool needs_owned_vars =
+      !child_is_callee_written ||
+      (inner_buf != nullptr && UsesCStringEmission(*inner_buf) &&
+       (buf.direction == PointerDir::kIn ||
+        buf.direction == PointerDir::kInOut) &&
+       inner_param.IsInput());
+
+  if (needs_owned_vars) {
+    absl::SubstituteAndAppend(
+        &pre_call,
+        "  std::vector<std::unique_ptr<sapi::v::Var>> sapi_owned_$0;\n",
+        param.name);
+  }
+  if (is_depth_3_or_more) {
+    absl::SubstituteAndAppend(
+        &pre_call,
+        "  std::vector<std::unique_ptr<std::vector<char>>> sapi_tables_$0;\n",
+        param.name);
+    if (IsCalleeWrittenPointerValue(*inner_buf->pointee) &&
+        inner_param.IsOutput()) {
+      absl::SubstituteAndAppend(
+          &pre_call,
+          "  sapi::v::Array<char>* sapi_callee_tbl_$0 = nullptr;\n"
+          "  size_t sapi_callee_cnt_$0 = 0;\n",
+          param.name);
+    }
+  }
+  if (has_leaf_out) {
+    absl::SubstituteAndAppend(
+        &pre_call, "  std::vector<sapi::v::Var*> sapi_sync_out_$0;\n",
+        param.name);
+  }
+
+  if (is_singleton) {
+    if (child_is_callee_written) {
+      if (inner_buf != nullptr &&
+          inner_buf->context_bound.copy_from_and_bind.has_value()) {
+        DCHECK_EQ(buf.direction, PointerDir::kOut);
+        absl::SubstituteAndAppend(&pre_call,
+                                  "  sapi::v::Reg<$0> sapi_tmp_$1(nullptr);\n",
+                                  inner_ptr_type, param.name);
+        absl::SubstituteAndAppend(
+            &call_args, "$0 == nullptr ? nullptr : sapi_tmp_$0.PtrAfter()",
+            param.name);
+        absl::StrAppend(&post_call,
+                        EmitCopyFromAndBindOutPtrCode(
+                            *inner_buf->context_bound.copy_from_and_bind,
+                            absl::StrCat("sapi_tmp_", param.name),
+                            inner_ptr_type, inner_buf->bounds));
+        absl::SubstituteAndAppend(&post_call,
+                                  "  if ($0 != nullptr) {\n"
+                                  "    *$0 = sapi_tmp_$0.GetValue();\n"
+                                  "  }\n",
+                                  param.name);
+        return;
+      }
+
+      absl::SubstituteAndAppend(&pre_call, "  $0 sapi_remote_$1 = nullptr;\n",
+                                inner_ptr_type, param.name);
+      if (buf.direction == PointerDir::kIn ||
+          buf.direction == PointerDir::kInOut) {
+        absl::SubstituteAndAppend(&pre_call, "  if ($0 != nullptr) {\n",
+                                  param.name);
+        EmitCalleeWrittenPointerPreCall(
+            inner_param, param.name, absl::StrCat("*", param.name),
+            absl::StrCat("sapi_remote_", param.name), "    ", needs_owned_vars,
+            pre_call);
+        absl::StrAppend(&pre_call, "  }\n");
+      }
+      absl::SubstituteAndAppend(
+          &pre_call, "  sapi::v::Reg<$0> sapi_tmp_$1(sapi_remote_$1);\n",
+          inner_ptr_type, param.name);
+      std::string ptr_access =
+          (buf.direction == PointerDir::kIn)
+              ? "PtrBefore()"
+              : ((buf.direction == PointerDir::kOut) ? "PtrAfter()"
+                                                     : "PtrBoth()");
+      absl::SubstituteAndAppend(&call_args,
+                                "$0 == nullptr ? nullptr : sapi_tmp_$0.$1",
+                                param.name, ptr_access);
+      if (buf.direction == PointerDir::kOut ||
+          buf.direction == PointerDir::kInOut) {
+        absl::SubstituteAndAppend(&post_call, "  if ($0 != nullptr) {\n",
+                                  param.name);
+        EmitCalleeWrittenPointerPostCall(
+            inner_param, absl::StrCat("*", param.name),
+            absl::Substitute("sapi_tmp_$0.GetValue()", param.name), "    ",
+            post_call);
+        absl::StrAppend(&post_call, "  }\n");
+      }
+      return;
+    }
+
+    // Singleton outer pointer to a shadow buffer or nested multi-level pointer.
+    absl::SubstituteAndAppend(&pre_call,
+                              "  $0 sapi_remote_$1 = nullptr;\n"
+                              "  if ($1 != nullptr) {\n",
+                              inner_ptr_type, param.name);
+    EmitShadowPointerElement(inner_param, param.name,
+                             absl::StrCat("*", param.name),
+                             absl::StrCat("sapi_remote_", param.name),
+                             /*depth=*/1, "    ", pre_call, post_call);
+    absl::SubstituteAndAppend(
+        &pre_call,
+        "  }\n"
+        "  sapi::v::Reg<$0> sapi_tmp_$1(sapi_remote_$1);\n",
+        inner_ptr_type, param.name);
+    absl::SubstituteAndAppend(
+        &call_args, "$0 == nullptr ? nullptr : sapi_tmp_$0.PtrBefore()",
+        param.name);
+  } else {
+    // Array outer pointer (`ElemCount` or `ByteCount`).
+    std::string count_expr =
+        std::visit(absl::Overload{
+                       [](const ir::bounds::ElemCount& e) -> std::string {
+                         return e.size_expr;
+                       },
+                       [&](const ir::bounds::ByteCount& b) -> std::string {
+                         return absl::Substitute("(($0) / sizeof($1))",
+                                                 b.size_expr, inner_ptr_type);
+                       },
+                       [](const auto&) -> std::string { return "1"; },
+                   },
+                   buf.bounds);
+    absl::SubstituteAndAppend(
+        &pre_call,
+        "  size_t sapi_count_$0 = ($0 != nullptr) ? static_cast<size_t>($1) : "
+        "0;\n"
+        "  std::vector<$2> sapi_ptrs_$0(std::max<size_t>(sapi_count_$0, 1), "
+        "nullptr);\n",
+        param.name, count_expr, inner_ptr_type);
+
+    if (!child_is_callee_written || buf.direction == PointerDir::kIn ||
+        buf.direction == PointerDir::kInOut) {
+      absl::SubstituteAndAppend(
+          &pre_call,
+          "  for (size_t sapi_i = 0; sapi_i < sapi_count_$0; ++sapi_i) {\n",
+          param.name);
+      EmitShadowPointerElement(
+          inner_param, param.name, absl::Substitute("$0[sapi_i]", param.name),
+          absl::Substitute("sapi_ptrs_$0[sapi_i]", param.name),
+          /*depth=*/1, "    ", pre_call, post_call);
+      absl::StrAppend(&pre_call, "  }\n");
+    }
+
+    absl::SubstituteAndAppend(
+        &pre_call,
+        "  sapi::v::Array<char> sapi_tmp_$0(\n"
+        "      reinterpret_cast<char*>(sapi_ptrs_$0.data()),\n"
+        "      sandbox->CheckedMultiply(sizeof($1), sapi_count_$0));\n",
+        param.name, inner_ptr_type);
+
+    std::string ptr_access = "PtrBefore()";
+    if (child_is_callee_written) {
+      ptr_access = (buf.direction == PointerDir::kIn)
+                       ? "PtrBefore()"
+                       : ((buf.direction == PointerDir::kOut) ? "PtrAfter()"
+                                                              : "PtrBoth()");
+    }
+    absl::SubstituteAndAppend(&call_args,
+                              "$0 == nullptr ? nullptr : sapi_tmp_$0.$1",
+                              param.name, ptr_access);
+
+    if (child_is_callee_written && (buf.direction == PointerDir::kOut ||
+                                    buf.direction == PointerDir::kInOut)) {
+      absl::SubstituteAndAppend(
+          &post_call,
+          "  for (size_t sapi_i = 0; sapi_i < sapi_count_$0; ++sapi_i) {\n",
+          param.name);
+      EmitCalleeWrittenPointerPostCall(
+          inner_param, absl::Substitute("$0[sapi_i]", param.name),
+          absl::Substitute("sapi_ptrs_$0[sapi_i]", param.name), "    ",
+          post_call);
+      absl::StrAppend(&post_call, "  }\n");
+    }
+  }
+
+  if (has_leaf_out) {
+    absl::SubstituteAndAppend(
+        &post_call,
+        "  for (sapi::v::Var* sapi_out_var : sapi_sync_out_$0) {\n"
+        "    sandbox->Check(sandbox->TransferFromSandboxee(sapi_out_var));\n"
+        "  }\n",
+        param.name);
+  }
+}
+
 void EmitHostSrcParam(const ir::Parameter& param, std::string& pre_call,
                       std::string& call_args, std::string& post_call) {
   std::visit(
@@ -1758,6 +2268,11 @@ void EmitHostSrcParam(const ir::Parameter& param, std::string& pre_call,
             }
           },
           [&](const ir::BufferParam& buf) {
+            if (buf.pointee != nullptr) {
+              EmitMultiLevelPointerParam(param, buf, pre_call, call_args,
+                                         post_call);
+              return;
+            }
             if (UsesCStringEmission(buf)) {
               if (buf.direction == PointerDir::kIn) {
                 absl::StrAppend(
@@ -2161,10 +2676,17 @@ absl::flat_hash_set<std::string> GatherHostIncludes(
                   }
                 }
               },
+              [&](const ir::BufferParam& buf) {
+                if (buf.pointee != nullptr) {
+                  host_includes.insert("<algorithm>");
+                  host_includes.insert("<memory>");
+                  host_includes.insert("<vector>");
+                }
+              },
               [&](const auto& p) {
                 using T = std::decay_t<decltype(p)>;
                 static_assert(
-                    IsOneOf<T, ir::VoidParam, ir::ScalarParam, ir::BufferParam,
+                    IsOneOf<T, ir::VoidParam, ir::ScalarParam,
                             ir::CppStringParam, ir::OpaquePointerParam,
                             ir::StructSyncParam, ir::SandboxeeCallbackParam>,
                     "Unhandled parameter payload in GatherHostIncludes!");

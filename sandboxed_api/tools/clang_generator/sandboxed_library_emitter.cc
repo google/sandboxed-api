@@ -71,6 +71,9 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
       if (const clang::TypedefNameDecl* td =
               FindCallbackTypedef(param->getType())) {
         referenced_callback_typedefs_.insert(td->getNameAsString());
+      } else if (const clang::TypedefNameDecl* pt_td =
+                     FindPointeeTypedef(param->getType())) {
+        used_pointee_contracts_.insert(pt_td->getNameAsString());
       }
     }
   }
@@ -174,6 +177,7 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
           decl, ConversionContext{
                     .record_annotations = library_ir_.record_annotations,
                     .callback_typedefs = library_ir_.callback_typedefs,
+                    .pointee_contracts = library_ir_.pointee_contracts,
                 }));
   if (is_sandboxee_thunk) {
     // EmitSandboxeeSrc and EmitHostSrc always emit sandboxee thunks with
@@ -234,6 +238,10 @@ absl::Status SandboxedLibraryEmitter::AddTypedef(clang::TypedefNameDecl* decl) {
     return absl::OkStatus();
   }
   if (GetCallbackTypedefProto(*decl) == nullptr) {
+    if (HasSandboxAnnotations(*decl) &&
+        source_manager.isWrittenInMainFile(decl_start)) {
+      return ParsePointeeContract(*decl);
+    }
     return absl::OkStatus();
   }
   if (HasSandboxAnnotations(*decl)) {
@@ -288,6 +296,7 @@ absl::Status SandboxedLibraryEmitter::ParseCallbackTypedef(
               ConversionContext{
                   .record_annotations = library_ir_.record_annotations,
                   .callback_typedefs = library_ir_.callback_typedefs,
+                  .pointee_contracts = library_ir_.pointee_contracts,
               });
       conversion.ok()) {
     if (conversion->invoker.has_value()) {
@@ -297,6 +306,25 @@ absl::Status SandboxedLibraryEmitter::ParseCallbackTypedef(
     }
   } else {
     it->second.no_reverse_reason = std::string(conversion.status().message());
+  }
+  return absl::OkStatus();
+}
+
+absl::Status SandboxedLibraryEmitter::ParsePointeeContract(
+    const clang::TypedefNameDecl& decl) {
+  ABSL_ASSIGN_OR_RETURN(PointeeContract contract,
+                        sapi::ParsePointeeContract(decl));
+  if (contract.annotations.pointee_contract.has_value() &&
+      !library_ir_.pointee_contracts.contains(
+          *contract.annotations.pointee_contract)) {
+    contract.annotations.pointee_contract = std::nullopt;
+  }
+  std::string name = contract.name;
+  auto [it, inserted] =
+      library_ir_.pointee_contracts.try_emplace(name, std::move(contract));
+  if (!inserted) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "pointee typedef $0 is annotated more than once", name));
   }
   return absl::OkStatus();
 }
@@ -325,6 +353,12 @@ std::optional<std::string> getStringFromVarDecl(const clang::VarDecl* VD) {
 }
 
 absl::Status SandboxedLibraryEmitter::AddVar(clang::VarDecl* decl) {
+  if (const auto* lexical_parent =
+          llvm::dyn_cast<clang::FunctionDecl>(decl->getLexicalDeclContext());
+      lexical_parent != nullptr && lexical_parent->getIdentifier() != nullptr &&
+      lexical_parent->getName().starts_with("sandbox_annotation_")) {
+    return absl::OkStatus();
+  }
   ABSL_ASSIGN_OR_RETURN(std::vector<SandboxAnnotation> annotations,
                         GetSandboxAnnotations(decl));
   for (const auto& ann : annotations) {
@@ -405,6 +439,37 @@ absl::Status SandboxedLibraryEmitter::PostParseAllFiles() {
   absl::erase_if(library_ir_.callback_typedefs, [&](const auto& entry) {
     return !used_callback_typedefs_.contains(entry.first);
   });
+
+  // Propagate `used_pointee_contracts_` transitively through nested pointee
+  // typedef chains (`T***`) starting only from outer contracts actually
+  // referenced by functions or callbacks.
+  std::vector<std::string> worklist(used_pointee_contracts_.begin(),
+                                    used_pointee_contracts_.end());
+  while (!worklist.empty()) {
+    std::string cur = std::move(worklist.back());
+    worklist.pop_back();
+    auto it = library_ir_.pointee_contracts.find(cur);
+    if (it != library_ir_.pointee_contracts.end() &&
+        it->second.annotations.pointee_contract.has_value()) {
+      const std::string& inner = *it->second.annotations.pointee_contract;
+      if (used_pointee_contracts_.insert(inner).second) {
+        worklist.push_back(inner);
+      }
+    }
+  }
+
+  std::vector<std::string> unused_pointee_contracts;
+  for (const auto& [name, _] : library_ir_.pointee_contracts) {
+    if (!used_pointee_contracts_.contains(name)) {
+      unused_pointee_contracts.push_back(name);
+    }
+  }
+  if (!unused_pointee_contracts.empty()) {
+    std::sort(unused_pointee_contracts.begin(), unused_pointee_contracts.end());
+    return absl::InvalidArgumentError(
+        absl::Substitute("unused pointee typedefs: $0",
+                         absl::StrJoin(unused_pointee_contracts, ", ")));
+  }
 
   if (!funcs_loc_) {
     return ValidateAndLinkLibraryIR(library_ir_);

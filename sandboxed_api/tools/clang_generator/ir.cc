@@ -451,6 +451,9 @@ absl::Status ValidateAndLinkParameter(Function& func, Parameter& param) {
     }
     ABSL_RETURN_IF_ERROR(ValidateBufferBounds(scope, scope_desc, role,
                                               buf->bounds, in_callback));
+    if (buf->pointee != nullptr) {
+      ABSL_RETURN_IF_ERROR(ValidateAndLinkParameter(func, *buf->pointee));
+    }
   } else if (const auto* opaque = param.As<OpaquePointerParam>()) {
     policy = &opaque->lifetime;
   } else if (const auto* cb = param.As<CallbackParam>()) {

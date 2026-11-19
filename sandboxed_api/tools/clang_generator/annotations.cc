@@ -88,6 +88,25 @@ const clang::TypedefNameDecl* FindCallbackTypedef(clang::QualType type) {
   return nullptr;
 }
 
+const clang::TypedefNameDecl* FindPointeeTypedef(clang::QualType type) {
+  if (!type->isPointerType()) {
+    return nullptr;
+  }
+  clang::QualType pointee = type->getPointeeType();
+  if (!pointee->isPointerType() || pointee->isFunctionPointerType()) {
+    return nullptr;
+  }
+  if (const auto* td_type = pointee->getAs<clang::TypedefType>()) {
+    const clang::TypedefNameDecl* decl =
+        td_type->getDecl()->getMostRecentDecl();
+    if (decl->getUnderlyingType()->isPointerType() &&
+        GetCallbackTypedefProto(*decl) == nullptr) {
+      return decl;
+    }
+  }
+  return nullptr;
+}
+
 bool HasSandboxAnnotations(const clang::TypedefNameDecl& decl) {
   auto has_sandbox_attr = [](const clang::Decl* d) {
     for (const auto* attr : d->attrs()) {
@@ -212,6 +231,9 @@ std::optional<absl::string_view> FindUnsupportedCallbackAnnotation(
   }
   if (annotations.context_bound.clear_bindings) {
     return "clear_bindings";
+  }
+  if (annotations.pointee_contract.has_value()) {
+    return "pointee";
   }
   return std::nullopt;
 }
@@ -653,13 +675,15 @@ absl::StatusOr<Annotations> ParseAnnotations(
                                     AnnotationSite::kFunctionReturn);
 }
 
-absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
-                                             const clang::ParmVarDecl* param) {
+namespace {
+
+absl::StatusOr<Annotations> ParseParamOrPointeeAnnotations(
+    absl::string_view name, const clang::Decl* decl, clang::QualType type) {
   Annotations annotations;
   // TODO(dvyukov): add more error checking with good error messages
   // (duplicate/conflicting/inapplicable annotations, non-existent arg names,
   // etc).
-  ABSL_ASSIGN_OR_RETURN(auto parsed_annotations, GetSandboxAnnotations(param));
+  ABSL_ASSIGN_OR_RETURN(auto parsed_annotations, GetSandboxAnnotations(decl));
 
   for (const auto& ann : parsed_annotations) {
     size_t expected_args = 0;
@@ -788,8 +812,15 @@ absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
     }
   }
   ABSL_RETURN_IF_ERROR(CheckParsedAnnotations(
-      name, annotations, AnnotationSite::kParameter, param->getType()));
+      name, annotations, AnnotationSite::kParameter, type));
   return annotations;
+}
+
+}  // namespace
+
+absl::StatusOr<Annotations> ParseAnnotations(absl::string_view name,
+                                             const clang::ParmVarDecl* param) {
+  return ParseParamOrPointeeAnnotations(name, param, param->getType());
 }
 
 namespace {
@@ -1184,6 +1215,48 @@ absl::StatusOr<CallbackTypedef> ParseCallbackTypedef(
     });
   }
   return cb_typedef;
+}
+
+absl::StatusOr<PointeeContract> ParsePointeeContract(
+    const clang::TypedefNameDecl& decl) {
+  llvm::StringRef contract_name = decl.getName();
+  if (contract_name.empty()) {
+    return absl::InvalidArgumentError(
+        "Not expecting an empty pointee typedef name");
+  }
+  clang::QualType underlying = decl.getUnderlyingType();
+  if (!underlying->isPointerType() ||
+      GetCallbackTypedefProto(decl) != nullptr) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "pointee typedef $0 must declare a pointer type, got '$1'",
+        contract_name.str(), underlying.getAsString()));
+  }
+
+  PointeeContract contract;
+  contract.name = contract_name;
+  contract.canonical_type =
+      underlying.getCanonicalType().getUnqualifiedType().getAsString();
+
+  ABSL_ASSIGN_OR_RETURN(
+      contract.annotations,
+      ParseParamOrPointeeAnnotations(contract_name, &decl, underlying));
+  if (!contract.annotations.ptr_dir.has_value()) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "pointee typedef $0 with type '$1': missing pointer direction "
+        "annotation",
+        contract_name.str(), underlying.getAsString()));
+  }
+  if (!contract.annotations.struct_sync.empty() ||
+      contract.annotations.shallow_struct_sync) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "pointee typedef $0: struct_sync is not supported on a pointee "
+        "typedef",
+        contract_name.str()));
+  }
+  if (const clang::TypedefNameDecl* inner_td = FindPointeeTypedef(underlying)) {
+    contract.annotations.pointee_contract = inner_td->getNameAsString();
+  }
+  return contract;
 }
 
 std::string ResolveContextName(absl::string_view context) {
