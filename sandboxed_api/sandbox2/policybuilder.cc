@@ -516,6 +516,9 @@ PolicyBuilder& PolicyBuilder::AllowTcMalloc() {
 #ifdef __NR_process_vm_readv
   OverridableBlockSyscallWithErrno(__NR_process_vm_readv, ENOSYS);
 #endif
+#ifdef __NR_move_pages
+  OverridableBlockSyscallWithErrno(__NR_move_pages, ENOSYS);
+#endif
   OverridableBlockSyscallWithErrno(__NR_sigaltstack, ENOSYS);
 
   AddPolicyOnSyscall(__NR_mprotect, {
