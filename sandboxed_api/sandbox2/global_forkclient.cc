@@ -161,8 +161,12 @@ absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
   // Fork the fork-server, and clean-up the resources (close remote sockets).
   constexpr size_t kStackSize = util::kPthreadStackMin;
   int clone_flags = CLONE_VM | CLONE_VFORK | SIGCHLD;
-  // CLONE_VM does not play well with TSan.
-  if constexpr (sapi::sanitizers::IsTSan()) {
+  // CLONE_VM does not play well with TSan. It also breaks coverage builds:
+  // LaunchForkserver() flushes coverage data before exec (see
+  // util::Execveat()), which allocates and does file I/O. In a CLONE_VM child
+  // that runs in the parent's address space while the parent's other threads
+  // keep running, and corrupts the parent's heap.
+  if (sapi::sanitizers::IsTSan() || sapi::IsCoverageRun()) {
     clone_flags &= ~CLONE_VM & ~CLONE_VFORK;
   }
   char* stack =
