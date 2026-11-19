@@ -92,6 +92,16 @@ int with_inout_elem_sized_and_ret_value(size_t (*cb)(int*, size_t),
 int with_host_opaque(int (*combiner)(void*, int, void*, void*), int val,
                      void* outer_param, void* outer_param2);
 
+// Callback with pointers to a trivially copyable struct (both singleton and
+// element-sized array).
+struct CallbackPoint {
+  int x;
+  int y;
+};
+int with_inout_struct_pointer(int (*cb)(const CallbackPoint* in_pt,
+                                        CallbackPoint* inout_pts, size_t n),
+                              int x, int y, size_t n);
+
 }  // extern "C"
 
 #endif  // SANDBOXED_API_TESTS_TESTCASES_REPLACED_LIBRARY_CALLBACKS_H_

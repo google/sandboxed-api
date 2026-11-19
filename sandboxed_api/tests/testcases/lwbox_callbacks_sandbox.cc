@@ -141,4 +141,17 @@ int with_host_opaque(int (*combiner)(void* cb_closure SANDBOX_HOST_OPAQUE_PTR
                      int val, void* outer_param SANDBOX_HOST_OPAQUE_PTR,
                      void* outer_param2 SANDBOX_HOST_OPAQUE_PTR);
 
+struct CallbackPoint {
+  int x;
+  int y;
+};
+#define CALLBACK_POINTS_COUNT_EXPR n
+int with_inout_struct_pointer(
+    int (*cb)(const CallbackPoint* in_pt SANDBOX_IN_PTR,
+              CallbackPoint* inout_pts SANDBOX_INOUT_PTR
+                  SANDBOX_ELEM_SIZED_BY(CALLBACK_POINTS_COUNT_EXPR),
+              size_t n),
+    int x, int y, size_t n);
+#undef CALLBACK_POINTS_COUNT_EXPR
+
 }  // extern "C"

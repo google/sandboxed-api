@@ -2853,6 +2853,69 @@ TEST_F(IrConvertTest,
   EXPECT_THAT(ConvertSnippetToIR("", "ok_global_inout_inout"), IsOk());
 }
 
+TEST_F(IrConvertTest, ConvertsCallbackParameterWithTriviallyCopyableStructPtr) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
+                            ConvertSnippetToIR(R"(
+    struct Point {
+      int x;
+      int y;
+    };
+    extern "C" int run_with_points(
+        int (*cb)(const Point* in_pt [[clang::annotate("sandbox", "in_ptr")]],
+                  Point* out_pts [[clang::annotate("sandbox", "inout_ptr")]]
+                                 [[clang::annotate("sandbox", "elem_sized_by", "n")]],
+                  unsigned long n));
+  )",
+                                               "run_with_points"));
+  ASSERT_EQ(func.parameters.size(), 1);
+  ASSERT_TRUE(func.parameters[0].Is<CallbackParam>());
+  const auto* cb = func.parameters[0].As<CallbackParam>();
+  ASSERT_EQ(cb->callback_parameters.size(), 3);
+
+  const auto* in_pt_buf = cb->callback_parameters[0].As<BufferParam>();
+  ASSERT_NE(in_pt_buf, nullptr);
+  EXPECT_EQ(in_pt_buf->direction, PointerDir::kIn);
+  EXPECT_TRUE(std::holds_alternative<bounds::Singleton>(in_pt_buf->bounds));
+
+  const auto* out_pts_buf = cb->callback_parameters[1].As<BufferParam>();
+  ASSERT_NE(out_pts_buf, nullptr);
+  EXPECT_EQ(out_pts_buf->direction, PointerDir::kInOut);
+  ASSERT_TRUE(std::holds_alternative<bounds::ElemCount>(out_pts_buf->bounds));
+  EXPECT_EQ(std::get<bounds::ElemCount>(out_pts_buf->bounds).size_expr, "n");
+}
+
+TEST_F(IrConvertTest, RejectsCallbackParameterWithUncopyableStructPtr) {
+  RecordAnnotations ops_ann;
+  ops_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "fn",
+      .callback_typedef = "op_cb",
+  });
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    struct Ops {
+      int (*fn)(int);
+    };
+    extern "C" void run_with_ops_cb(
+        void (*cb)(const Ops* s [[clang::annotate("sandbox", "in_ptr")]]));
+  )",
+                                 "run_with_ops_cb", {{"Ops", ops_ann}}),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("callback fields in callback struct arguments "
+                                 "are not supported")));
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    struct BadStruct {
+      int x;
+      int* ptr;
+    };
+    extern "C" void run_with_bad_struct(
+        void (*cb)(const BadStruct* s [[clang::annotate("sandbox", "in_ptr")]]));
+  )",
+                                 "run_with_bad_struct"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("callback cb pointer argument s has "
+                                 "unsupported pointee type: field ptr of "
+                                 "'const BadStruct': 'int *' is a pointer")));
+}
 }  // namespace
 }  // namespace ir
 }  // namespace sapi

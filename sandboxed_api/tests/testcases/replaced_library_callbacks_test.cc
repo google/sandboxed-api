@@ -371,4 +371,20 @@ TEST(Test, WithHostOpaque) {
   EXPECT_EQ(with_host_opaque(cb, val_to_be_doubled, &data, nullptr), -2);
 }
 
+TEST(Test, WithInoutStructPointer) {
+  auto cb = [](const CallbackPoint* in_pt, CallbackPoint* inout_pts,
+               size_t n) -> int {
+    for (size_t i = 0; i < n; ++i) {
+      inout_pts[i].x += in_pt->x;
+      inout_pts[i].y += in_pt->y;
+    }
+    return static_cast<int>(n);
+  };
+  // pts initially: (0,0), (1,10), (2,20).
+  // After adding (5, 100) to each: (5,100), (6,110), (7,120) -> sum = 348.
+  // Plus callback return value 3 -> 351.
+  EXPECT_EQ(with_inout_struct_pointer(cb, 5, 100, 3), 351);
+  EXPECT_EQ(with_inout_struct_pointer(nullptr, 5, 100, 3), -1);
+}
+
 }  // namespace

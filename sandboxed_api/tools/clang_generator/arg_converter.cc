@@ -79,7 +79,8 @@ bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
                                    clang::QualType type,
                                    const ConversionContext& conv_ctx,
                                    std::string* reason = nullptr,
-                                   bool in_array = false) {
+                                   bool in_array = false,
+                                   bool in_callback = false) {
   if (type.isNull()) {
     if (reason != nullptr) {
       *reason = "the type is not known here";
@@ -100,7 +101,7 @@ bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
   if (auto* const_array_type = context.getAsConstantArrayType(type)) {
     return IsDeeplyTriviallyCopyableType(
         context, const_array_type->getElementType(), conv_ctx, reason,
-        /*in_array=*/true);
+        /*in_array=*/true, in_callback);
   }
 
   if (auto* record_decl = type->getAsRecordDecl(); record_decl != nullptr) {
@@ -127,8 +128,8 @@ bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
 
     for (const clang::FieldDecl* field : record_decl->fields()) {
       // If the field is annotated as sandbox_opaque_ptr or names a callback
-      // typedef (outside an array), we'll treat it as allowed in the struct
-      // copy.
+      // typedef (outside an array or callback parameter), we'll treat it as
+      // allowed in the struct copy.
       llvm::StringRef field_name = field->getName();
       bool is_opaque = false;
       bool has_callback_typedef = false;
@@ -145,11 +146,13 @@ bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
         continue;
       }
       if (has_callback_typedef) {
-        if (in_array) {
+        if (in_array || in_callback) {
           if (reason != nullptr) {
             *reason = absl::Substitute(
-                "field $0 of '$1': callback fields inside an array are not "
-                "supported",
+                in_callback ? "field $0 of '$1': callback fields in callback "
+                              "struct arguments are not supported"
+                            : "field $0 of '$1': callback fields inside an "
+                              "array are not supported",
                 std::string(field_name), type.getAsString());
           }
           return false;
@@ -159,7 +162,8 @@ bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
 
       std::string field_reason;
       if (!IsDeeplyTriviallyCopyableType(context, field->getType(), conv_ctx,
-                                         &field_reason, in_array)) {
+                                         &field_reason, in_array,
+                                         in_callback)) {
         if (reason != nullptr) {
           *reason =
               absl::Substitute("field $0 of '$1': $2", std::string(field_name),
@@ -216,10 +220,12 @@ bool HasSizedByOutparam(const ArraySizedByType& size_type) {
                     size_type);
 }
 
-absl::Status CheckCallbackParamAnnotations(absl::string_view cb_name,
+absl::Status CheckCallbackParamAnnotations(const clang::ASTContext& context,
+                                           absl::string_view cb_name,
                                            absl::string_view cb_param_name,
                                            Annotations& annotations,
-                                           clang::QualType cb_param_type) {
+                                           clang::QualType cb_param_type,
+                                           const ConversionContext& conv_ctx) {
   // For now, the callback trampolines only support integral, enumeration,
   // or pointer types as arguments (no floating point / vector types).
   if (cb_param_type->isIntegralOrEnumerationType()) {
@@ -295,29 +301,37 @@ absl::Status CheckCallbackParamAnnotations(absl::string_view cb_name,
           "annotations",
           cb_name, cb_param_name));
     }
+    if (!annotations.struct_sync.empty() || annotations.shallow_struct_sync) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "callback $0 parameter $1: struct_sync is not supported for "
+          "callbacks",
+          cb_name, cb_param_name));
+    }
 
     // Check supported size annotations. For now, this is different from the
     // non-callback case.
-    // TODO(b/491762076): support more cases of pointee types (e.g.,
-    // isDeeplyTriviallyCopyableType as well).
-    bool is_primitive_pointee =
-        cb_param_type->getPointeeType()->isArithmeticType() ||
-        cb_param_type->getPointeeType()->isEnumeralType();
+    std::string copyability_reason;
+    bool is_copyable_pointee = IsDeeplyTriviallyCopyableType(
+        context, cb_param_type->getPointeeType(), conv_ctx, &copyability_reason,
+        /*in_array=*/false, /*in_callback=*/true);
     absl::Status error_status = absl::InvalidArgumentError(absl::Substitute(
         "callback $0 pointer argument $1 has unsupported pointee type: $2",
-        cb_name, cb_param_name, cb_param_type->getPointeeType().getAsString()));
+        cb_name, cb_param_name,
+        copyability_reason.empty()
+            ? cb_param_type->getPointeeType().getAsString()
+            : copyability_reason));
     return std::visit(
         absl::Overload{
             [&](const std::monostate&) {
-              if (!is_primitive_pointee) return error_status;
+              if (!is_copyable_pointee) return error_status;
               return absl::OkStatus();
             },
             [&](const ElemSizedBy& elem_sized_by) {
-              if (!is_primitive_pointee) return error_status;
+              if (!is_copyable_pointee) return error_status;
               return absl::OkStatus();
             },
             [&](const ByteSizedBy& byte_sized_by) {
-              if (!is_primitive_pointee &&
+              if (!is_copyable_pointee &&
                   !IsSupportedArgByteSizedByType(cb_param_type))
                 return error_status;
               return absl::OkStatus();
@@ -923,7 +937,7 @@ absl::StatusOr<const PointeeContract*> ResolvePointeeContract(
 absl::StatusOr<std::vector<Annotations>> ResolveCallbackParamAnnotations(
     absl::string_view name, const std::vector<std::string>& cb_param_names,
     const std::vector<const clang::ParmVarDecl*>& cb_decls,
-    const CallbackTypedef* cb_typedef) {
+    const CallbackTypedef* cb_typedef, const ConversionContext& conv_ctx) {
   std::vector<Annotations> result;
   result.reserve(cb_decls.size());
   for (size_t i = 0; i < cb_decls.size(); ++i) {
@@ -935,7 +949,8 @@ absl::StatusOr<std::vector<Annotations>> ResolveCallbackParamAnnotations(
                             ParseAnnotations(cb_param_names[i], cb_decls[i]));
     }
     ABSL_RETURN_IF_ERROR(CheckCallbackParamAnnotations(
-        name, cb_param_names[i], ann, cb_decls[i]->getType()));
+        cb_decls[i]->getASTContext(), name, cb_param_names[i], ann,
+        cb_decls[i]->getType(), conv_ctx));
     result.push_back(std::move(ann));
   }
   return result;
@@ -1138,9 +1153,10 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
           cb_names[i] = cb_typedef->params[i].name;
         }
       }
-      ABSL_ASSIGN_OR_RETURN(const std::vector<Annotations> cb_annotations,
-                            ResolveCallbackParamAnnotations(
-                                name, cb_names, cb_decls, cb_typedef));
+      ABSL_ASSIGN_OR_RETURN(
+          const std::vector<Annotations> cb_annotations,
+          ResolveCallbackParamAnnotations(name, cb_names, cb_decls, cb_typedef,
+                                          conv_ctx));
       cb.callback_parameters.reserve(cb_decls.size());
       for (size_t i = 0; i < cb_decls.size(); ++i) {
         ABSL_ASSIGN_OR_RETURN(
@@ -1297,7 +1313,7 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
   // Struct synchronized pointers (including structs whose fields, or nested
   // struct fields, carry callback typedefs).
   std::vector<ir::StructCallbackField> struct_callbacks;
-  if (type->isPointerType()) {
+  if (type->isPointerType() && !is_callback_param) {
     if (const auto* top_record = type->getPointeeType()->getAsRecordDecl();
         top_record != nullptr) {
       auto collect_callbacks =
@@ -1785,8 +1801,8 @@ absl::StatusOr<InvokerConversion> ConvertCallbackTypedefToInvokerIR(
     Annotations param_ann = cb_typedef.params[i].annotations;
     if (param_ann.ptr_dir != PointerDir::kSandboxOpaque) {
       ABSL_RETURN_IF_ERROR(CheckCallbackParamAnnotations(
-          cb_typedef.name, cb_typedef.params[i].name, param_ann,
-          param->getType()));
+          decl.getASTContext(), cb_typedef.name, cb_typedef.params[i].name,
+          param_ann, param->getType(), conv_ctx));
     }
     ABSL_ASSIGN_OR_RETURN(
         ir::Parameter ir_param,

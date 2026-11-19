@@ -222,4 +222,21 @@ ABSL_ATTRIBUTE_NO_SANITIZE_CFI int with_host_opaque(
   return combiner(outer_param, val * 2, outer_param2, outer_param);
 }
 
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI int with_inout_struct_pointer(
+    int (*cb)(const CallbackPoint* in_pt, CallbackPoint* inout_pts, size_t n),
+    int x, int y, size_t n) {
+  if (cb == nullptr) return -1;
+  CallbackPoint origin{x, y};
+  std::vector<CallbackPoint> pts(n);
+  for (size_t i = 0; i < n; ++i) {
+    pts[i] = {static_cast<int>(i), static_cast<int>(i * 10)};
+  }
+  int ret = cb(&origin, pts.data(), n);
+  int total = ret;
+  for (const auto& pt : pts) {
+    total += pt.x + pt.y;
+  }
+  return total;
+}
+
 }  // extern "C"
