@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <memory>
 #include <optional>
 #include <string>
@@ -203,6 +204,88 @@ void SyncFromSandboxToHost(sapi::SandboxBase& sandbox, uintptr_t remote_ptr,
   CHECK_OK(sandbox.rpc_channel()->CopyFromSandbox(
       remote_ptr, absl::MakeSpan(reinterpret_cast<char*>(host_ptr), bytes)))
       << "Failed to copy memory from sandbox at 0x" << absl::Hex(remote_ptr);
+}
+
+std::vector<char> ReadNullTerminatedArray(sapi::SandboxBase& sandbox,
+                                          uintptr_t remote_ptr,
+                                          size_t elem_size) {
+  if (remote_ptr == 0) {
+    return {};
+  }
+  CHECK_GT(elem_size, 0u) << "ReadNullTerminatedArray called with elem_size 0";
+  if (elem_size == 1) {
+    absl::StatusOr<std::string> str = sandbox.GetCString(
+        sapi::v::RemotePtr(reinterpret_cast<const void*>(remote_ptr)));
+    CHECK_OK(str.status())
+        << "Failed to fetch remote null-terminated byte array at 0x"
+        << absl::Hex(remote_ptr);
+    std::vector<char> result(str->size() + 1);
+    std::memcpy(result.data(), str->data(), str->size() + 1);
+    return result;
+  }
+
+  CHECK_NE(sandbox.rpc_channel(), nullptr)
+      << "Sandbox RPCChannel is null while reading null-terminated array";
+  // Cap host staging allocation at 10 MiB (matching `SandboxBase::GetCString`'s
+  // default `size` limit) so an unterminated buffer in a compromised sandboxee
+  // cannot exhaust host memory.
+  constexpr size_t kMaxNullTerminatedBytes = 10ULL * 1024 * 1024;
+  // Read in 4 KiB page-bounded batches rather than one `CopyFromSandbox`
+  // (`process_vm_readv` syscall) per element. Because MMU page permissions are
+  // uniform within any 4 KiB page, reading up to the end of `cur_ptr`'s 4 KiB
+  // page (`bytes_to_page_end`) is guaranteed not to fault on an unmapped guard
+  // page past the sentinel unless a single element straddles the page boundary,
+  // in which case `batch_elems == 1` reads only that element.
+  constexpr size_t kPageSize = 4096;
+  std::vector<char> result;
+  std::vector<char> batch_buf;
+  uintptr_t cur_ptr = remote_ptr;
+  bool single_element_mode = false;
+  while (true) {
+    size_t bytes_to_page_end = kPageSize - (cur_ptr & (kPageSize - 1));
+    size_t batch_elems =
+        single_element_mode
+            ? 1
+            : std::max<size_t>(1, bytes_to_page_end / elem_size);
+    size_t batch_bytes = batch_elems * elem_size;
+    batch_buf.resize(batch_bytes);
+
+    absl::StatusOr<size_t> bytes_read = sandbox.rpc_channel()->CopyFromSandbox(
+        cur_ptr, absl::MakeSpan(batch_buf.data(), batch_bytes));
+    if (!bytes_read.ok() && batch_elems > 1) {
+      // If `cur_ptr` resides in `SharedMemoryRPCChannel`, `CopyFromSandbox` is
+      // a userspace `memcpy` that enforces exact sub-page allocation bounds via
+      // `EnsureWithinAllocationBounds`. Fall back to single-element reads so we
+      // never read past the allocation's end.
+      single_element_mode = true;
+      batch_elems = 1;
+      batch_bytes = elem_size;
+      batch_buf.resize(batch_bytes);
+      bytes_read = sandbox.rpc_channel()->CopyFromSandbox(
+          cur_ptr, absl::MakeSpan(batch_buf.data(), batch_bytes));
+    }
+    CHECK_OK(bytes_read.status())
+        << "Failed to read elements of null-terminated array from sandbox at 0x"
+        << absl::Hex(cur_ptr);
+    size_t elems_read = *bytes_read / elem_size;
+    CHECK_GT(elems_read, 0u)
+        << "Short read of null-terminated array element from sandbox at 0x"
+        << absl::Hex(cur_ptr);
+
+    for (size_t i = 0; i < elems_read; ++i) {
+      const char* elem_ptr = batch_buf.data() + i * elem_size;
+      bool all_zero = std::all_of(elem_ptr, elem_ptr + elem_size,
+                                  [](char b) { return b == 0; });
+      CHECK_LE(result.size() + elem_size, kMaxNullTerminatedBytes)
+          << "Null-terminated array at 0x" << absl::Hex(remote_ptr)
+          << " exceeds maximum size (" << kMaxNullTerminatedBytes << " bytes)";
+      result.insert(result.end(), elem_ptr, elem_ptr + elem_size);
+      if (all_zero) {
+        return result;
+      }
+    }
+    cur_ptr += elems_read * elem_size;
+  }
 }
 
 GlobalStringRegistry* GlobalStringRegistry::Instance() {

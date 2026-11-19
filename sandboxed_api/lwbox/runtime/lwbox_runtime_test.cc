@@ -14,6 +14,7 @@
 
 #include "sandboxed_api/lwbox/runtime/lwbox_runtime.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -1079,6 +1080,206 @@ TEST(HostCallbackRegistryTest, SupportsNoexceptFunctionPointersAndLambdas) {
     return a + (p != nullptr ? *p : 0);
   });
   EXPECT_EQ(var_cb.GetSize(), sizeof(void*));
+}
+
+// =========================================================================
+// NullTerminatedByteSize & ReadNullTerminatedArray Tests
+// =========================================================================
+
+enum TestOpCode : int {
+  kOpEnd = 0,
+  kOpLoad = 1,
+  kOpStore = 2,
+};
+
+TEST(NullTerminatedArrayTest, NullTerminatedByteSizeHandlesNullAndScalars) {
+  const int* null_ints = nullptr;
+  EXPECT_EQ(NullTerminatedByteSize(null_ints), 0u);
+
+  // libxml2 `const xmlChar*` (`const unsigned char*`) UTF-8 sequence.
+  const unsigned char kXmlTag[] = {'n', 'o', 'd', 'e', 0};
+  EXPECT_EQ(NullTerminatedByteSize(kXmlTag), 5 * sizeof(unsigned char));
+
+  // SQLite `sqlite3_open16` `const char16_t*` UTF-16 sequence.
+  const char16_t kUtf16Path[] = {u'm', u'e', u'm', 0};
+  EXPECT_EQ(NullTerminatedByteSize(kUtf16Path), 4 * sizeof(char16_t));
+
+  // Zero-terminated integer and enum sequences.
+  const int kEmptyInts[] = {0};
+  EXPECT_EQ(NullTerminatedByteSize(kEmptyInts), sizeof(int));
+
+  const int kInts[] = {10, 20, 30, 0};
+  EXPECT_EQ(NullTerminatedByteSize(kInts), 4 * sizeof(int));
+
+  const TestOpCode kOps[] = {kOpLoad, kOpStore, kOpEnd};
+  EXPECT_EQ(NullTerminatedByteSize(kOps), 3 * sizeof(TestOpCode));
+}
+
+TEST(NullTerminatedArrayTest, ReadNullTerminatedArrayHandlesNullAndByteArrays) {
+  MockRPCChannel mock_channel;
+  MockSandbox sandbox(&mock_channel);
+
+  EXPECT_TRUE(ReadNullTerminatedArray(sandbox, 0, sizeof(int)).empty());
+
+  void* fake_remote = reinterpret_cast<void*>(0xCC00);
+  const std::string kBytes = "xml";
+  EXPECT_CALL(mock_channel, Strlen(fake_remote))
+      .WillOnce(Return(kBytes.size()));
+  EXPECT_CALL(mock_channel, CopyFromSandbox(0xCC00, _))
+      .WillOnce([&](uintptr_t, absl::Span<char> dst) {
+        std::memcpy(dst.data(), kBytes.data(), kBytes.size());
+        return kBytes.size();
+      });
+
+  std::vector<char> buf = ReadNullTerminatedArray(sandbox, 0xCC00, 1);
+  ASSERT_EQ(buf.size(), 4u);
+  EXPECT_STREQ(buf.data(), "xml");
+}
+
+TEST(NullTerminatedArrayTest, ReadNullTerminatedArrayReadsMultiByteElements) {
+  MockRPCChannel mock_channel;
+  MockSandbox sandbox(&mock_channel);
+
+  // All 3 elements lie within the same 4 KiB page (`0xDD00..0xE000`, 768 bytes
+  // remaining in page), so `ReadNullTerminatedArray` must fetch them in a
+  // single page-bounded `CopyFromSandbox` call rather than 3 per-element calls.
+  const uint16_t kUtf16[] = {0x0100, 0x03B1, 0x0000};
+  EXPECT_CALL(mock_channel, CopyFromSandbox(0xDD00, _))
+      .WillOnce([&](uintptr_t src,
+                    absl::Span<char> dst) -> absl::StatusOr<size_t> {
+        EXPECT_EQ(dst.size(), 4096u - (0xDD00u & 0xFFFu));
+        size_t offset = src - 0xDD00;
+        size_t to_copy = std::min(dst.size(), sizeof(kUtf16) - offset);
+        std::memcpy(dst.data(), reinterpret_cast<const char*>(kUtf16) + offset,
+                    to_copy);
+        return to_copy;
+      });
+
+  std::vector<char> buf =
+      ReadNullTerminatedArray(sandbox, 0xDD00, sizeof(uint16_t));
+  ASSERT_EQ(buf.size(), sizeof(kUtf16));
+  const auto* words = reinterpret_cast<const uint16_t*>(buf.data());
+  EXPECT_EQ(words[0], 0x0100);
+  EXPECT_EQ(words[1], 0x03B1);
+  EXPECT_EQ(words[2], 0x0000);
+}
+
+TEST(NullTerminatedArrayTest,
+     ReadNullTerminatedArraySplitsBatchesAtPageBoundary) {
+  MockRPCChannel mock_channel;
+  MockSandbox sandbox(&mock_channel);
+
+  // Place a 4-element `uint32_t` array starting 8 bytes before the end of page
+  // `0x1000..0x2000` (`0x1FF8`). The first batch must clamp to the 2 elements
+  // (`8` bytes) before `0x2000`, and the second batch reads starting at
+  // `0x2000` where the sentinel resides.
+  const uint32_t kWords[] = {11, 22, 33, 0};
+  constexpr uintptr_t kStartAddr = 0x1FF8;
+  EXPECT_CALL(mock_channel, CopyFromSandbox(kStartAddr, _))
+      .WillOnce([&](uintptr_t, absl::Span<char> dst) -> absl::StatusOr<size_t> {
+        EXPECT_EQ(dst.size(), 8u);
+        std::memcpy(dst.data(), kWords, 8);
+        return 8u;
+      });
+  EXPECT_CALL(mock_channel, CopyFromSandbox(0x2000, _))
+      .WillOnce([&](uintptr_t, absl::Span<char> dst) -> absl::StatusOr<size_t> {
+        EXPECT_EQ(dst.size(), 4096u);
+        std::memcpy(dst.data(), kWords + 2, 8);
+        return 8u;
+      });
+
+  std::vector<char> buf =
+      ReadNullTerminatedArray(sandbox, kStartAddr, sizeof(uint32_t));
+  ASSERT_EQ(buf.size(), sizeof(kWords));
+  const auto* words = reinterpret_cast<const uint32_t*>(buf.data());
+  EXPECT_EQ(words[0], 11u);
+  EXPECT_EQ(words[1], 22u);
+  EXPECT_EQ(words[2], 33u);
+  EXPECT_EQ(words[3], 0u);
+}
+
+TEST(NullTerminatedArrayTest,
+     ReadNullTerminatedArrayFallsBackToSingleElementModeOnBoundedAllocation) {
+  MockRPCChannel mock_channel;
+  MockSandbox sandbox(&mock_channel);
+
+  // When `remote_ptr` resides inside `SharedMemoryRPCChannel`,
+  // `EnsureWithinAllocationBounds` rejects reads larger than the exact
+  // allocation size (`sizeof(kUtf16)`). Verify that `ReadNullTerminatedArray`
+  // falls back to single-element reads and succeeds.
+  const uint16_t kUtf16[] = {0x0041, 0x03B1, 0x0000};
+  EXPECT_CALL(mock_channel, CopyFromSandbox(_, _))
+      .WillRepeatedly([&](uintptr_t src,
+                          absl::Span<char> dst) -> absl::StatusOr<size_t> {
+        size_t offset = src - 0xDD00;
+        if (offset + dst.size() > sizeof(kUtf16)) {
+          return absl::InternalError("Range is out of bounds.");
+        }
+        std::memcpy(dst.data(), reinterpret_cast<const char*>(kUtf16) + offset,
+                    dst.size());
+        return dst.size();
+      });
+
+  std::vector<char> buf =
+      ReadNullTerminatedArray(sandbox, 0xDD00, sizeof(uint16_t));
+  ASSERT_EQ(buf.size(), sizeof(kUtf16));
+  const auto* words = reinterpret_cast<const uint16_t*>(buf.data());
+  EXPECT_EQ(words[0], 0x0041);
+  EXPECT_EQ(words[1], 0x03B1);
+  EXPECT_EQ(words[2], 0x0000);
+}
+
+TEST(NullTerminatedArrayTest, ReadNullTerminatedArrayCheckFailures) {
+  MockSandbox sandbox_no_channel(nullptr);
+  EXPECT_DEATH(ReadNullTerminatedArray(sandbox_no_channel, 0x1000, 0),
+               "ReadNullTerminatedArray called with elem_size 0");
+  EXPECT_DEATH(
+      ReadNullTerminatedArray(sandbox_no_channel, 0x1000, sizeof(int)),
+      "Sandbox RPCChannel is null while reading null-terminated array");
+
+  // Single-byte `GetCString` failure, multi-byte `CopyFromSandbox` failure,
+  // short read (`< elem_size`), and 10 MiB DoS cap enforcement.
+  EXPECT_DEATH(
+      {
+        MockRPCChannel ch;
+        MockSandbox sb(&ch);
+        EXPECT_CALL(ch, Strlen(_))
+            .WillOnce(Return(absl::InternalError("bad cstr")));
+        ReadNullTerminatedArray(sb, 0x1000, 1);
+      },
+      "Failed to fetch remote null-terminated byte array");
+
+  EXPECT_DEATH(
+      {
+        MockRPCChannel ch;
+        MockSandbox sb(&ch);
+        EXPECT_CALL(ch, CopyFromSandbox(_, _))
+            .WillRepeatedly(Return(absl::InternalError("unmapped")));
+        ReadNullTerminatedArray(sb, 0x1000, sizeof(uint32_t));
+      },
+      "Failed to read elements of null-terminated array");
+
+  EXPECT_DEATH(
+      {
+        MockRPCChannel ch;
+        MockSandbox sb(&ch);
+        EXPECT_CALL(ch, CopyFromSandbox(_, _)).WillOnce(Return(2u));
+        ReadNullTerminatedArray(sb, 0x1000, sizeof(uint32_t));
+      },
+      "Short read of null-terminated array element");
+
+  EXPECT_DEATH(
+      {
+        MockRPCChannel ch;
+        MockSandbox sb(&ch);
+        EXPECT_CALL(ch, CopyFromSandbox(_, _))
+            .WillRepeatedly([](uintptr_t, absl::Span<char> dst) {
+              std::memset(dst.data(), 0x7F, dst.size());
+              return dst.size();
+            });
+        ReadNullTerminatedArray(sb, 0x1000, sizeof(uint32_t));
+      },
+      "exceeds maximum size");
 }
 
 }  // namespace

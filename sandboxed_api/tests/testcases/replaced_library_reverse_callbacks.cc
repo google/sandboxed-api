@@ -236,4 +236,144 @@ unary_b_cb swap_callback_typedef_trampoline(unary_a_cb cb) {
   return reinterpret_cast<unary_b_cb>(cb);
 }
 
+namespace {
+
+void DefaultXmlElementCallback(void* /*ctx*/, const xml_char_t* name) {
+  if (name == nullptr) return;
+  for (const xml_char_t* p = name; *p != 0; ++p) {
+    g_sandbox_processed_acc += static_cast<int>(*p);
+  }
+}
+
+}  // namespace
+
+int xml_utf8_byte_sum(const xml_char_t* str) {
+  if (str == nullptr) {
+    return -1;
+  }
+  int sum = 0;
+  for (const xml_char_t* p = str; *p != 0; ++p) {
+    sum += static_cast<int>(*p);
+  }
+  return sum;
+}
+
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI void dispatch_xml_sax_element(
+    void* ctx, void (*on_element)(void* ctx, const xml_char_t* name),
+    const xml_char_t* doc_tag) {
+  if (on_element == nullptr) {
+    return;
+  }
+  on_element(ctx, doc_tag);
+  const xml_char_t kChildTag[] = {'i', 't', 'e', 'm', 0};
+  on_element(ctx, kChildTag);
+}
+
+void (*get_default_xml_element_cb())(void* ctx, const xml_char_t* name) {
+  return &DefaultXmlElementCallback;
+}
+
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI int utf16_code_unit_sum(
+    const uint16_t* utf16_str, int (*on_utf16)(const uint16_t* segment)) {
+  if (utf16_str == nullptr) {
+    return -1;
+  }
+  int sum = 0;
+  for (const uint16_t* p = utf16_str; *p != 0; ++p) {
+    sum += static_cast<int>(*p);
+  }
+  if (on_utf16 != nullptr) {
+    const uint16_t kSuffix[] = {0x003B, 0x03A9, 0x0000};
+    sum += on_utf16(kSuffix);
+  }
+  return sum;
+}
+
+void mutate_or_clear_utf16_packet(struct Utf16MutablePacket* pkt) {
+  if (pkt == nullptr) {
+    return;
+  }
+  if (pkt->mode == 1) {
+    pkt->text16 = nullptr;
+    return;
+  }
+  if (pkt->text16 == nullptr) {
+    return;
+  }
+  if (pkt->mode == 2) {
+    size_t i = 0;
+    while (pkt->text16[i] != 0) {
+      pkt->text16[i] = 'Z';
+      ++i;
+    }
+    pkt->text16[i] = 0xBEEF;
+    return;
+  }
+  for (size_t i = 0; pkt->text16[i] != 0; ++i) {
+    pkt->text16[i] += 1;
+  }
+}
+
+struct XmlFilterCtx {
+  XmlFilterOp ops[4];
+  uint16_t errmsg16[4];
+};
+
+XmlFilterCtx* create_xml_filter_ctx(int empty) {
+  auto* ctx = new XmlFilterCtx();
+  if (empty) {
+    ctx->ops[0] = kXmlOpEnd;
+    ctx->errmsg16[0] = 0;
+  } else {
+    ctx->ops[0] = kXmlOpAddTen;
+    ctx->ops[1] = kXmlOpDouble;
+    ctx->ops[2] = kXmlOpAddLen;
+    ctx->ops[3] = kXmlOpEnd;
+    ctx->errmsg16[0] = 'E';
+    ctx->errmsg16[1] = 0x03A9;
+    ctx->errmsg16[2] = '!';
+    ctx->errmsg16[3] = 0;
+  }
+  return ctx;
+}
+
+const enum XmlFilterOp* get_xml_filter_ctx_ops(XmlFilterCtx* ctx) {
+  return ctx != nullptr ? ctx->ops : nullptr;
+}
+
+const uint16_t* get_xml_filter_ctx_errmsg16(XmlFilterCtx* ctx) {
+  return ctx != nullptr ? ctx->errmsg16 : nullptr;
+}
+
+void destroy_xml_filter_ctx(XmlFilterCtx* ctx) { delete ctx; }
+
+int run_xml_filter_ops(const enum XmlFilterOp* ops, const xml_char_t* str) {
+  if (ops == nullptr) {
+    return -1;
+  }
+  int len = 0;
+  if (str != nullptr) {
+    while (str[len] != 0) {
+      ++len;
+    }
+  }
+  int acc = 0;
+  for (size_t i = 0; ops[i] != kXmlOpEnd; ++i) {
+    switch (ops[i]) {
+      case kXmlOpAddLen:
+        acc += len;
+        break;
+      case kXmlOpDouble:
+        acc *= 2;
+        break;
+      case kXmlOpAddTen:
+        acc += 10;
+        break;
+      case kXmlOpEnd:
+        break;
+    }
+  }
+  return acc;
+}
+
 }  // extern "C"

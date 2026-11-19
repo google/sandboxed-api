@@ -180,17 +180,41 @@ bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
   return false;
 }
 
-// Returns true if the type is a supported NullTerminated input or return type.
-bool IsSupportedArgRetNullTerminatedType(clang::QualType type) {
-  return type->isPointerType() && type->getPointeeType()->isCharType() &&
-         type->getPointeeType().isConstQualified();
+// Returns true if the type is a `const char*` supported for null-terminated
+// global-lifetime strings (`GlobalStringRegistry::GetOrFetch`).
+bool IsSupportedNullTerminatedGlobalStringType(clang::QualType type) {
+  if (!type->isPointerType()) {
+    return false;
+  }
+  clang::QualType pointee = type->getPointeeType();
+  return pointee.isConstQualified() &&
+         (pointee->isSpecificBuiltinType(clang::BuiltinType::Char_S) ||
+          pointee->isSpecificBuiltinType(clang::BuiltinType::Char_U));
+}
+
+// Returns true if `type` is an integer or enumeration type (excluding
+// floating-point and `_Complex` types, whose `-0.0` and padding-byte
+// representations do not match zero-byte sentinel scanning).
+bool IsIntegerOrEnumType(clang::QualType type) {
+  return type->isIntegerType() || type->isEnumeralType();
+}
+
+// Returns true if the type is a supported NullTerminated input pointer type
+// (`const` integer or enum pointee, e.g., `const char*`,
+// `const unsigned char*`, `const char16_t*`, `const wchar_t*`, `const int*`,
+// `const Enum*`).
+bool IsSupportedNullTerminatedInputType(clang::QualType type) {
+  if (!type->isPointerType()) {
+    return false;
+  }
+  clang::QualType pointee = type->getPointeeType();
+  return pointee.isConstQualified() && IsIntegerOrEnumType(pointee);
 }
 
 // Returns true if the type is a supported NullTerminated outparam type.
 bool IsSupportedOutParamNullTerminatedType(clang::QualType type) {
-  return type->isPointerType() && type->getPointeeType()->isPointerType() &&
-         type->getPointeeType()->getPointeeType()->isCharType() &&
-         type->getPointeeType()->getPointeeType().isConstQualified();
+  return type->isPointerType() &&
+         IsSupportedNullTerminatedGlobalStringType(type->getPointeeType());
 }
 
 // Returns true if the type is a supported context-bound outparam type.
@@ -347,7 +371,7 @@ absl::Status CheckCallbackParamAnnotations(const clang::ASTContext& context,
                     "pointers are supported for callbacks",
                     cb_name, cb_param_name));
               }
-              if (!IsSupportedArgRetNullTerminatedType(cb_param_type))
+              if (!IsSupportedNullTerminatedInputType(cb_param_type))
                 return error_status;
               return absl::OkStatus();
             },
@@ -729,25 +753,43 @@ absl::Status ValidateParamAnnotations(absl::string_view name,
           "Annotate it with an explicit element or byte size instead.",
           name));
     }
-    if (!ann.context_bound.copy_from_and_bind.has_value()) {
-      if (is_return_value || ann.ptr_dir == PointerDir::kIn) {
-        if (!IsSupportedArgRetNullTerminatedType(type)) {
+    if (ann.context_bound.copy_from_and_bind.has_value()) {
+      clang::QualType bound_ptr =
+          (is_return_value || is_pointee_contract) ? type
+          : type->isPointerType()                  ? type->getPointeeType()
+                                                   : clang::QualType();
+      if (bound_ptr.isNull() || !bound_ptr->isPointerType() ||
+          !IsIntegerOrEnumType(bound_ptr->getPointeeType())) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "$0 $1 with copy_from_and_bind_out_ptr and null_terminated must "
+            "point to an integer or enum type",
+            is_return_value ? "return pointer" : "pointer argument", name));
+      }
+    } else {
+      if (is_return_value) {
+        if (!IsSupportedNullTerminatedGlobalStringType(type)) {
           return absl::InvalidArgumentError(absl::Substitute(
-              "$0 $1 is null-terminated but not a const char*",
-              !is_return_value ? "pointer argument" : "return pointer", name));
+              "return pointer $0 is null-terminated but not a const char*",
+              name));
         }
-        if (is_return_value &&
-            !std::holds_alternative<SandboxGlobalLifetime>(ann.lifetime)) {
+        if (!std::holds_alternative<SandboxGlobalLifetime>(ann.lifetime)) {
           return absl::InvalidArgumentError(
               absl::Substitute("function $0: null_terminated annotation for "
                                "return values requires a lifetime annotation.",
                                name));
         }
+      } else if (ann.ptr_dir == PointerDir::kIn) {
+        if (!IsSupportedNullTerminatedInputType(type)) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "pointer argument $0 is null-terminated but not a const integer "
+              "or enum pointer",
+              name));
+        }
       } else if (ann.ptr_dir != PointerDir::kIn) {
         if (std::holds_alternative<SandboxGlobalLifetime>(ann.lifetime)) {
           if (!IsSupportedOutParamNullTerminatedType(type) &&
               !(is_pointee_contract &&
-                IsSupportedArgRetNullTerminatedType(type))) {
+                IsSupportedNullTerminatedGlobalStringType(type))) {
             return absl::InvalidArgumentError(absl::Substitute(
                 "pointer argument $0 with lifetime_sandbox_global must "
                 "be a const char**",
@@ -1055,7 +1097,7 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
             ann.ptr_dir != PointerDir::kIn &&
             (IsSupportedOutParamNullTerminatedType(type) ||
              (is_pointee_contract &&
-              IsSupportedArgRetNullTerminatedType(type)))) &&
+              IsSupportedNullTerminatedGlobalStringType(type)))) &&
           !(ann.context_bound.copy_from_and_bind.has_value() &&
             ann.ptr_dir == PointerDir::kOut &&
             (IsSupportedOutParamContextBoundType(context, type, conv_ctx) ||
@@ -1066,7 +1108,9 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
             "pointer argument $0 has unsupported pointee type: $1", name,
             copyability_reason));
       }
-    } else if (is_return_value && !type->getPointeeType()->isArithmeticType() &&
+    } else if (is_return_value &&
+               !(type->getPointeeType()->isArithmeticType() ||
+                 type->getPointeeType()->isEnumeralType()) &&
                !std::holds_alternative<AliasHostPtrLifetime>(ann.lifetime) &&
                !std::holds_alternative<AliasCallbackReturnLifetime>(
                    ann.lifetime)) {
@@ -1492,6 +1536,49 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                              &ir_sync.bounds)) {
                 byte->size_expr = ast::PrefixStructMemberSizeExpr(
                     *record_decl, ir_sync.parent_prefix, byte->size_expr);
+              } else if (std::holds_alternative<ir::bounds::NullTerminated>(
+                             ir_sync.bounds)) {
+                const clang::FieldDecl* synced_field = nullptr;
+                for (const clang::FieldDecl* f : record_decl->fields()) {
+                  if (absl::string_view(f->getName().data(),
+                                        f->getName().size()) ==
+                      ir_sync.member_name) {
+                    synced_field = f;
+                    break;
+                  }
+                }
+                if (synced_field != nullptr) {
+                  clang::QualType ftype = synced_field->getType();
+                  if (!ftype->isPointerType() ||
+                      !IsIntegerOrEnumType(ftype->getPointeeType())) {
+                    return absl::InvalidArgumentError(absl::Substitute(
+                        "struct_sync access path $0: null_terminated member "
+                        "must point to an integer or enum type",
+                        sync.access_path));
+                  }
+                  if (ir_sync.direction == PointerDir::kInOut &&
+                      ftype->getPointeeType().isConstQualified()) {
+                    return absl::InvalidArgumentError(absl::Substitute(
+                        "struct_sync access path $0: inout_ptr null_terminated "
+                        "member cannot have a const pointee",
+                        sync.access_path));
+                  }
+                }
+              }
+            }
+            if (std::holds_alternative<ir::bounds::NullTerminated>(
+                    ir_sync.bounds)) {
+              if (ir_sync.context_bound.retain_and_bind.has_value()) {
+                return absl::InvalidArgumentError(absl::Substitute(
+                    "struct_sync access path $0: cannot combine "
+                    "retain_and_bind with null_terminated",
+                    sync.access_path));
+              }
+              if (ir_sync.direction == PointerDir::kOut) {
+                return absl::InvalidArgumentError(absl::Substitute(
+                    "struct_sync access path $0: null_terminated output member "
+                    "requires a lifetime annotation",
+                    sync.access_path));
               }
             }
             break;
@@ -1508,6 +1595,14 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
   // bounds are `bounds::NullTerminated`.
   if (ir_param.type.is_pointer()) {
     if (const auto* cr = std::get_if<CallbackReturnSource>(&source)) {
+      if (std::holds_alternative<NullTerminated>(
+              cr->callback_annotations.size_type) &&
+          !IsIntegerOrEnumType(type->getPointeeType())) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "callback return pointer $0 with null_terminated must point to an "
+            "integer or enum type",
+            name));
+      }
       // A buffer returned by a callback always flows out of the callback
       // (`kOut`), and its lifetime is specified by the callback typedef's
       // `SANDBOX_LIFETIME_OUTER_CALL` annotation (enforced by

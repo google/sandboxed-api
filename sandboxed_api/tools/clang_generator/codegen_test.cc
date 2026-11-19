@@ -1234,5 +1234,160 @@ TEST(EmitHostSrcTest,
           HasSubstr("sapi_owned_str_array.push_back(std::move(sapi_cstr));")));
 }
 
+TEST(EmitHostSrcTest,
+     NonCharNullTerminatedInputParamUsesNullTerminatedByteSize) {
+  ir::Function func{
+      .name = "xml_check_utf8",
+      .parameters =
+          {
+              BufferArg("utf8", ScalarType("const unsigned char"),
+                        PointerDir::kIn, ir::bounds::NullTerminated{}),
+              BufferArg("utf16", ScalarType("const char16_t"), PointerDir::kIn,
+                        ir::bounds::NullTerminated{}),
+          },
+  };
+
+  absl::StatusOr<std::string> src = HostSrc(std::move(func));
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(
+          HasSubstr("sapi::lwbox::NullTerminatedByteSize(utf8)"),
+          HasSubstr("sapi::lwbox::NullTerminatedByteSize(utf16)"),
+          HasSubstr("utf8 == nullptr ? nullptr : sapi_tmp_utf8.PtrBefore()"),
+          HasSubstr("utf16 == nullptr ? nullptr : sapi_tmp_utf16.PtrBefore()"),
+          Not(HasSubstr("ConstCStr"))));
+}
+
+TEST(EmitHostSrcTest,
+     CallbackWithNonCharNullTerminatedParamUsesReadNullTerminatedArray) {
+  ir::Parameter cb_param{
+      .name = "sax_cb",
+      .type =
+          ir::TypeInfo{.kind = ir::TypeKind::kCallback,
+                       .canonical_name =
+                           "void (*)(const unsigned char*, const uint16_t*)"},
+      .payload =
+          ir::CallbackParam{
+              .callback_parameters =
+                  {
+                      BufferArg("tag", ScalarType("const unsigned char"),
+                                PointerDir::kIn, ir::bounds::NullTerminated{}),
+                      BufferArg("text16", ScalarType("const uint16_t"),
+                                PointerDir::kIn, ir::bounds::NullTerminated{}),
+                  },
+          },
+  };
+
+  absl::StatusOr<std::string> src = HostSrc(ir::Function{
+      .name = "parse_sax",
+      .parameters = {std::move(cb_param)},
+  });
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(HasSubstr("#include <vector>"),
+            HasSubstr("sapi::lwbox::ReadNullTerminatedArray(\n"
+                      "            *sandbox, reinterpret_cast<uintptr_t>(tag), "
+                      "sizeof(*tag))"),
+            HasSubstr(
+                "sapi::lwbox::ReadNullTerminatedArray(\n"
+                "            *sandbox, reinterpret_cast<uintptr_t>(text16), "
+                "sizeof(*text16))")));
+}
+
+TEST(EmitHostSrcTest,
+     CopyFromAndBindNullTerminatedReturnUsesReadNullTerminatedArray) {
+  ir::Parameter ret{
+      .name = "sapi_ret_arg",
+      .type = PointerTo(ScalarType("const enum XmlFilterOp")),
+      .is_return_value = true,
+      .payload =
+          ir::BufferParam{
+              .direction = PointerDir::kOut,
+              .bounds = ir::bounds::NullTerminated{},
+              .context_bound =
+                  ContextBoundAnnotations{
+                      .copy_from_and_bind =
+                          CopyFromAndBindOutPtr{
+                              .context = "ctx",
+                              .binding_name = "sapi_ret_arg",
+                          },
+                  },
+          },
+  };
+  ir::Parameter ctx_param{
+      .name = "ctx",
+      .type = PointerTo(VoidType()),
+      .payload =
+          ir::OpaquePointerParam{
+              .direction = PointerDir::kSandboxOpaque,
+          },
+  };
+  absl::StatusOr<std::string> src = HostSrc(ir::Function{
+      .name = "get_ctx_ops",
+      .return_value = std::move(ret),
+      .parameters = {std::move(ctx_param)},
+  });
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(HasSubstr("#include <vector>"),
+            HasSubstr("sapi::lwbox::ReadNullTerminatedArray(*sandbox, "
+                      "sapi_sb_ptr,"),
+            HasSubstr("sizeof(*sapi_returned_sb_ptr))"),
+            HasSubstr("sapi_remote_arr.size() - sizeof(*sapi_returned_sb_ptr)"),
+            HasSubstr("calloc(sapi_remote_arr.size(), sizeof(char))"),
+            Not(HasSubstr("GetCString"))));
+}
+
+TEST(EmitHostSrcTest,
+     StructSyncNonCharNullTerminatedMemberUsesNullTerminatedByteSize) {
+  ir::Parameter pkt_param{
+      .name = "pkt",
+      .type = PointerTo(ir::TypeInfo{.kind = ir::TypeKind::kStruct,
+                                     .canonical_name = "struct Utf16Packet"}),
+      .payload =
+          ir::StructSyncParam{
+              .direction = PointerDir::kInOut,
+              .members =
+                  {
+                      ir::StructMemberSync{
+                          .member_name = "utf16_in",
+                          .parent_prefix = "pkt->",
+                          .direction = PointerDir::kIn,
+                          .bounds = ir::bounds::NullTerminated{},
+                      },
+                      ir::StructMemberSync{
+                          .member_name = "utf16_inout",
+                          .parent_prefix = "pkt->",
+                          .direction = PointerDir::kInOut,
+                          .bounds = ir::bounds::NullTerminated{},
+                      },
+                  },
+          },
+  };
+  absl::StatusOr<std::string> src = HostSrc(ir::Function{
+      .name = "process_utf16_packet",
+      .parameters = {std::move(pkt_param)},
+  });
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(HasSubstr("sapi_member_size_pkt_utf16_in =\n"
+                      "        sapi::lwbox::NullTerminatedByteSize("
+                      "pkt->utf16_in);"),
+            HasSubstr("sapi_member_size_pkt_utf16_inout =\n"
+                      "        sapi::lwbox::NullTerminatedByteSize("
+                      "pkt->utf16_inout);"),
+            HasSubstr("if (pkt->utf16_inout != nullptr &&\n"
+                      "        sapi_member_size_pkt_utf16_inout >= "
+                      "sizeof(*(pkt->utf16_inout)))"),
+            HasSubstr("memset(reinterpret_cast<char*>(pkt->utf16_inout) +\n"
+                      "                 sapi_member_size_pkt_utf16_inout - "
+                      "sizeof(*(pkt->utf16_inout)),\n"
+                      "             0, sizeof(*(pkt->utf16_inout)));"),
+            Not(HasSubstr("strlen"))));
+}
 }  // namespace
 }  // namespace sapi

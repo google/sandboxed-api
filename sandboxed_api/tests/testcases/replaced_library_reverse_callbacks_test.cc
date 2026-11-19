@@ -445,4 +445,125 @@ TEST(ReverseCallback, CrossTypedefTrampolineSubstitutionFailsClosed) {
   }
 }
 
+// Exercises non-`char` null-terminated scalar and enum sequences across
+// function arguments, forward callbacks, and reverse callbacks:
+// - `libxml2`: `const xmlChar*` (`const unsigned char*`) in `xmlStrlen` /
+//   `startElementSAXFunc`.
+// - SQLite: `const uint16_t*` UTF-16 null-terminated strings in
+//   `sqlite3_open16` / `sqlite3_complete16`.
+// - Zero-terminated enum opcode arrays (`kXmlOpEnd == 0`).
+TEST(NullTerminatedNonCharArrays,
+     SupportsUnsignedCharUtf16AndEnumNullTerminatedArrays) {
+  const xml_char_t kRootTag[] = {'r', 'o', 'o', 't', 0};  // 114+111+111+116=452
+  EXPECT_EQ(xml_utf8_byte_sum(kRootTag), 452);
+  EXPECT_EQ(xml_utf8_byte_sum(nullptr), -1);
+
+  struct SaxState {
+    int count = 0;
+    int byte_sum = 0;
+  };
+  SaxState state{};
+
+  // Forward callback receiving `const xml_char_t*` (`const unsigned char*`)
+  // from both a caller-supplied tag (`"root"`, sum 452) and a sandbox-internal
+  // tag (`"item"`, 105+116+101+109 = 431).
+  dispatch_xml_sax_element(
+      &state,
+      [](void* ctx, const xml_char_t* name) {
+        auto* s = static_cast<SaxState*>(ctx);
+        s->count += 1;
+        if (name != nullptr) {
+          for (const xml_char_t* p = name; *p != 0; ++p) {
+            s->byte_sum += static_cast<int>(*p);
+          }
+        }
+      },
+      kRootTag);
+  EXPECT_EQ(state.count, 2);
+  EXPECT_EQ(state.byte_sum, 452 + 431);
+
+  // Reverse callback: host invokes a sandboxee-implemented callback taking
+  // `const xml_char_t*` (`SANDBOX_NULL_TERMINATED`).
+  reset_sandbox_processed_acc();
+  auto sb_xml_cb = get_default_xml_element_cb();
+  ASSERT_NE(sb_xml_cb, nullptr);
+  sb_xml_cb(nullptr, kRootTag);
+  EXPECT_EQ(get_sandbox_processed_acc(), 452);
+
+  // SQLite-style UTF-16 (`const uint16_t*`) null-terminated array in both
+  // function parameter and callback parameter positions.
+  const uint16_t kSql16[] = {'S', 'E', 'L', 0};  // 83 + 69 + 76 = 228
+  int total = utf16_code_unit_sum(kSql16, [](const uint16_t* segment) -> int {
+    int s = 0;
+    for (const uint16_t* p = segment; *p != 0; ++p) {
+      s += static_cast<int>(*p);
+    }
+    return s;
+  });
+  // 228 + (0x003B + 0x03A9 = 59 + 937 = 996) = 1224
+  EXPECT_EQ(total, 228 + 59 + 937);
+  EXPECT_EQ(utf16_code_unit_sum(nullptr, nullptr), -1);
+
+  // `INOUT` struct with an `inout_ptr` `SANDBOX_NULL_TERMINATED` UTF-16 member:
+  // verifies in-place mutation, re-zeroing a clobbered trailing sentinel on
+  // return to the host, and safe handling when the sandboxee overwrites the
+  // struct's pointer field with `nullptr`.
+  uint16_t mutable_utf16[] = {'A', 'B', 0};
+  Utf16MutablePacket pkt{.text16 = mutable_utf16, .mode = 0};
+  mutate_or_clear_utf16_packet(&pkt);
+  ASSERT_EQ(pkt.text16, mutable_utf16);
+  EXPECT_EQ(mutable_utf16[0], 'B');
+  EXPECT_EQ(mutable_utf16[1], 'C');
+  EXPECT_EQ(mutable_utf16[2], 0);
+
+  if (IsReverseCbSandboxed()) {
+    pkt.mode = 2;
+    mutate_or_clear_utf16_packet(&pkt);
+    ASSERT_EQ(pkt.text16, mutable_utf16);
+    EXPECT_EQ(mutable_utf16[0], 'Z');
+    EXPECT_EQ(mutable_utf16[1], 'Z');
+    EXPECT_EQ(mutable_utf16[2], 0);
+  }
+
+  pkt.mode = 1;
+  mutate_or_clear_utf16_packet(&pkt);
+  EXPECT_EQ(pkt.text16, nullptr);
+  EXPECT_EQ(mutable_utf16[2], 0);
+
+  // Context-bound multi-byte UTF-16 (`const uint16_t*`) and enum
+  // (`const XmlFilterOp*`) null-terminated getters (`sqlite3_errmsg16` style),
+  // including empty `{0}` sentinels.
+  XmlFilterCtx* ctx = create_xml_filter_ctx(/*empty=*/0);
+  ASSERT_NE(ctx, nullptr);
+  const XmlFilterOp* ctx_ops = get_xml_filter_ctx_ops(ctx);
+  ASSERT_NE(ctx_ops, nullptr);
+  EXPECT_EQ(ctx_ops[0], kXmlOpAddTen);
+  EXPECT_EQ(ctx_ops[1], kXmlOpDouble);
+  EXPECT_EQ(ctx_ops[2], kXmlOpAddLen);
+  EXPECT_EQ(ctx_ops[3], kXmlOpEnd);
+  const uint16_t* errmsg16 = get_xml_filter_ctx_errmsg16(ctx);
+  ASSERT_NE(errmsg16, nullptr);
+  EXPECT_EQ(errmsg16[0], 'E');
+  EXPECT_EQ(errmsg16[1], 0x03A9);
+  EXPECT_EQ(errmsg16[2], '!');
+  EXPECT_EQ(errmsg16[3], 0);
+  destroy_xml_filter_ctx(ctx);
+
+  XmlFilterCtx* empty_ctx = create_xml_filter_ctx(/*empty=*/1);
+  ASSERT_NE(empty_ctx, nullptr);
+  const XmlFilterOp* empty_ops = get_xml_filter_ctx_ops(empty_ctx);
+  ASSERT_NE(empty_ops, nullptr);
+  EXPECT_EQ(empty_ops[0], kXmlOpEnd);
+  const uint16_t* empty_msg16 = get_xml_filter_ctx_errmsg16(empty_ctx);
+  ASSERT_NE(empty_msg16, nullptr);
+  EXPECT_EQ(empty_msg16[0], 0);
+  destroy_xml_filter_ctx(empty_ctx);
+
+  // Zero-terminated enum sequence (`kXmlOpEnd == 0`).
+  const XmlFilterOp kOps[] = {kXmlOpAddLen, kXmlOpAddTen, kXmlOpDouble,
+                              kXmlOpAddLen, kXmlOpEnd};
+  // len("root") == 4: (((0 + 4) + 10) * 2) + 4 = 32
+  EXPECT_EQ(run_xml_filter_ops(kOps, kRootTag), 32);
+  EXPECT_EQ(run_xml_filter_ops(nullptr, kRootTag), -1);
+}
 }  // namespace

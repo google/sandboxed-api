@@ -69,6 +69,7 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include "absl/base/no_destructor.h"
 #include "absl/base/nullability.h"
@@ -467,6 +468,31 @@ class HostCallbackRegistry {
 // fails.
 void SyncFromSandboxToHost(sapi::SandboxBase& sandbox, uintptr_t remote_ptr,
                            void* host_ptr, size_t bytes);
+
+// Returns the size in bytes (including the terminating zero element) of a
+// null-terminated array of scalar, enum, or pointer elements, or 0 if `ptr`
+// is null.
+template <typename T>
+size_t NullTerminatedByteSize(const T* absl_nullable ptr) {
+  if (ptr == nullptr) {
+    return 0;
+  }
+  size_t count = 0;
+  while (ptr[count] != T{}) {
+    ++count;
+  }
+  return (count + 1) * sizeof(T);
+}
+
+// Reads a zero-terminated array of elements of `elem_size` bytes from
+// `remote_ptr` in `sandbox` into a freshly allocated host buffer (including
+// the trailing all-zero element).
+// Returns an empty vector if `remote_ptr == 0`.
+// CHECK-fails if `elem_size == 0`, if the sandbox RPCChannel is null, if
+// reading from the sandbox fails, or if the array exceeds 10 MiB.
+std::vector<char> ReadNullTerminatedArray(sapi::SandboxBase& sandbox,
+                                          uintptr_t remote_ptr,
+                                          size_t elem_size);
 
 }  // namespace lwbox
 }  // namespace sapi

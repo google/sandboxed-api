@@ -141,6 +141,49 @@ typedef int (*unary_a_cb)(int x);
 typedef int (*unary_b_cb)(int x);
 unary_b_cb swap_callback_typedef_trampoline(unary_a_cb cb);
 
+// Non-`char` null-terminated scalar and enum sequences modeled on:
+// - `libxml2`: `typedef unsigned char xmlChar;` passed to `xmlStrlen`,
+//   `xmlCheckUTF8`, and SAX callbacks (`startElementSAXFunc(void* ctx,
+//   const xmlChar* name, ...)`).
+// - SQLite: UTF-16 null-terminated strings in `sqlite3_open16(const void*, ..)`
+//   and `sqlite3_complete16(const void* sql)` (`const uint16_t*` /
+//   `const char16_t*`).
+// - Zero-terminated integer / enum opcode sequences (`0` / `kXmlOpEnd`
+//   sentinel).
+typedef unsigned char xml_char_t;
+
+enum XmlFilterOp {
+  kXmlOpEnd = 0,
+  kXmlOpAddLen = 1,
+  kXmlOpDouble = 2,
+  kXmlOpAddTen = 3,
+};
+
+int xml_utf8_byte_sum(const xml_char_t* str);
+
+void dispatch_xml_sax_element(void* ctx,
+                              void (*on_element)(void* ctx,
+                                                 const xml_char_t* name),
+                              const xml_char_t* doc_tag);
+
+void (*get_default_xml_element_cb())(void* ctx, const xml_char_t* name);
+
+int utf16_code_unit_sum(const uint16_t* utf16_str,
+                        int (*on_utf16)(const uint16_t* segment));
+
+struct Utf16MutablePacket {
+  uint16_t* text16;
+  int mode;
+};
+void mutate_or_clear_utf16_packet(struct Utf16MutablePacket* pkt);
+
+struct XmlFilterCtx;
+struct XmlFilterCtx* create_xml_filter_ctx(int empty);
+const enum XmlFilterOp* get_xml_filter_ctx_ops(struct XmlFilterCtx* ctx);
+const uint16_t* get_xml_filter_ctx_errmsg16(struct XmlFilterCtx* ctx);
+void destroy_xml_filter_ctx(struct XmlFilterCtx* ctx);
+
+int run_xml_filter_ops(const enum XmlFilterOp* ops, const xml_char_t* str);
 }  // extern "C"
 
 #endif  // SANDBOXED_API_TESTS_TESTCASES_REPLACED_LIBRARY_REVERSE_CALLBACKS_H_

@@ -114,4 +114,52 @@ typedef int (*unary_a_cb)(int x);
 typedef int (*unary_b_cb)(int x);
 unary_b_cb swap_callback_typedef_trampoline(unary_a_cb cb);
 
+SANDBOX_CALLBACK_IDEMPOTENT typedef void (*xml_element_cb)(
+    void* ctx SANDBOX_HOST_OPAQUE_PTR,
+    const xml_char_t* name SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
+
+typedef int (*utf16_segment_cb)(
+    const uint16_t* segment SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
+
+int xml_utf8_byte_sum(
+    const xml_char_t* str SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
+
+void dispatch_xml_sax_element(
+    void* ctx SANDBOX_HOST_OPAQUE_PTR, xml_element_cb on_element,
+    const xml_char_t* doc_tag SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
+
+xml_element_cb get_default_xml_element_cb();
+
+int utf16_code_unit_sum(const uint16_t* utf16_str SANDBOX_IN_PTR
+                            SANDBOX_NULL_TERMINATED,
+                        utf16_segment_cb on_utf16);
+
+SANDBOX_ANNOTATE_STRUCT(struct Utf16MutablePacket {
+  uint16_t* text16 SANDBOX_NULL_TERMINATED;
+};)
+
+void mutate_or_clear_utf16_packet(
+    struct Utf16MutablePacket* pkt SANDBOX_INOUT_PTR
+        SANDBOX_STRUCT_SYNC({pkt->text16, inout_ptr}));
+
+SANDBOX_OPAQUE_PTR
+struct XmlFilterCtx* create_xml_filter_ctx(int empty);
+
+SANDBOX_COPY_FROM_AND_BIND_OUT_PTR(ctx)
+SANDBOX_NULL_TERMINATED
+const enum XmlFilterOp* get_xml_filter_ctx_ops(
+    struct XmlFilterCtx* ctx SANDBOX_OPAQUE_PTR);
+
+SANDBOX_COPY_FROM_AND_BIND_OUT_PTR(ctx)
+SANDBOX_NULL_TERMINATED
+const uint16_t* get_xml_filter_ctx_errmsg16(
+    struct XmlFilterCtx* ctx SANDBOX_OPAQUE_PTR);
+
+void destroy_xml_filter_ctx(
+    struct XmlFilterCtx* ctx SANDBOX_OPAQUE_PTR SANDBOX_CLEAR_BINDINGS);
+
+int run_xml_filter_ops(
+    const enum XmlFilterOp* ops SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED,
+    const xml_char_t* str SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
+
 }  // extern "C"

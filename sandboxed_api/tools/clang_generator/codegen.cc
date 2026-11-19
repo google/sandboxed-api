@@ -221,17 +221,32 @@ std::string CompileBindingExpr(absl::string_view context_var,
   return result;
 }
 
+// Returns true if `type` is a pointer to `const char` (or a pointer to
+// `const char*` for global string output parameters).
+bool IsConstCharPointee(const ir::TypeInfo& type) {
+  if (!type.is_pointer() || type.pointee == nullptr) {
+    return false;
+  }
+  if (type.pointee->canonical_name == "const char") {
+    return true;
+  }
+  return type.pointee->is_pointer() && type.pointee->pointee != nullptr &&
+         type.pointee->pointee->canonical_name == "const char";
+}
+
 // Returns true if a buffer is emitted through the dedicated null-terminated
 // C-string path (`sapi::v::ConstCStr` / `sapi::v::Reg<const char*>`) rather
 // than the generic buffer machinery.
 //
 // The IR represents every null-terminated pointer as a `BufferParam` with
 // `kNullTerminated` bounds; picking an emission strategy for it is an emitter
-// concern. Strings that additionally carry a retain or copy-from-and-bind
-// annotation stay on the generic path, which is the only one that emits that
-// binding code (`clear_bindings` is emitted independently per parameter).
-bool UsesCStringEmission(const ir::BufferParam& buf) {
-  return std::holds_alternative<ir::bounds::NullTerminated>(buf.bounds) &&
+// concern. Non-`char` null-terminated arrays (e.g. `const unsigned char*`,
+// `const char16_t*`, `const int*`) and strings that additionally carry a retain
+// or copy-from-and-bind annotation stay on the generic buffer path.
+bool UsesCStringEmission(const ir::Parameter& param,
+                         const ir::BufferParam& buf) {
+  return IsConstCharPointee(param.type) && buf.pointee == nullptr &&
+         std::holds_alternative<ir::bounds::NullTerminated>(buf.bounds) &&
          !buf.context_bound.copy_from_and_bind.has_value() &&
          !buf.context_bound.retain_and_bind.has_value();
 }
@@ -268,8 +283,12 @@ std::string GetParamCapacityAsBytesExpr(const ir::Parameter& param,
             return CompileBindingExpr(context_var, binding.binding_name);
           },
           [&](const ir::bounds::NullTerminated&) {
-            return absl::Substitute(
-                "strlen(reinterpret_cast<const char*>($0)) + 1", param.name);
+            if (IsConstCharPointee(param.type)) {
+              return absl::Substitute(
+                  "strlen(reinterpret_cast<const char*>($0)) + 1", param.name);
+            }
+            return absl::Substitute("sapi::lwbox::NullTerminatedByteSize($0)",
+                                    param.name);
           },
       },
       buf.bounds);
@@ -308,8 +327,12 @@ std::string GetParamSizeAsBytesExpr(const ir::Parameter& param,
             return CompileBindingExpr(context_var, binding.binding_name);
           },
           [&](const ir::bounds::NullTerminated&) {
-            return absl::Substitute(
-                "strlen(reinterpret_cast<const char*>($0)) + 1", param.name);
+            if (IsConstCharPointee(param.type)) {
+              return absl::Substitute(
+                  "strlen(reinterpret_cast<const char*>($0)) + 1", param.name);
+            }
+            return absl::Substitute("sapi::lwbox::NullTerminatedByteSize($0)",
+                                    param.name);
           },
       },
       buf.bounds);
@@ -499,7 +522,7 @@ std::string EmitStructMemberSyncsPreCall(
             [&](const ir::bounds::NullTerminated&) {
               return absl::Substitute(
                   "sapi_member_size_$0 = "
-                  "strlen(reinterpret_cast<const char*>($1)) + 1;\n",
+                  "sapi::lwbox::NullTerminatedByteSize($1);\n",
                   suffix, host_ptr_expr);
             },
             [&](const ir::bounds::SizedByBinding& binding) {
@@ -603,14 +626,25 @@ std::string EmitStructMemberSyncsPostCall(
 
     if (sync.direction == PointerDir::kOut ||
         sync.direction == PointerDir::kInOut) {
+      std::string rezero_sentinel;
+      if (sync.direction == PointerDir::kInOut &&
+          std::holds_alternative<ir::bounds::NullTerminated>(sync.bounds)) {
+        rezero_sentinel = absl::Substitute(
+            "    if ($1 != nullptr && sapi_member_size_$0 >= sizeof(*($1))) {\n"
+            "      memset(reinterpret_cast<char*>($1) + sapi_member_size_$0 - "
+            "sizeof(*($1)),\n"
+            "             0, sizeof(*($1)));\n"
+            "    }\n",
+            suffix, host_ptr_expr);
+      }
       absl::SubstituteAndAppend(&out,
                                 R"(  if (sapi_sb_copy_$0 != nullptr) {
     sapi::lwbox::SyncFromSandboxToHost(
         *sandbox, reinterpret_cast<uintptr_t>(sapi_sb_copy_$0),
         reinterpret_cast<void*>($1), sapi_member_size_$0);
-  }
+$2  }
 )",
-                                suffix, host_ptr_expr);
+                                suffix, host_ptr_expr, rezero_sentinel);
     }
     if (sync.context_bound.retain_and_bind.has_value()) {
       std::string ctx_name =
@@ -669,13 +703,13 @@ std::string EmitCopyFromAndBindOutPtrCode(
   } else if (std::holds_alternative<ir::bounds::NullTerminated>(
                  buffer_bounds)) {
     alloc_and_copy_code = R"(
-        absl::StatusOr<std::string> sapi_remote_str =
-            sandbox->GetCString(sapi::v::RemotePtr(
-                reinterpret_cast<const void*>(sapi_sb_ptr)));
-        sandbox->Check(sapi_remote_str.status());
-        size_t sapi_binding_size = sapi_remote_str->size();
-        sapi_host_copy = calloc(sapi_binding_size + 1, sizeof(char));
-        memcpy(sapi_host_copy, sapi_remote_str->data(), sapi_binding_size);
+        std::vector<char> sapi_remote_arr =
+            sapi::lwbox::ReadNullTerminatedArray(
+                *sandbox, sapi_sb_ptr, sizeof(*sapi_returned_sb_ptr));
+        size_t sapi_binding_size =
+            sapi_remote_arr.size() - sizeof(*sapi_returned_sb_ptr);
+        sapi_host_copy = calloc(sapi_remote_arr.size(), sizeof(char));
+        memcpy(sapi_host_copy, sapi_remote_arr.data(), sapi_binding_size);
 )";
   } else if (const auto* binding =
                  std::get_if<ir::bounds::SizedByBinding>(&buffer_bounds)) {
@@ -777,8 +811,14 @@ std::string GetCallbackReturnSizeAsBytesExpr(const ir::Parameter& cb_param,
           },
           [](const ir::bounds::ByteCount& byte) { return byte.size_expr; },
           [&](const ir::bounds::NullTerminated&) {
-            return absl::Substitute(
-                "strlen(reinterpret_cast<const char*>($0)) + 1", ret_host_var);
+            if (cb.return_value != nullptr &&
+                IsConstCharPointee(cb.return_value->type)) {
+              return absl::Substitute(
+                  "strlen(reinterpret_cast<const char*>($0)) + 1",
+                  ret_host_var);
+            }
+            return absl::Substitute("sapi::lwbox::NullTerminatedByteSize($0)",
+                                    ret_host_var);
           },
           [&](const auto& b) {
             using T = std::decay_t<decltype(b)>;
@@ -827,7 +867,7 @@ void EmitCallbackParamMarshaling(absl::Span<const ir::Parameter> parameters,
         absl::Overload{
             [&](const ir::BufferParam& p_buf) {
               lambda_call_args.push_back(absl::StrCat("sapi_host_", p_name));
-              if (UsesCStringEmission(p_buf)) {
+              if (UsesCStringEmission(p, p_buf)) {
                 pre_call_blocks.push_back(absl::Substitute(
                     R"(      std::optional<std::string> sapi_str_$0;
       $1 sapi_host_$0 = nullptr;
@@ -838,6 +878,19 @@ void EmitCallbackParamMarshaling(absl::Span<const ir::Parameter> parameters,
         sandbox->Check(sapi_cstr_status.status());
         sapi_str_$0 = std::move(*sapi_cstr_status);
         sapi_host_$0 = sapi_str_$0->c_str();
+      })",
+                    p_name, p_type));
+                return;
+              }
+              if (std::holds_alternative<ir::bounds::NullTerminated>(
+                      p_buf.bounds)) {
+                pre_call_blocks.push_back(absl::Substitute(
+                    R"(      std::vector<char> sapi_arr_$0;
+      $1 sapi_host_$0 = nullptr;
+      if ($0 != nullptr) {
+        sapi_arr_$0 = sapi::lwbox::ReadNullTerminatedArray(
+            *sandbox, reinterpret_cast<uintptr_t>($0), sizeof(*$0));
+        sapi_host_$0 = reinterpret_cast<$1>(sapi_arr_$0.data());
       })",
                     p_name, p_type));
                 return;
@@ -1085,6 +1138,16 @@ std::string EmitCallbackHostPreCall(const ir::Parameter& cb_param,
     std::string maybe_post_call =
         param_sync_post_call.empty() ? ""
                                      : absl::StrCat(param_sync_post_call, "\n");
+    std::string ret_host_cast =
+        (cb.return_value != nullptr &&
+         cb.return_value->type.pointee != nullptr &&
+         cb.return_value->type.pointee->is_const)
+            ? absl::Substitute(
+                  "const_cast<char*>(reinterpret_cast<const char*>("
+                  "sapi_$0_ret_host))",
+                  cb_param.name)
+            : absl::Substitute("reinterpret_cast<char*>(sapi_$0_ret_host)",
+                               cb_param.name);
     lambda_body = absl::Substitute(
         R"($0      // Forward params -> args, and do the callback
       $1 sapi_$2_ret_host = $2($3);
@@ -1098,7 +1161,7 @@ $7      // If the callback returned null, no need to
 
       size_t ret_size_bytes = $4;
       auto sapi_ret_var = std::make_unique<sapi::v::Array<char>>(
-          reinterpret_cast<char*>(sapi_$2_ret_host), ret_size_bytes);
+          $8, ret_size_bytes);
       sandbox->Check(sandbox->Allocate(sapi_ret_var.get(),
                                        /*automatic_free=*/true));
 $5$6      auto ret_remote_ptr = sapi_ret_var->GetRemote();
@@ -1106,7 +1169,8 @@ $5$6      auto ret_remote_ptr = sapi_ret_var->GetRemote();
       return reinterpret_cast<$1>(ret_remote_ptr);
 )",
         param_sync_pre_call, cb_ret_type, cb_param.name, lambda_call_str,
-        ret_size_expr, transfer_code, alias_map_code, maybe_post_call);
+        ret_size_expr, transfer_code, alias_map_code, maybe_post_call,
+        ret_host_cast);
   } else if (cb_ret_type == "void") {
     if (param_sync_post_call.empty()) {
       lambda_body = absl::Substitute(
@@ -1582,7 +1646,7 @@ bool IsCalleeWrittenPointerValue(const ir::Parameter& pointee_param) {
     if (buf->context_bound.copy_from_and_bind.has_value()) {
       return true;
     }
-    if (UsesCStringEmission(*buf) &&
+    if (UsesCStringEmission(pointee_param, *buf) &&
         std::holds_alternative<ir::lifetime::SandboxGlobal>(buf->lifetime)) {
       return pointee_param.IsOutput();
     }
@@ -1616,7 +1680,7 @@ void EmitCalleeWrittenPointerPreCall(
     return;
   }
   if (const auto* buf = inner_param.As<ir::BufferParam>()) {
-    if (UsesCStringEmission(*buf)) {
+    if (UsesCStringEmission(inner_param, *buf)) {
       if (uses_owned_vars && inner_param.IsInput()) {
         absl::SubstituteAndAppend(
             &pre_call,
@@ -1649,7 +1713,7 @@ void EmitCalleeWrittenPointerPostCall(const ir::Parameter& inner_param,
     return;
   }
   if (const auto* buf = inner_param.As<ir::BufferParam>()) {
-    if (UsesCStringEmission(*buf) &&
+    if (UsesCStringEmission(inner_param, *buf) &&
         std::holds_alternative<ir::lifetime::SandboxGlobal>(buf->lifetime)) {
       absl::SubstituteAndAppend(
           &post_call,
@@ -1687,7 +1751,7 @@ void EmitShadowPointerElement(const ir::Parameter& inner_param,
         absl::string_view(inner_type).substr(0, inner_type.size() - 5)));
   }
 
-  if (UsesCStringEmission(*inner_buf)) {
+  if (UsesCStringEmission(inner_param, *inner_buf)) {
     absl::SubstituteAndAppend(
         &pre_call,
         "$0if (($1) != nullptr) {\n"
@@ -1891,7 +1955,7 @@ void EmitMultiLevelPointerParam(const ir::Parameter& param,
       inner_buf != nullptr && inner_buf->pointee != nullptr;
   bool needs_owned_vars =
       !child_is_callee_written ||
-      (inner_buf != nullptr && UsesCStringEmission(*inner_buf) &&
+      (inner_buf != nullptr && UsesCStringEmission(inner_param, *inner_buf) &&
        (buf.direction == PointerDir::kIn ||
         buf.direction == PointerDir::kInOut) &&
        inner_param.IsInput());
@@ -2098,7 +2162,9 @@ void EmitHostSrcParam(const ir::Parameter& param, std::string& pre_call,
             if (NeedsCallbackLambdaWrapper(cb) &&
                 !(cb.typedef_name.has_value() &&
                   !cb.functor_template_name.has_value()) &&
-                CallbackReturnsPointer(cb) && cb.return_value->IsOutput()) {
+                CallbackReturnsPointer(cb) && cb.return_value->IsOutput() &&
+                !(cb.return_value->type.pointee != nullptr &&
+                  cb.return_value->type.pointee->is_const)) {
               absl::SubstituteAndAppend(
                   &post_call,
                   "  for (auto& var : sapi_cb_ret_vars_$0) {\n"
@@ -2273,7 +2339,7 @@ void EmitHostSrcParam(const ir::Parameter& param, std::string& pre_call,
                                          post_call);
               return;
             }
-            if (UsesCStringEmission(buf)) {
+            if (UsesCStringEmission(param, buf)) {
               if (buf.direction == PointerDir::kIn) {
                 absl::StrAppend(
                     &pre_call,
@@ -2616,11 +2682,24 @@ absl::flat_hash_set<std::string> GatherHostIncludes(
           absl::Substitute("\"$0absl/status/statusor.h\"", kIncludePrefix));
       for (size_t i = 1; i < func->parameters.size(); ++i) {
         if (const auto* buf = func->parameters[i].As<ir::BufferParam>()) {
-          if (std::holds_alternative<ir::bounds::NullTerminated>(buf->bounds)) {
+          if (UsesCStringEmission(func->parameters[i], *buf)) {
             host_includes.insert("<string>");
             host_includes.insert("<cstring>");
+          } else if (std::holds_alternative<ir::bounds::NullTerminated>(
+                         buf->bounds)) {
+            host_includes.insert("<vector>");
           }
         }
+      }
+    }
+    if (func->return_value.has_value()) {
+      if (const auto* ret_buf = func->return_value->As<ir::BufferParam>();
+          ret_buf != nullptr &&
+          ret_buf->context_bound.copy_from_and_bind.has_value() &&
+          std::holds_alternative<ir::bounds::NullTerminated>(ret_buf->bounds)) {
+        host_includes.insert("<cstdlib>");
+        host_includes.insert("<cstring>");
+        host_includes.insert("<vector>");
       }
     }
     for (const auto& param : func->parameters) {
@@ -2654,9 +2733,14 @@ absl::flat_hash_set<std::string> GatherHostIncludes(
                     std::visit(
                         absl::Overload{
                             [&](const ir::BufferParam& cb_buf) {
-                              if (UsesCStringEmission(cb_buf)) {
+                              if (UsesCStringEmission(cb_p, cb_buf)) {
                                 host_includes.insert("<string>");
                                 host_includes.insert("<cstring>");
+                              } else if (std::holds_alternative<
+                                             ir::bounds::NullTerminated>(
+                                             cb_buf.bounds)) {
+                                host_includes.insert("<vector>");
+                                host_includes.insert("<cstdint>");
                               }
                             },
                             [&](const auto& p) {
@@ -2680,6 +2764,21 @@ absl::flat_hash_set<std::string> GatherHostIncludes(
                 if (buf.pointee != nullptr) {
                   host_includes.insert("<algorithm>");
                   host_includes.insert("<memory>");
+                  host_includes.insert("<vector>");
+                  if (const auto* inner_buf =
+                          buf.pointee->As<ir::BufferParam>();
+                      inner_buf != nullptr &&
+                      inner_buf->context_bound.copy_from_and_bind.has_value() &&
+                      std::holds_alternative<ir::bounds::NullTerminated>(
+                          inner_buf->bounds)) {
+                    host_includes.insert("<cstdlib>");
+                    host_includes.insert("<cstring>");
+                  }
+                } else if (buf.context_bound.copy_from_and_bind.has_value() &&
+                           std::holds_alternative<ir::bounds::NullTerminated>(
+                               buf.bounds)) {
+                  host_includes.insert("<cstdlib>");
+                  host_includes.insert("<cstring>");
                   host_includes.insert("<vector>");
                 }
               },

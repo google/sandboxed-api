@@ -2916,6 +2916,195 @@ TEST_F(IrConvertTest, RejectsCallbackParameterWithUncopyableStructPtr) {
                                  "unsupported pointee type: field ptr of "
                                  "'const BadStruct': 'int *' is a pointer")));
 }
+
+TEST_F(IrConvertTest,
+       ConvertsNullTerminatedNonCharScalarAndEnumParametersAndCallbacks) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
+                            ConvertSnippetToIR(R"(
+    typedef unsigned char xmlChar;
+    enum OpCode { kOpStop = 0, kOpAdd = 1 };
+    extern "C" int process_null_terminated(
+        const xmlChar* xml_name
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "null_terminated")]],
+        const char16_t* utf16_sql
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "null_terminated")]],
+        const OpCode* ops
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "null_terminated")]],
+        void (*on_element)(
+            const xmlChar* tag
+                [[clang::annotate("sandbox", "in_ptr")]]
+                [[clang::annotate("sandbox", "null_terminated")]],
+            const char16_t* text
+                [[clang::annotate("sandbox", "in_ptr")]]
+                [[clang::annotate("sandbox", "null_terminated")]]));
+  )",
+                                               "process_null_terminated"));
+  ASSERT_EQ(func.parameters.size(), 4);
+  for (int i = 0; i < 3; ++i) {
+    SCOPED_TRACE(i);
+    const auto* buf = func.parameters[i].As<BufferParam>();
+    ASSERT_NE(buf, nullptr);
+    EXPECT_EQ(buf->direction, PointerDir::kIn);
+    EXPECT_TRUE(std::holds_alternative<bounds::NullTerminated>(buf->bounds));
+  }
+  EXPECT_EQ(func.parameters[0].type.pointee_type_name(), "const unsigned char");
+  EXPECT_EQ(func.parameters[1].type.pointee_type_name(), "const char16_t");
+  EXPECT_EQ(func.parameters[2].type.pointee_type_name(), "const enum OpCode");
+
+  const auto* cb = func.parameters[3].As<CallbackParam>();
+  ASSERT_NE(cb, nullptr);
+  ASSERT_EQ(cb->callback_parameters.size(), 2);
+  for (int i = 0; i < 2; ++i) {
+    SCOPED_TRACE(i);
+    const auto* cb_buf = cb->callback_parameters[i].As<BufferParam>();
+    ASSERT_NE(cb_buf, nullptr);
+    EXPECT_EQ(cb_buf->direction, PointerDir::kIn);
+    EXPECT_TRUE(std::holds_alternative<bounds::NullTerminated>(cb_buf->bounds));
+  }
+}
+
+TEST_F(IrConvertTest, RejectsNullTerminatedNonConstOrVoidInputParameter) {
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    extern "C" void bad_mutable_null_terminated(
+        int* p [[clang::annotate("sandbox", "in_ptr")]]
+               [[clang::annotate("sandbox", "null_terminated")]]);
+  )",
+                                 "bad_mutable_null_terminated"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("pointer argument p is null-terminated but "
+                                 "not a const integer or enum pointer")));
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    extern "C" void bad_void_null_terminated(
+        const void* p [[clang::annotate("sandbox", "in_ptr")]]
+                      [[clang::annotate("sandbox", "null_terminated")]]);
+  )",
+                                 "bad_void_null_terminated"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("pointer argument p is null-terminated but "
+                                 "not a const integer or enum pointer")));
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    extern "C" void bad_float_null_terminated(
+        const double* p [[clang::annotate("sandbox", "in_ptr")]]
+                        [[clang::annotate("sandbox", "null_terminated")]]);
+  )",
+                                 "bad_float_null_terminated"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("pointer argument p is null-terminated but "
+                                 "not a const integer or enum pointer")));
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    struct Pair { int a; int b; };
+    struct Ctx;
+    extern "C" {
+    [[clang::annotate("sandbox", "copy_from_and_bind_out_ptr", "ctx", "b0")]]
+    [[clang::annotate("sandbox", "null_terminated")]]
+    const double* bad_bound_float(
+        Ctx* ctx [[clang::annotate("sandbox", "sandbox_opaque_ptr")]]);
+    }
+  )",
+                                 "bad_bound_float"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("return pointer sapi_ret_arg with "
+                                 "copy_from_and_bind_out_ptr and "
+                                 "null_terminated must point to an integer or "
+                                 "enum type")));
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    extern "C" void bad_bound_struct_out(
+        Ctx* ctx [[clang::annotate("sandbox", "sandbox_opaque_ptr")]],
+        Pair** out [[clang::annotate("sandbox", "copy_from_and_bind_out_ptr", "ctx", "b1")]]
+                   [[clang::annotate("sandbox", "null_terminated")]]);
+  )",
+                                 "bad_bound_struct_out"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("pointer argument out with "
+                                 "copy_from_and_bind_out_ptr and "
+                                 "null_terminated must point to an integer or "
+                                 "enum type")));
+
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations rec{.name = "Packet"};
+  rec.member_annotations.push_back(DataMemberAnnotations{
+      .name = "utf16",
+      .size_type = NullTerminated{},
+  });
+  rec.member_annotations.push_back(DataMemberAnnotations{
+      .name = "bad_float",
+      .size_type = NullTerminated{},
+  });
+  rec.member_annotations.push_back(DataMemberAnnotations{
+      .name = "bad_void",
+      .size_type = NullTerminated{},
+  });
+  record_annotations["Packet"] = std::move(rec);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      const Function ok_struct_fn,
+      ConvertSnippetToIR(R"(
+    struct Packet {
+      const char16_t* utf16;
+      const double* bad_float;
+      const void* bad_void;
+    };
+    extern "C" void ok_utf16_member(
+        const Packet* p
+        [[clang::annotate("sandbox", "in_ptr")]]
+        [[clang::annotate("sandbox", "struct_sync", "b0",
+                          "{p->utf16", "in_ptr}", "$")]]);
+  )",
+                         "ok_utf16_member", record_annotations));
+  ASSERT_EQ(ok_struct_fn.parameters.size(), 1);
+  ASSERT_TRUE(ok_struct_fn.parameters[0].Is<StructSyncParam>());
+  EXPECT_TRUE(std::holds_alternative<bounds::NullTerminated>(
+      ok_struct_fn.parameters[0].As<StructSyncParam>()->members[0].bounds));
+
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    extern "C" void bad_float_member(
+        const Packet* p
+        [[clang::annotate("sandbox", "in_ptr")]]
+        [[clang::annotate("sandbox", "struct_sync", "b0",
+                          "{p->bad_float", "in_ptr}", "$")]]);
+  )",
+                         "bad_float_member", record_annotations),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("struct_sync access path p->bad_float: "
+                         "null_terminated member must point to an integer or "
+                         "enum type")));
+
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    extern "C" void bad_void_member(
+        const Packet* p
+        [[clang::annotate("sandbox", "in_ptr")]]
+        [[clang::annotate("sandbox", "struct_sync", "b0",
+                          "{p->bad_void", "in_ptr}", "$")]]);
+  )",
+                         "bad_void_member", record_annotations),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("struct_sync access path p->bad_void: "
+                         "null_terminated member must point to an integer or "
+                         "enum type")));
+
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    extern "C" void bad_out_member(
+        Packet* p
+        [[clang::annotate("sandbox", "out_ptr")]]
+        [[clang::annotate("sandbox", "struct_sync", "b0",
+                          "{p->utf16", "out_ptr}", "$")]]);
+  )",
+                         "bad_out_member", record_annotations),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("struct_sync access path p->utf16: null_terminated "
+                         "output member requires a lifetime annotation")));
+}
+
 }  // namespace
 }  // namespace ir
 }  // namespace sapi
