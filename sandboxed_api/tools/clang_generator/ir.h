@@ -185,8 +185,13 @@ namespace lifetime {
 // Memory lives only for the duration of the Call().
 struct ScopedCall {};
 
-// Memory lives indefinitely in the sandbox (SANDBOX_LIFETIME_SANDBOX_GLOBAL).
+// Memory lives indefinitely in the sandbox (SANDBOX_LIFETIME_GLOBAL).
 struct SandboxGlobal {};
+
+// Memory is heap-allocated by the sandboxee and copied into a host malloc()
+// buffer, freeing the sandboxee allocation immediately after the call
+// (SANDBOX_LIFETIME_MALLOC).
+struct Malloc {};
 
 // Pointer aliases a host pointer parameter (SANDBOX_ALIAS_PTR).
 struct AliasHostPtr {
@@ -202,7 +207,8 @@ struct AliasCallbackReturn {
 
 using LifetimePolicy =
     std::variant<lifetime::ScopedCall, lifetime::SandboxGlobal,
-                 lifetime::AliasHostPtr, lifetime::AliasCallbackReturn>;
+                 lifetime::Malloc, lifetime::AliasHostPtr,
+                 lifetime::AliasCallbackReturn>;
 
 // Synchronized member field within a struct pointer argument
 // (SANDBOX_STRUCT_SYNC).
@@ -212,6 +218,7 @@ struct StructMemberSync {
   PointerDir direction = PointerDir::kIn;
   BufferBounds bounds;
   ContextBoundAnnotations context_bound;
+  LifetimePolicy lifetime = lifetime::ScopedCall{};
 
   // Full member access path (e.g., "foo->bar").
   std::string access_path() const {

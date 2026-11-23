@@ -178,6 +178,27 @@ int invoke_inout_counted_callback(inout_counted_xform_cb cb,
 
 int is_marshaled_copy(const int* probe, uintptr_t caller_addr);
 
+// Callee-allocated (`malloc`) return values, `T**` out-parameters, and struct
+// pointer members (`SANDBOX_LIFETIME_MALLOC`) whose ownership transfers to the
+// host caller (who calls `free()`).
+char* duplicate_and_reverse_malloc_string(const char* src);
+
+int* allocate_arithmetic_sequence(size_t count, int start, int step,
+                                  size_t* out_count);
+
+int allocate_tag_and_buffer_outparams(const char* prefix, size_t count,
+                                      int base, char** out_tag, int** out_buf,
+                                      size_t* out_len);
+
+struct MemIoBuffer {
+  size_t size;
+  void* memory;
+  int flags;
+};
+
+int finalize_memio_buffer(size_t size, unsigned char fill_byte, int flags,
+                          struct MemIoBuffer* out_memio);
+
 }  // extern "C"
 
 #endif  // SANDBOXED_API_TESTS_TESTCASES_REPLACED_LIBRARY_MULTI_LEVEL_PTRS_H_

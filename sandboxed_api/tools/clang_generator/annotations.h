@@ -48,6 +48,7 @@ enum class PointerDir {
 };
 
 struct SandboxGlobalLifetime {};
+struct MallocLifetime {};
 struct AliasHostPtrLifetime {
   std::string param_name;
 };
@@ -58,8 +59,9 @@ struct AliasCallbackReturnLifetime {
 // enclosing sandboxed function call returns.
 struct OuterCallLifetime {};
 using PointerLifetime =
-    std::variant<std::monostate, SandboxGlobalLifetime, AliasHostPtrLifetime,
-                 AliasCallbackReturnLifetime, OuterCallLifetime>;
+    std::variant<std::monostate, SandboxGlobalLifetime, MallocLifetime,
+                 AliasHostPtrLifetime, AliasCallbackReturnLifetime,
+                 OuterCallLifetime>;
 
 // Metadata for sized-by annotations for pointers to arrays.
 // If a host-owned array is sized by an outparam, the size will be controlled
@@ -127,6 +129,7 @@ struct StructSync {
   std::string access_path;
   PointerDir ptr_dir;
   ContextBoundAnnotations context_bound;
+  PointerLifetime lifetime;
 };
 
 // Sizing, direction, and callback-typedef annotations for a single data member
@@ -136,6 +139,7 @@ struct DataMemberAnnotations {
   ArraySizedByType size_type;
   std::optional<PointerDir> ptr_dir;
   std::optional<std::string> callback_typedef;
+  PointerLifetime lifetime;
 };
 
 // Annotations that apply to all instances of a given Struct/Class type.
@@ -211,6 +215,11 @@ struct Annotations {
   absl::Status SetSandboxGlobalLifetime() {
     ABSL_RETURN_IF_ERROR(CheckLifetimeNotSet("lifetime_sandbox_global"));
     lifetime = SandboxGlobalLifetime{};
+    return absl::OkStatus();
+  }
+  absl::Status SetMallocLifetime() {
+    ABSL_RETURN_IF_ERROR(CheckLifetimeNotSet("lifetime_malloc"));
+    lifetime = MallocLifetime{};
     return absl::OkStatus();
   }
   absl::Status SetAliasHostPtrLifetime(absl::string_view param_name) {

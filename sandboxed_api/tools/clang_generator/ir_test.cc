@@ -3992,6 +3992,185 @@ TEST_F(IrConvertTest,
                                  "inout_len")));
 }
 
+TEST_F(IrConvertTest, ConvertsLifetimeMallocOnReturnAndDirectOutParameters) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
+                            ConvertSnippetToIR(R"(
+    extern "C" [[clang::annotate("sandbox", "null_terminated")]]
+    [[clang::annotate("sandbox", "lifetime_malloc")]]
+    char* dup_and_fill(
+        char** out_str
+            [[clang::annotate("sandbox", "out_ptr")]]
+            [[clang::annotate("sandbox", "null_terminated")]]
+            [[clang::annotate("sandbox", "lifetime_malloc")]],
+        int** out_arr
+            [[clang::annotate("sandbox", "out_ptr")]]
+            [[clang::annotate("sandbox", "elem_sized_by", "*out_len")]]
+            [[clang::annotate("sandbox", "lifetime_malloc")]],
+        unsigned long* out_len
+            [[clang::annotate("sandbox", "out_ptr")]]);
+  )",
+                                               "dup_and_fill"));
+  ASSERT_TRUE(func.return_value.has_value());
+  const auto* ret_buf = func.return_value->As<BufferParam>();
+  ASSERT_NE(ret_buf, nullptr);
+  // `lifetime_malloc` on a return value implies `out_ptr`.
+  EXPECT_EQ(ret_buf->direction, PointerDir::kOut);
+  EXPECT_TRUE(std::holds_alternative<bounds::NullTerminated>(ret_buf->bounds));
+  EXPECT_TRUE(std::holds_alternative<lifetime::Malloc>(ret_buf->lifetime));
+
+  ASSERT_EQ(func.parameters.size(), 3);
+  const auto* out_str_buf = func.parameters[0].As<BufferParam>();
+  ASSERT_NE(out_str_buf, nullptr);
+  EXPECT_EQ(out_str_buf->direction, PointerDir::kOut);
+  EXPECT_TRUE(std::holds_alternative<bounds::Singleton>(out_str_buf->bounds));
+  ASSERT_NE(out_str_buf->pointee, nullptr);
+  const auto* inner_str = out_str_buf->pointee->As<BufferParam>();
+  ASSERT_NE(inner_str, nullptr);
+  EXPECT_TRUE(
+      std::holds_alternative<bounds::NullTerminated>(inner_str->bounds));
+  EXPECT_TRUE(std::holds_alternative<lifetime::Malloc>(inner_str->lifetime));
+
+  const auto* out_arr_buf = func.parameters[1].As<BufferParam>();
+  ASSERT_NE(out_arr_buf, nullptr);
+  ASSERT_NE(out_arr_buf->pointee, nullptr);
+  const auto* inner_arr = out_arr_buf->pointee->As<BufferParam>();
+  ASSERT_NE(inner_arr, nullptr);
+  ASSERT_TRUE(std::holds_alternative<bounds::ElemCount>(inner_arr->bounds));
+  EXPECT_EQ(std::get<bounds::ElemCount>(inner_arr->bounds).size_expr,
+            "*out_len");
+  EXPECT_TRUE(std::holds_alternative<lifetime::Malloc>(inner_arr->lifetime));
+
+  Library lib{.name = "MyLib", .functions = {func}};
+  EXPECT_THAT(ValidateAndLinkLibraryIR(lib), IsOk());
+}
+
+TEST_F(IrConvertTest, ConvertsLifetimeMallocStructMember) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations memio_ann{.name = "MemIo"};
+  memio_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "memory",
+      .size_type = ByteSizedBy{"size"},
+      .lifetime = MallocLifetime{},
+  });
+  record_annotations["MemIo"] = std::move(memio_ann);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      const Function func,
+      ConvertSnippetToIR(R"(
+    struct MemIo {
+      unsigned long size;
+      void* memory;
+      int flags;
+    };
+    extern "C" int close_memio(
+        MemIo* info [[clang::annotate("sandbox", "out_ptr")]]);
+  )",
+                         "close_memio", record_annotations));
+  ASSERT_EQ(func.parameters.size(), 1);
+  const auto* sync = func.parameters[0].As<StructSyncParam>();
+  ASSERT_NE(sync, nullptr);
+  EXPECT_EQ(sync->direction, PointerDir::kOut);
+  ASSERT_EQ(sync->members.size(), 1);
+  EXPECT_EQ(sync->members[0].member_name, "memory");
+  EXPECT_EQ(sync->members[0].direction, PointerDir::kOut);
+  EXPECT_TRUE(
+      std::holds_alternative<lifetime::Malloc>(sync->members[0].lifetime));
+}
+
+TEST_F(IrConvertTest, RejectsInvalidLifetimeMallocCombinations) {
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    extern "C" void bad_single_ptr(
+        char* p [[clang::annotate("sandbox", "out_ptr")]]
+                [[clang::annotate("sandbox", "null_terminated")]]
+                [[clang::annotate("sandbox", "lifetime_malloc")]]);
+  )",
+                                 "bad_single_ptr"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("lifetime_malloc on a parameter requires a "
+                                 "pointer-to-pointer (T**) out-parameter")));
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    extern "C" void bad_in_double_ptr(
+        const char** p [[clang::annotate("sandbox", "in_ptr")]]
+                       [[clang::annotate("sandbox", "null_terminated")]]
+                       [[clang::annotate("sandbox", "lifetime_malloc")]]);
+  )",
+                                 "bad_in_double_ptr"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("lifetime_malloc is only supported on out_ptr "
+                                 "pointers")));
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    extern "C" [[clang::annotate("sandbox", "lifetime_malloc")]]
+    int bad_int_return(int x);
+  )",
+                                 "bad_int_return"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("lifetime_malloc on a return value requires a "
+                                 "non-function pointer return type")));
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    typedef int* int_block_pointee
+        [[clang::annotate("sandbox", "out_ptr")]]
+        [[clang::annotate("sandbox", "elem_sized_by", "4")]];
+    extern "C" void bad_outer_malloc(
+        int_block_pointee* out [[clang::annotate("sandbox", "out_ptr")]]
+                               [[clang::annotate("sandbox", "lifetime_malloc")]]);
+  )",
+                                 "bad_outer_malloc"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("lifetime_malloc cannot be combined with a "
+                                 "pointee contract on the outer pointer")));
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    typedef char* malloc_str_pointee
+        [[clang::annotate("sandbox", "out_ptr")]]
+        [[clang::annotate("sandbox", "null_terminated")]]
+        [[clang::annotate("sandbox", "lifetime_malloc")]];
+    extern "C" void bad_inout_outer_malloc(
+        malloc_str_pointee* p [[clang::annotate("sandbox", "inout_ptr")]]);
+  )",
+                                 "bad_inout_outer_malloc"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("outer pointer for lifetime_malloc pointee "
+                                 "typedef malloc_str_pointee must be "
+                                 "SANDBOX_OUT_PTR")));
+
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations in_struct_ann{.name = "InStruct"};
+  in_struct_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "text",
+      .size_type = NullTerminated{},
+  });
+  record_annotations["InStruct"] = std::move(in_struct_ann);
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    struct InStruct {
+      char* text;
+    };
+    extern "C" void bad_in_struct_malloc(
+        const InStruct* s [[clang::annotate("sandbox", "in_ptr")]]
+                          [[clang::annotate("sandbox", "struct_sync", "L1",
+                                            "{s->text", "out_ptr",
+                                            "lifetime_malloc}")]]);
+  )",
+                                 "bad_in_struct_malloc", record_annotations),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("lifetime_malloc requires out_ptr member "
+                                 "direction on a non-in_ptr struct")));
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    [[clang::annotate("sandbox", "out_ptr")]]
+    [[clang::annotate("sandbox", "null_terminated")]]
+    [[clang::annotate("sandbox", "lifetime_malloc")]]
+    typedef char* (*malloc_cb)(void);
+    extern "C" void register_malloc_cb(malloc_cb cb);
+  )",
+                                 "register_malloc_cb"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("malloc_cb: lifetime_malloc is not supported "
+                                 "on a callback typedef")));
+}
+
 }  // namespace
 }  // namespace ir
 }  // namespace sapi

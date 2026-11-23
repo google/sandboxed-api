@@ -1296,6 +1296,57 @@ TEST(EmitHostSrcTest, MultiLevelCallbackBoundsUseCheckedToSizeT) {
                               "sapi::lwbox::CheckedToSizeT(cols))")));
 }
 
+TEST(EmitHostSrcTest, MallocLifetimeBoundsUseCheckedToSizeT) {
+  ir::Parameter ret_bytes{
+      .name = "sapi_ret_arg",
+      .type = PointerTo(ScalarType("char")),
+      .is_return_value = true,
+      .payload =
+          ir::BufferParam{
+              .direction = PointerDir::kOut,
+              .bounds = ByteCount("*out_bytes"),
+              .lifetime = ir::lifetime::Malloc{},
+          },
+  };
+  ir::Parameter out_bytes =
+      BufferArg("out_bytes", ScalarType("int"), PointerDir::kOut,
+                ir::bounds::Singleton{});
+  absl::StatusOr<std::string> byte_src = HostSrc(ir::Function{
+      .name = "alloc_bytes",
+      .return_value = std::move(ret_bytes),
+      .parameters = {std::move(out_bytes)},
+  });
+  ASSERT_THAT(byte_src, IsOk());
+  EXPECT_THAT(
+      *byte_src,
+      ContainsRegex(
+          R"(\(out_bytes == nullptr\s*\?\s*0\s*:\s*sapi::lwbox::CheckedToSizeT\(\*out_bytes\)\))"));
+
+  ir::Parameter ret_elems{
+      .name = "sapi_ret_arg",
+      .type = PointerTo(ScalarType("char")),
+      .is_return_value = true,
+      .payload =
+          ir::BufferParam{
+              .direction = PointerDir::kOut,
+              .bounds = ElemCount("*out_len"),
+              .lifetime = ir::lifetime::Malloc{},
+          },
+  };
+  ir::Parameter out_len = BufferArg("out_len", ScalarType("int"),
+                                    PointerDir::kOut, ir::bounds::Singleton{});
+  absl::StatusOr<std::string> elem_src = HostSrc(ir::Function{
+      .name = "alloc_elems",
+      .return_value = std::move(ret_elems),
+      .parameters = {std::move(out_len)},
+  });
+  ASSERT_THAT(elem_src, IsOk());
+  EXPECT_THAT(
+      *elem_src,
+      ContainsRegex(
+          R"(\(out_len == nullptr\s*\?\s*0\s*:\s*sandbox->CheckedMultiply\(\s*sizeof\([^)]*\),\s*sapi::lwbox::CheckedToSizeT\(\*out_len\)\)\))"));
+}
+
 TEST(EmitHostSrcTest,
      NonCharNullTerminatedInputParamUsesNullTerminatedByteSize) {
   ir::Function func{

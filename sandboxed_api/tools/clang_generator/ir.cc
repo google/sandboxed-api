@@ -308,7 +308,8 @@ absl::Status ValidateSizeExpr(absl::Span<const Parameter> scope,
                               absl::string_view scope_desc,
                               absl::string_view role,
                               absl::string_view size_expr,
-                              bool in_callback = false) {
+                              bool in_callback = false,
+                              bool evaluated_pre_call = true) {
   std::optional<absl::string_view> sibling = SoleReferencedParam(size_expr);
   if (sibling.has_value() && FindInScope(scope, *sibling) == nullptr) {
     return absl::InvalidArgumentError(absl::Substitute(
@@ -328,7 +329,7 @@ absl::Status ValidateSizeExpr(absl::Span<const Parameter> scope,
               "non-scalar parameter $3.",
               scope_desc, role, size_expr, ident));
         }
-        if (sib->direction() == PointerDir::kOut) {
+        if (evaluated_pre_call && sib->direction() == PointerDir::kOut) {
           return absl::InvalidArgumentError(absl::Substitute(
               "$0 $1: sizing expression '$2' cannot read SANDBOX_OUT_PTR "
               "parameter $3 before the call; use "
@@ -374,18 +375,19 @@ absl::Status ValidateBufferBounds(absl::Span<const Parameter> scope,
                                   absl::string_view scope_desc,
                                   absl::string_view role,
                                   const BufferBounds& buffer_bounds,
-                                  bool in_callback = false) {
+                                  bool in_callback = false,
+                                  bool evaluated_pre_call = true) {
   return std::visit(
       absl::Overload{
           [](const bounds::Singleton&) { return absl::OkStatus(); },
           [](const bounds::NullTerminated&) { return absl::OkStatus(); },
           [&](const bounds::ElemCount& elem) {
             return ValidateSizeExpr(scope, scope_desc, role, elem.size_expr,
-                                    in_callback);
+                                    in_callback, evaluated_pre_call);
           },
           [&](const bounds::ByteCount& byte) {
             return ValidateSizeExpr(scope, scope_desc, role, byte.size_expr,
-                                    in_callback);
+                                    in_callback, evaluated_pre_call);
           },
           [&](const bounds::ElemSizedByOutparam& elem) {
             return ValidateOutparamSize(scope, scope_desc, role,
@@ -482,8 +484,14 @@ absl::Status ValidateAndLinkParameter(Function& func, Parameter& param,
       scope = scope.subspan(1);
       scope_desc = absl::StrCat("callback typedef ", *func.invoker_for_typedef);
     }
-    ABSL_RETURN_IF_ERROR(ValidateBufferBounds(scope, scope_desc, role,
-                                              buf->bounds, in_callback));
+    const bool evaluated_pre_call =
+        !param.is_return_value &&
+        (buf->direction != PointerDir::kOut ||
+         (!buf->context_bound.copy_from_and_bind.has_value() &&
+          !std::holds_alternative<lifetime::Malloc>(buf->lifetime) &&
+          !std::holds_alternative<lifetime::SandboxGlobal>(buf->lifetime)));
+    ABSL_RETURN_IF_ERROR(ValidateBufferBounds(
+        scope, scope_desc, role, buf->bounds, in_callback, evaluated_pre_call));
     if (is_top_level && buf->pointee == nullptr && param.IsOutput() &&
         !param.is_return_value &&
         !buf->context_bound.copy_from_and_bind.has_value()) {
@@ -576,6 +584,7 @@ absl::Status ValidateAndLinkParameter(Function& func, Parameter& param,
         absl::Overload{
             [](const lifetime::ScopedCall&) { return absl::OkStatus(); },
             [](const lifetime::SandboxGlobal&) { return absl::OkStatus(); },
+            [](const lifetime::Malloc&) { return absl::OkStatus(); },
             [&](const lifetime::AliasHostPtr& alias) -> absl::Status {
               const Parameter* host_param =
                   func.FindParameter(alias.host_param_name);

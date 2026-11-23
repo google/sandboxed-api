@@ -659,6 +659,9 @@ ir::LifetimePolicy AnnotationsToLifetimePolicy(const Annotations& ann) {
           [](const SandboxGlobalLifetime&) -> ir::LifetimePolicy {
             return ir::lifetime::SandboxGlobal{};
           },
+          [](const MallocLifetime&) -> ir::LifetimePolicy {
+            return ir::lifetime::Malloc{};
+          },
           [](const AliasHostPtrLifetime& host) -> ir::LifetimePolicy {
             return ir::lifetime::AliasHostPtr{
                 .host_param_name = host.param_name,
@@ -762,6 +765,13 @@ absl::Status ValidateParamAnnotations(absl::string_view name,
           "combined with a pointee contract on the outer pointer",
           name));
     }
+    if (std::holds_alternative<MallocLifetime>(ann.lifetime)) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "pointer argument $0: lifetime_malloc cannot be combined with a "
+          "pointee contract on the outer pointer; place it on the pointer "
+          "typedef declaration instead",
+          name));
+    }
     if (is_return_value) {
       return absl::InvalidArgumentError(absl::Substitute(
           "return pointer $0 cannot have a pointee contract", name));
@@ -823,6 +833,46 @@ absl::Status ValidateParamAnnotations(absl::string_view name,
     }
   }
 
+  if (std::holds_alternative<MallocLifetime>(ann.lifetime)) {
+    if (ann.ptr_dir != PointerDir::kOut) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "pointer argument $0: lifetime_malloc is only supported on out_ptr "
+          "pointers",
+          name));
+    }
+    if (ann.context_bound.copy_from_and_bind.has_value() ||
+        ann.context_bound.retain_and_bind.has_value()) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "pointer argument $0: lifetime_malloc cannot be combined with "
+          "context-binding annotations",
+          name));
+    }
+    if (!is_return_value && !is_pointee_contract &&
+        (!type->isPointerType() || !type->getPointeeType()->isPointerType() ||
+         type->getPointeeType()->isFunctionPointerType())) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "pointer argument $0: lifetime_malloc on a parameter requires a "
+          "pointer-to-pointer (T**) out-parameter or a pointee typedef",
+          name));
+    }
+    if (const auto* elem = std::get_if<ElemSizedBy>(&ann.size_type);
+        elem != nullptr && elem->sized_by_outparam_data.has_value()) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "pointer argument $0: lifetime_malloc allocates the host buffer "
+          "after the call, so use elem_sized_by instead of "
+          "elem_sized_by_outparam",
+          name));
+    }
+    if (const auto* byte = std::get_if<ByteSizedBy>(&ann.size_type);
+        byte != nullptr && byte->sized_by_outparam_data.has_value()) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "pointer argument $0: lifetime_malloc allocates the host buffer "
+          "after the call, so use byte_sized_by instead of "
+          "byte_sized_by_outparam",
+          name));
+    }
+  }
+
   if (std::holds_alternative<NullTerminated>(ann.size_type)) {
     // Retaining a buffer records its extent so that a later call can size
     // itself from the binding. A null-terminated string has no extent the
@@ -851,16 +901,26 @@ absl::Status ValidateParamAnnotations(absl::string_view name,
       }
     } else {
       if (is_return_value) {
-        if (!IsSupportedNullTerminatedGlobalStringType(type)) {
-          return absl::InvalidArgumentError(absl::Substitute(
-              "return pointer $0 is null-terminated but not a const char*",
-              name));
-        }
-        if (!std::holds_alternative<SandboxGlobalLifetime>(ann.lifetime)) {
-          return absl::InvalidArgumentError(
-              absl::Substitute("function $0: null_terminated annotation for "
-                               "return values requires a lifetime annotation.",
-                               name));
+        if (std::holds_alternative<MallocLifetime>(ann.lifetime)) {
+          if (!type->isPointerType() ||
+              !IsIntegerOrEnumType(type->getPointeeType())) {
+            return absl::InvalidArgumentError(absl::Substitute(
+                "return pointer $0 with lifetime_malloc and null_terminated "
+                "must point to an integer or enum type",
+                name));
+          }
+        } else {
+          if (!IsSupportedNullTerminatedGlobalStringType(type)) {
+            return absl::InvalidArgumentError(absl::Substitute(
+                "return pointer $0 is null-terminated but not a const char*",
+                name));
+          }
+          if (!std::holds_alternative<SandboxGlobalLifetime>(ann.lifetime)) {
+            return absl::InvalidArgumentError(absl::Substitute(
+                "function $0: null_terminated annotation for "
+                "return values requires a lifetime annotation.",
+                name));
+          }
         }
       } else if (ann.ptr_dir == PointerDir::kIn) {
         if (!ann.pointee_contract.has_value() &&
@@ -878,6 +938,16 @@ absl::Status ValidateParamAnnotations(absl::string_view name,
             return absl::InvalidArgumentError(absl::Substitute(
                 "pointer argument $0 with lifetime_sandbox_global must "
                 "be a const char**",
+                name));
+          }
+        } else if (std::holds_alternative<MallocLifetime>(ann.lifetime)) {
+          clang::QualType alloc_ptr =
+              is_pointee_contract ? type : type->getPointeeType();
+          if (!alloc_ptr->isPointerType() ||
+              !IsIntegerOrEnumType(alloc_ptr->getPointeeType())) {
+            return absl::InvalidArgumentError(absl::Substitute(
+                "pointer argument $0 with lifetime_malloc and null_terminated "
+                "must point to an integer or enum type",
                 name));
           }
         } else if (!(ann.ptr_dir == PointerDir::kInOut && !is_callback_param &&
@@ -1144,6 +1214,20 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
       !(ir_param.type.kind == ir::TypeKind::kString ||
         (ir_param.type.is_pointer() && ir_param.type.is_pointee_string()))) {
     const clang::ASTContext* ast_ctx = GetASTContext(source);
+    auto is_supported_malloc_ptr = [&](clang::QualType alloc_ptr) {
+      if (ast_ctx == nullptr || !alloc_ptr->isPointerType() ||
+          alloc_ptr->isFunctionPointerType()) {
+        return false;
+      }
+      if ((std::holds_alternative<ByteSizedBy>(ann.size_type) ||
+           std::holds_alternative<SizedByBinding>(ann.size_type)) &&
+          IsSupportedArgByteSizedByType(alloc_ptr)) {
+        return true;
+      }
+      return IsDeeplyTriviallyCopyableType(
+          *ast_ctx, alloc_ptr->getPointeeType(), conv_ctx,
+          /*reason=*/nullptr, /*in_array=*/true);
+    };
     if ((std::holds_alternative<FunctionParamSource>(source) ||
          std::holds_alternative<CallbackParamSource>(source) ||
          is_pointee_contract) &&
@@ -1218,16 +1302,22 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                       std::holds_alternative<NullTerminated>(
                           matched_member->size_type);
                   if (is_null_terminated_struct_array &&
-                      !field->getType()->getPointeeType().isConstQualified()) {
+                      (!field->getType()->getPointeeType().isConstQualified() ||
+                       !std::holds_alternative<std::monostate>(
+                           matched_member->lifetime))) {
                     copyability_reason = absl::Substitute(
                         "field $0 of '$1': null-terminated struct array "
-                        "requires const pointee",
+                        "requires const non-malloc pointee",
                         std::string(field_name),
                         type->getPointeeType().getAsString());
                     all_fields_ok = false;
                     break;
                   }
-                  if (is_single_struct_ptr &&
+                  const bool is_malloc_out =
+                      std::holds_alternative<MallocLifetime>(
+                          matched_member->lifetime) &&
+                      *ann.ptr_dir != PointerDir::kIn;
+                  if (is_single_struct_ptr && !is_malloc_out &&
                       *ann.ptr_dir == PointerDir::kOut) {
                     copyability_reason = absl::Substitute(
                         "field $0 of '$1': caller-allocated pointer field on "
@@ -1239,13 +1329,18 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                     break;
                   }
                   PointerDir member_dir =
-                      (is_null_terminated_struct_array || is_const_or_null_term)
-                          ? PointerDir::kIn
-                          : *ann.ptr_dir;
+                      is_malloc_out ? PointerDir::kOut
+                                    : ((is_null_terminated_struct_array ||
+                                        is_const_or_null_term)
+                                           ? PointerDir::kIn
+                                           : *ann.ptr_dir);
                   inferred_syncs.push_back(StructSync{
                       .access_path =
                           absl::StrCat(name, "->", field->getNameAsString()),
                       .ptr_dir = member_dir,
+                      .lifetime = is_malloc_out
+                                      ? PointerLifetime{MallocLifetime{}}
+                                      : PointerLifetime{},
                   });
                   continue;
                 }
@@ -1282,6 +1377,10 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
             (IsSupportedOutParamNullTerminatedType(type) ||
              (is_pointee_contract &&
               IsSupportedNullTerminatedGlobalStringType(type)))) &&
+          !(std::holds_alternative<MallocLifetime>(ann.lifetime) &&
+            ann.ptr_dir == PointerDir::kOut &&
+            is_supported_malloc_ptr(
+                is_pointee_contract ? type : type->getPointeeType())) &&
           !(ann.context_bound.copy_from_and_bind.has_value() &&
             ann.ptr_dir == PointerDir::kOut &&
             (IsSupportedOutParamContextBoundType(context, type, conv_ctx) ||
@@ -1297,7 +1396,9 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                  type->getPointeeType()->isEnumeralType()) &&
                !std::holds_alternative<AliasHostPtrLifetime>(ann.lifetime) &&
                !std::holds_alternative<AliasCallbackReturnLifetime>(
-                   ann.lifetime)) {
+                   ann.lifetime) &&
+               !(std::holds_alternative<MallocLifetime>(ann.lifetime) &&
+                 is_supported_malloc_ptr(type))) {
       const auto* fr = std::get_if<FunctionReturnSource>(&source);
       if (fr == nullptr || !ann.context_bound.copy_from_and_bind.has_value() ||
           !IsDeeplyTriviallyCopyableType(fr->decl->getASTContext(),
@@ -1703,11 +1804,14 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
             "struct_sync access path format $0 is not supported",
             sync.access_path));
       }
+      Annotations sync_a;
+      sync_a.lifetime = sync.lifetime;
       ir::StructMemberSync ir_sync{
           .member_name = std::move(*member_name),
           .parent_prefix = std::move(*parent_prefix),
           .direction = sync.ptr_dir,
           .context_bound = sync.context_bound,
+          .lifetime = AnnotationsToLifetimePolicy(sync_a),
       };
       if (rec_ann != nullptr) {
         for (const auto& member_ann : rec_ann->member_annotations) {
@@ -1782,23 +1886,44 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                 }
               }
             }
-            if (std::holds_alternative<ir::bounds::NullTerminated>(
-                    ir_sync.bounds)) {
-              if (ir_sync.context_bound.retain_and_bind.has_value()) {
-                return absl::InvalidArgumentError(absl::Substitute(
-                    "struct_sync access path $0: cannot combine "
-                    "retain_and_bind with null_terminated",
-                    sync.access_path));
-              }
-              if (ir_sync.direction == PointerDir::kOut) {
-                return absl::InvalidArgumentError(absl::Substitute(
-                    "struct_sync access path $0: null_terminated output member "
-                    "requires a lifetime annotation",
-                    sync.access_path));
-              }
+            if (std::holds_alternative<MallocLifetime>(member_ann.lifetime) &&
+                sync_param.direction != PointerDir::kIn &&
+                ir_sync.direction != PointerDir::kIn) {
+              ir_sync.lifetime = ir::lifetime::Malloc{};
             }
             break;
           }
+        }
+      }
+      if (std::holds_alternative<ir::lifetime::Malloc>(ir_sync.lifetime)) {
+        if (sync_param.direction == PointerDir::kIn ||
+            ir_sync.direction != PointerDir::kOut) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "struct_sync access path $0: lifetime_malloc requires out_ptr "
+              "member direction on a non-in_ptr struct",
+              sync.access_path));
+        }
+        if (ir_sync.context_bound.copy_from_and_bind.has_value() ||
+            ir_sync.context_bound.retain_and_bind.has_value()) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "struct_sync access path $0: lifetime_malloc cannot be combined "
+              "with retain_and_bind or copy_from_and_bind_out_ptr",
+              sync.access_path));
+        }
+      }
+      if (std::holds_alternative<ir::bounds::NullTerminated>(ir_sync.bounds)) {
+        if (ir_sync.context_bound.retain_and_bind.has_value()) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "struct_sync access path $0: cannot combine retain_and_bind "
+              "with null_terminated",
+              sync.access_path));
+        }
+        if (ir_sync.direction == PointerDir::kOut &&
+            !std::holds_alternative<ir::lifetime::Malloc>(ir_sync.lifetime)) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "struct_sync access path $0: null_terminated output member "
+              "requires a lifetime annotation",
+              sync.access_path));
         }
       }
       sync_param.members.push_back(std::move(ir_sync));
@@ -1827,6 +1952,28 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
           .direction = PointerDir::kOut,
           .bounds = AnnotationsToBufferBounds(cr->callback_annotations),
           .lifetime = AnnotationsToLifetimePolicy(cr->callback_annotations),
+      };
+    } else if (!is_return_value && !is_pointee_contract &&
+               !ann.pointee_contract.has_value() &&
+               std::holds_alternative<MallocLifetime>(ann.lifetime)) {
+      ABSL_ASSIGN_OR_RETURN(ir::TypeInfo inner_type_info,
+                            QualTypeToTypeInfo(type->getPointeeType()));
+      auto inner_param = std::make_shared<ir::Parameter>(ir::Parameter{
+          .name = std::string(name),
+          .type = std::move(inner_type_info),
+          .payload =
+              ir::BufferParam{
+                  .direction = PointerDir::kOut,
+                  .bounds = AnnotationsToBufferBounds(ann),
+                  .lifetime = ir::lifetime::Malloc{},
+              },
+      });
+      ir_param.payload = ir::BufferParam{
+          .direction = PointerDir::kOut,
+          .bounds = ir::bounds::Singleton{},
+          .lifetime = ir::lifetime::ScopedCall{},
+          .context_bound = std::move(ann.context_bound),
+          .pointee = std::move(inner_param),
       };
     } else {
       std::shared_ptr<ir::Parameter> pointee = nullptr;
@@ -1860,6 +2007,14 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
         }
         if (auto* inner_buf =
                 std::get_if<ir::BufferParam>(&pointee_param.payload)) {
+          if (std::holds_alternative<ir::lifetime::Malloc>(
+                  inner_buf->lifetime) &&
+              ann.ptr_dir != PointerDir::kOut) {
+            return absl::InvalidArgumentError(absl::Substitute(
+                "pointer argument $0: outer pointer for lifetime_malloc "
+                "pointee typedef $1 must be SANDBOX_OUT_PTR",
+                name, contract->name));
+          }
           const bool pointee_is_callee_written =
               inner_buf->pointee == nullptr &&
               (inner_buf->context_bound.copy_from_and_bind.has_value() ||

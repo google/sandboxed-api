@@ -26,7 +26,8 @@
   [[clang::annotate("sandbox", "unsupported", reason)]]
 
 // These need to be used if the sandbox allocates memory that is supposed to be
-// freed by the host.
+// freed by the host (for malloc()-allocated output buffers, use
+// SANDBOX_LIFETIME_MALLOC in annotations.h).
 #define SANDBOX_MALLOCED [[clang::annotate("sandbox", "malloced")]]
 #define SANDBOX_NEWED [[clang::annotate("sandbox", "newed")]]
 #define SANDBOX_NEWED_ARRAY [[clang::annotate("sandbox", "newed_array")]]

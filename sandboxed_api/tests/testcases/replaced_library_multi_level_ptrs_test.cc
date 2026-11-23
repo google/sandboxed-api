@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #include <string>
 #include <vector>
@@ -559,6 +560,114 @@ TEST(MultiLevelPointersTest,
                                         /*should_fail=*/1, &unused_final);
         },
         "sapi_in_bytes_buf <= sapi_arr_buf->GetSize\\(\\)");
+  }
+}
+
+TEST(MultiLevelPointersTest,
+     LifetimeMallocTransfersOwnershipForReturnsOutParamsAndStructFields) {
+  // 1. Null-terminated `char*` return value (`SANDBOX_LIFETIME_MALLOC`).
+  char* rev = duplicate_and_reverse_malloc_string("sandbox");
+  ASSERT_NE(rev, nullptr);
+  EXPECT_EQ(std::string(rev), "xobdnas");
+  free(rev);
+  EXPECT_EQ(duplicate_and_reverse_malloc_string(""), nullptr);
+
+  // 2. Sized `int*` return value (`SANDBOX_ELEM_SIZED_BY(*out_count)` +
+  //    `SANDBOX_LIFETIME_MALLOC`).
+  size_t seq_count = 0;
+  int* seq =
+      allocate_arithmetic_sequence(4, /*start=*/10, /*step=*/5, &seq_count);
+  ASSERT_NE(seq, nullptr);
+  EXPECT_EQ(seq_count, 4u);
+  EXPECT_EQ(std::vector<int>(seq, seq + seq_count),
+            (std::vector<int>{10, 15, 20, 25}));
+  free(seq);
+  EXPECT_EQ(
+      allocate_arithmetic_sequence(0, /*start=*/10, /*step=*/5, &seq_count),
+      nullptr);
+  EXPECT_EQ(seq_count, 0u);
+  // The host must not dereference a null size pointer.
+  int* null_count_seq = allocate_arithmetic_sequence(
+      4, /*start=*/10, /*step=*/5, /*out_count=*/nullptr);
+  ASSERT_NE(null_count_seq, nullptr);
+  free(null_count_seq);
+
+  // 3. `char**` (via pointee `typedef`) and direct `int**` out-parameters with
+  //    `SANDBOX_LIFETIME_MALLOC`.
+  char* tag = nullptr;
+  int* buf = nullptr;
+  size_t len = 0;
+  ASSERT_EQ(allocate_tag_and_buffer_outparams("netcdf", /*count=*/3,
+                                              /*base=*/100, &tag, &buf, &len),
+            0);
+  ASSERT_NE(tag, nullptr);
+  EXPECT_EQ(std::string(tag), "netcdf:ok");
+  free(tag);
+  ASSERT_NE(buf, nullptr);
+  EXPECT_EQ(len, 3u);
+  EXPECT_EQ(std::vector<int>(buf, buf + len),
+            (std::vector<int>{100, 101, 102}));
+  free(buf);
+  ASSERT_EQ(allocate_tag_and_buffer_outparams("", /*count=*/0,
+                                              /*base=*/100, &tag, &buf, &len),
+            0);
+  EXPECT_EQ(tag, nullptr);
+  EXPECT_EQ(buf, nullptr);
+  EXPECT_EQ(len, 0u);
+
+  // Early error return with non-null garbage in the caller's pointers. The
+  // callee does not write the out-parameters, and in sandboxed mode the wrapper
+  // sets the host pointers to nullptr. Whether the sandbox slots are zeroed
+  // before the call is not visible here; sandboxed_library_emitter_test.cc
+  // checks it.
+  char dummy_tag = 'x';
+  int dummy_val = 42;
+  tag = &dummy_tag;
+  buf = &dummy_val;
+  len = 99u;
+  EXPECT_EQ(allocate_tag_and_buffer_outparams("netcdf", /*count=*/3,
+                                              /*base=*/-9999, &tag, &buf, &len),
+            -1);
+  if (IsSandboxed()) {
+    EXPECT_EQ(tag, nullptr);
+    EXPECT_EQ(buf, nullptr);
+  }
+
+  // 4. Struct pointer field (`MemIoBuffer::memory`) with
+  //    `SANDBOX_BYTE_SIZED_BY(size) SANDBOX_LIFETIME_MALLOC` (modeled on
+  //    `nc_close_memio`).
+  MemIoBuffer memio{};
+  ASSERT_EQ(finalize_memio_buffer(/*size=*/5, /*fill_byte=*/0x20, /*flags=*/7,
+                                  &memio),
+            0);
+  EXPECT_EQ(memio.size, 5u);
+  EXPECT_EQ(memio.flags, 7);
+  ASSERT_NE(memio.memory, nullptr);
+  const auto* bytes = static_cast<const unsigned char*>(memio.memory);
+  EXPECT_EQ(std::vector<unsigned char>(bytes, bytes + memio.size),
+            (std::vector<unsigned char>{0x20, 0x21, 0x22, 0x23, 0x24}));
+  free(memio.memory);
+  ASSERT_EQ(
+      finalize_memio_buffer(/*size=*/0, /*fill_byte=*/0, /*flags=*/3, &memio),
+      0);
+  EXPECT_EQ(memio.size, 0u);
+  EXPECT_EQ(memio.flags, 3);
+  EXPECT_EQ(memio.memory, nullptr);
+
+  // Early error return with caller garbage in the `out_ptr` struct. The
+  // sandboxed wrapper sends a zeroed struct instead of the caller's data (which
+  // can hold host pointers), and the callee does not write it, so the caller
+  // gets back zeros.
+  memio.size = 123u;
+  memio.memory = &dummy_val;
+  memio.flags = 99;
+  EXPECT_EQ(finalize_memio_buffer(/*size=*/5, /*fill_byte=*/0x10, /*flags=*/-1,
+                                  &memio),
+            -1);
+  if (IsSandboxed()) {
+    EXPECT_EQ(memio.size, 0u);
+    EXPECT_EQ(memio.flags, 0);
+    EXPECT_EQ(memio.memory, nullptr);
   }
 }
 

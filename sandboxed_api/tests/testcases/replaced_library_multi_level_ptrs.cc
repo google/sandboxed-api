@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <algorithm>
@@ -392,6 +393,97 @@ ABSL_ATTRIBUTE_NO_SANITIZE_CFI int invoke_inout_counted_callback(
 
 int is_marshaled_copy(const int* probe, uintptr_t caller_addr) {
   return reinterpret_cast<uintptr_t>(probe) != caller_addr ? 1 : 0;
+}
+
+char* duplicate_and_reverse_malloc_string(const char* src) {
+  if (src == nullptr || src[0] == '\0') {
+    return nullptr;
+  }
+  size_t len = strlen(src);
+  char* dst = static_cast<char*>(malloc(len + 1));
+  if (dst == nullptr) {
+    return nullptr;
+  }
+  for (size_t i = 0; i < len; ++i) {
+    dst[i] = src[len - 1 - i];
+  }
+  dst[len] = '\0';
+  return dst;
+}
+
+int* allocate_arithmetic_sequence(size_t count, int start, int step,
+                                  size_t* out_count) {
+  if (out_count != nullptr) {
+    *out_count = count;
+  }
+  if (count == 0) {
+    return nullptr;
+  }
+  int* arr = static_cast<int*>(malloc(count * sizeof(int)));
+  if (arr == nullptr) {
+    return nullptr;
+  }
+  for (size_t i = 0; i < count; ++i) {
+    arr[i] = start + static_cast<int>(i) * step;
+  }
+  return arr;
+}
+
+int allocate_tag_and_buffer_outparams(const char* prefix, size_t count,
+                                      int base, char** out_tag, int** out_buf,
+                                      size_t* out_len) {
+  if (base < -1000) {
+    return -1;
+  }
+  if (out_len != nullptr) {
+    *out_len = count;
+  }
+  if (out_tag != nullptr) {
+    if (prefix == nullptr || prefix[0] == '\0') {
+      *out_tag = nullptr;
+    } else {
+      size_t plen = strlen(prefix);
+      char* tag = static_cast<char*>(malloc(plen + 4));
+      memcpy(tag, prefix, plen);
+      memcpy(tag + plen, ":ok", 4);
+      *out_tag = tag;
+    }
+  }
+  if (out_buf != nullptr) {
+    if (count == 0) {
+      *out_buf = nullptr;
+    } else {
+      int* buf = static_cast<int*>(malloc(count * sizeof(int)));
+      for (size_t i = 0; i < count; ++i) {
+        buf[i] = base + static_cast<int>(i);
+      }
+      *out_buf = buf;
+    }
+  }
+  return 0;
+}
+
+int finalize_memio_buffer(size_t size, unsigned char fill_byte, int flags,
+                          struct MemIoBuffer* out_memio) {
+  if (out_memio == nullptr || flags < 0) {
+    return -1;
+  }
+  out_memio->size = size;
+  out_memio->flags = flags;
+  if (size == 0) {
+    out_memio->memory = nullptr;
+    return 0;
+  }
+  unsigned char* mem = static_cast<unsigned char*>(malloc(size));
+  if (mem == nullptr) {
+    out_memio->memory = nullptr;
+    return -2;
+  }
+  for (size_t i = 0; i < size; ++i) {
+    mem[i] = static_cast<unsigned char>(fill_byte + (i & 0xff));
+  }
+  out_memio->memory = mem;
+  return 0;
 }
 
 }  // extern "C"

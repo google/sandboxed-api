@@ -304,6 +304,37 @@
 #define SANDBOX_LIFETIME_GLOBAL \
   [[clang::annotate("sandbox", "lifetime_sandbox_global")]]
 
+// Indicates that an output pointer (a function return value, a `T**`
+// out-parameter, a pointee `typedef`, or a pointer field in an `OUT`/`INOUT`
+// struct) points to a heap buffer or null-terminated string newly allocated by
+// the sandboxee that the host caller takes ownership of and releases with
+// `free()`.
+//
+// After the sandboxed function returns a non-null pointer, the host wrapper
+// allocates a matching buffer via `malloc()` on the host, copies the buffer or
+// null-terminated array from the sandboxee into that host buffer, immediately
+// frees the sandboxee allocation, and hands the host `malloc()` pointer to the
+// caller.
+//
+// Example (return value):
+//   SANDBOX_OUT_PTR SANDBOX_NULL_TERMINATED SANDBOX_LIFETIME_MALLOC
+//   char* render_html(const char* md SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
+//
+// Example (out-parameter):
+//   int dump_packet(uint8_t** out_buf SANDBOX_OUT_PTR
+//                                     SANDBOX_ELEM_SIZED_BY(*out_len)
+//                                     SANDBOX_LIFETIME_MALLOC,
+//                   size_t* out_len SANDBOX_OUT_PTR);
+//
+// Example (struct pointer member in an output struct):
+//   SANDBOX_ANNOTATE_STRUCT(struct NC_memio {
+//     size_t size;
+//     void* memory SANDBOX_BYTE_SIZED_BY(size) SANDBOX_LIFETIME_MALLOC;
+//   };)
+//   int nc_close_memio(int ncid, NC_memio* info SANDBOX_OUT_PTR);
+#define SANDBOX_LIFETIME_MALLOC \
+  [[clang::annotate("sandbox", "lifetime_malloc")]]
+
 // Indicates that the sandbox borrows a callback-returned buffer for the
 // duration of the outer sandboxed function call, and that writes made by the
 // sandbox to that buffer are copied back to the host when the outer call
@@ -640,18 +671,16 @@
 //
 // For example, for output pointers:
 //
-//   SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(size) SANDBOX_MALLOCED
+//   SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(num_ints) SANDBOX_LIFETIME_MALLOC
 //   int* my_calloc_ints(size_t num_ints, int default_value);
 // vs
 //   SANDBOX_OUT_PTR SANDBOX_UNINITIALIZED
-//   SANDBOX_ELEM_SIZED_BY(size) SANDBOX_MALLOCED
+//   SANDBOX_ELEM_SIZED_BY(num_ints) SANDBOX_LIFETIME_MALLOC
 //   int* my_malloc_ints(size_t num_ints);
 //
 // For `my_calloc_ints` we will copy out the initial `default_value` values,
 // but for `my_malloc_ints` we do not need to copy out any initial values
 // as the caller will likely overwrite/initialize.
-//
-// Note: SANDBOX_MALLOCED is not a finalized annotation yet.
 #define SANDBOX_UNINITIALIZED [[clang::annotate("sandbox", "uninitialized")]]
 
 // Marks a callback (either on a callback parameter or on a callback typedef

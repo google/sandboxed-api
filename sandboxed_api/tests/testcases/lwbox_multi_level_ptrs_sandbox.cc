@@ -209,4 +209,31 @@ int invoke_inout_counted_callback(inout_counted_xform_cb cb,
 
 int is_marshaled_copy(const int* probe SANDBOX_IN_PTR, uintptr_t caller_addr);
 
+SANDBOX_OUT_PTR SANDBOX_NULL_TERMINATED SANDBOX_LIFETIME_MALLOC char*
+duplicate_and_reverse_malloc_string(
+    const char* src SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
+
+SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(*out_count) SANDBOX_LIFETIME_MALLOC
+    int* allocate_arithmetic_sequence(size_t count, int start, int step,
+                                      size_t* out_count SANDBOX_OUT_PTR);
+
+typedef char* malloc_c_str_out_pointee SANDBOX_OUT_PTR SANDBOX_NULL_TERMINATED
+    SANDBOX_LIFETIME_MALLOC;
+
+int allocate_tag_and_buffer_outparams(
+    const char* prefix SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED, size_t count,
+    int base, malloc_c_str_out_pointee* out_tag SANDBOX_OUT_PTR,
+    int** out_buf SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(*out_len)
+        SANDBOX_LIFETIME_MALLOC,
+    size_t* out_len SANDBOX_OUT_PTR);
+
+SANDBOX_ANNOTATE_STRUCT(struct MemIoBuffer {
+  size_t size;
+  void* memory SANDBOX_BYTE_SIZED_BY(size) SANDBOX_LIFETIME_MALLOC;
+  int flags;
+};)
+
+int finalize_memio_buffer(size_t size, unsigned char fill_byte, int flags,
+                          struct MemIoBuffer* out_memio SANDBOX_OUT_PTR);
+
 }  // extern "C"

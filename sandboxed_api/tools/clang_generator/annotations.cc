@@ -227,6 +227,9 @@ std::optional<absl::string_view> FindUnsupportedCallbackAnnotation(
   if (std::holds_alternative<SandboxGlobalLifetime>(annotations.lifetime)) {
     return "lifetime_sandbox_global";
   }
+  if (std::holds_alternative<MallocLifetime>(annotations.lifetime)) {
+    return "lifetime_malloc";
+  }
   if (std::holds_alternative<AliasHostPtrLifetime>(annotations.lifetime)) {
     return "alias_ptr";
   }
@@ -413,6 +416,13 @@ absl::Status CheckReturnBufferAnnotations(absl::string_view name,
         "it is only supported on a callback typedef that returns a pointer",
         name));
   }
+  if (std::holds_alternative<MallocLifetime>(annotations.lifetime) &&
+      !is_param && (!type->isPointerType() || type->isFunctionPointerType())) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0: lifetime_malloc on a return value requires a non-function "
+        "pointer return type",
+        name));
+  }
   return absl::OkStatus();
 }
 
@@ -504,6 +514,8 @@ absl::Status ParseStructSyncAccessPathAnnotations(
         sync.ptr_dir = PointerDir::kOut;
       } else if (annotation == "inout_ptr") {
         sync.ptr_dir = PointerDir::kInOut;
+      } else if (annotation == "lifetime_malloc") {
+        sync.lifetime = MallocLifetime{};
       } else if (absl::StartsWith(annotation, "retain_and_bind(")) {
         absl::string_view annotation_view = annotation;
         if (!absl::ConsumePrefix(&annotation_view, "retain_and_bind(") ||
@@ -594,6 +606,11 @@ absl::StatusOr<Annotations> ParseReturnDeclAnnotations(
       ABSL_RETURN_IF_ERROR(status);
     } else if (ann.name == "lifetime_sandbox_global") {
       ABSL_RETURN_IF_ERROR(annotations.SetSandboxGlobalLifetime());
+    } else if (ann.name == "lifetime_malloc") {
+      ABSL_RETURN_IF_ERROR(annotations.SetMallocLifetime());
+      if (!annotations.ptr_dir.has_value()) {
+        annotations.ptr_dir = PointerDir::kOut;
+      }
     } else if (ann.name == "alias_ptr") {
       expected_args = 1;
       if (ann.args.size() != 1) {
@@ -793,6 +810,8 @@ absl::StatusOr<Annotations> ParseParamOrPointeeAnnotations(
       ABSL_RETURN_IF_ERROR(status);
     } else if (ann.name == "lifetime_sandbox_global") {
       ABSL_RETURN_IF_ERROR(annotations.SetSandboxGlobalLifetime());
+    } else if (ann.name == "lifetime_malloc") {
+      ABSL_RETURN_IF_ERROR(annotations.SetMallocLifetime());
     } else if (ann.name == "lifetime_outer_call") {
       ABSL_RETURN_IF_ERROR(annotations.SetOuterCallLifetime());
     } else if (ann.name == "callback_idempotent") {
@@ -1087,6 +1106,8 @@ absl::StatusOr<RecordAnnotations> ParseRecordAnnotations(
         member.size_type = ByteSizedBy{ann.args[0]};
       } else if (ann.name == "null_terminated") {
         member.size_type = NullTerminated{};
+      } else if (ann.name == "lifetime_malloc") {
+        member.lifetime = MallocLifetime{};
       } else {
         return absl::InvalidArgumentError(absl::Substitute(
             "field $0: annotation $1 is not supported for record members",
@@ -1096,6 +1117,7 @@ absl::StatusOr<RecordAnnotations> ParseRecordAnnotations(
 
     if (member.callback_typedef.has_value()) {
       if (member.ptr_dir.has_value() ||
+          !std::holds_alternative<std::monostate>(member.lifetime) ||
           !std::holds_alternative<std::monostate>(member.size_type)) {
         return absl::InvalidArgumentError(absl::Substitute(
             "field $0: callback typedef $1 is the sole source of this "
@@ -1103,6 +1125,15 @@ absl::StatusOr<RecordAnnotations> ParseRecordAnnotations(
             "written on the field",
             member.name, *member.callback_typedef));
       }
+    }
+
+    if (std::holds_alternative<MallocLifetime>(member.lifetime) &&
+        (member.ptr_dir.has_value() ||
+         std::holds_alternative<std::monostate>(member.size_type))) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "field $0: lifetime_malloc on a record member requires a size "
+          "annotation and cannot be combined with sandbox_opaque_ptr",
+          member.name));
     }
 
     // We only expect ptr_dir to be kSandboxOpaque, if specified at all.
@@ -1164,17 +1195,23 @@ absl::Status CheckCallbackTypedefAnnotationsAreContextIndependent(
 absl::Status CheckCallbackTypedefReturnAnnotations(
     absl::string_view typedef_name, clang::QualType return_type,
     const Annotations& return_annotations) {
-  if (return_annotations.ptr_dir.has_value()) {
-    return absl::InvalidArgumentError(absl::Substitute(
-        "$0: a pointer direction annotation is not supported on a callback "
-        "typedef; use lifetime_outer_call for a buffer the callback returns",
-        typedef_name));
-  }
   if (std::holds_alternative<SandboxGlobalLifetime>(
           return_annotations.lifetime)) {
     return absl::InvalidArgumentError(absl::Substitute(
         "$0: lifetime_sandbox_global is not supported on a callback typedef; "
         "use lifetime_outer_call for a buffer the callback returns",
+        typedef_name));
+  }
+  if (std::holds_alternative<MallocLifetime>(return_annotations.lifetime)) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0: lifetime_malloc is not supported on a callback typedef; "
+        "use lifetime_outer_call for a buffer the callback returns",
+        typedef_name));
+  }
+  if (return_annotations.ptr_dir.has_value()) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0: a pointer direction annotation is not supported on a callback "
+        "typedef; use lifetime_outer_call for a buffer the callback returns",
         typedef_name));
   }
   if (!return_type->isPointerType() &&

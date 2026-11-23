@@ -843,6 +843,71 @@ TEST_F(SandboxedLibraryEmitterTest, InOutCountCapacityUsesCapturedPreCallSize) {
   EXPECT_THAT(host_src, HasSubstr("sapi::lwbox::CheckedToSizeT(*dst_len)"));
 }
 
+TEST_F(SandboxedLibraryEmitterTest, LifetimeMallocEmitsHostCopyAndSandboxFree) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  options.sandboxed_library_gen = true;
+  SandboxedLibraryEmitter emitter;
+  ASSERT_THAT(
+      RunFrontendAction(R"(
+    struct MemIo {
+      unsigned long size;
+      void* memory;
+      int flags;
+    };
+
+    inline void sandbox_annotation_1() {
+      struct MemIo {
+        unsigned long size;
+        [[clang::annotate("sandbox", "byte_sized_by", "size")]]
+        [[clang::annotate("sandbox", "lifetime_malloc")]] void* memory;
+        int flags;
+      };
+    }
+
+    extern "C" [[clang::annotate("sandbox", "out_ptr")]]
+    [[clang::annotate("sandbox", "null_terminated")]]
+    [[clang::annotate("sandbox", "lifetime_malloc")]]
+    char* alloc_greeting(
+        int** out_arr [[clang::annotate("sandbox", "out_ptr")]]
+                      [[clang::annotate("sandbox", "elem_sized_by", "*out_n")]]
+                      [[clang::annotate("sandbox", "lifetime_malloc")]],
+        unsigned long* out_n [[clang::annotate("sandbox", "out_ptr")]],
+        MemIo* info [[clang::annotate("sandbox", "out_ptr")]]);
+
+    extern "C" [[clang::annotate("sandbox", "out_ptr")]]
+    [[clang::annotate("sandbox", "uninitialized")]]
+    [[clang::annotate("sandbox", "elem_sized_by", "n")]]
+    [[clang::annotate("sandbox", "lifetime_malloc")]]
+    int* alloc_uninit_ints(unsigned long n);
+  )",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+
+  ASSERT_THAT(emitter.PostParseAllFiles(), IsOk());
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string host_src, emitter.EmitHostSrc(options));
+  // The host copies each callee-allocated buffer out of the sandboxee and then
+  // frees the sandboxee allocation.
+  EXPECT_THAT(host_src, HasSubstr("sapi::lwbox::ReadNullTerminatedArray<"));
+  EXPECT_THAT(host_src, HasSubstr("sapi::lwbox::SyncFromSandboxToHost("));
+  EXPECT_THAT(host_src, HasSubstr("sandbox->rpc_channel()->Free("));
+  // The `T**` slot and the `OUT` struct are zeroed and sent to the sandboxee
+  // (`PtrBoth()`). Thus an early error return reads back nullptr, and no caller
+  // data goes into the sandboxee.
+  EXPECT_THAT(host_src, HasSubstr("sapi_tmp_out_arr.PtrBoth()"));
+  EXPECT_THAT(host_src, HasSubstr("sapi_tmp_info.PtrBoth()"));
+  EXPECT_THAT(host_src,
+              ContainsRegex(R"(sapi_tmp_info\(\s*\(struct MemIo\)\{\}\))"));
+  // The `uninitialized` buffer of `alloc_uninit_ints` (sized by `n`) is freed
+  // without a copy to the host.
+  EXPECT_THAT(
+      host_src,
+      ContainsRegex(R"(CheckedToSizeT\(n\)[^}]*rpc_channel\(\)->Free\()"));
+  EXPECT_THAT(
+      host_src,
+      Not(ContainsRegex(R"(CheckedToSizeT\(n\)[^}]*SyncFromSandboxToHost)")));
+}
+
 using SandboxedLibraryEmitterErrorTest = SandboxedLibraryEmitterTest;
 
 TEST_F(SandboxedLibraryEmitterErrorTest, ReturnsIntAnnotatedUninitialized) {
