@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include "sandboxed_api/annotations.h"
 #include "sandboxed_api/tests/testcases/replaced_library_multi_level_ptrs.h"
@@ -144,5 +145,68 @@ void dispatch_sax_start_element(
 sax_start_element_cb get_default_sax_start_element_cb();
 int get_default_sax_attr_byte_sum();
 void reset_default_sax_attr_byte_sum();
+
+size_t measure_non_const_c_strings(
+    char* str SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED,
+    unsigned char* ustr SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
+
+void uppercase_and_clobber_terminator(char* str SANDBOX_INOUT_PTR
+                                          SANDBOX_NULL_TERMINATED,
+                                      int clobber_terminator);
+
+SANDBOX_ANNOTATE_STRUCT(struct TaggedIntSlice {
+  const char* label SANDBOX_NULL_TERMINATED;
+  int* elems SANDBOX_ELEM_SIZED_BY(count);
+  size_t count;
+};)
+
+int sum_and_scale_tagged_slice(struct TaggedIntSlice* slice SANDBOX_INOUT_PTR,
+                               int factor);
+
+int fill_up_to_inout_count(
+    int* dst SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY(*inout_count),
+    size_t* inout_count SANDBOX_INOUT_PTR, size_t actual_count, int base_value);
+
+int retain_inout_db_buffer(
+    struct DbHandle* db SANDBOX_OPAQUE_PTR,
+    int* buf SANDBOX_INOUT_PTR SANDBOX_ELEM_SIZED_BY(*inout_count)
+        SANDBOX_RETAIN_AND_BIND(db),
+    size_t* inout_count SANDBOX_INOUT_PTR, size_t actual_count, int base_value);
+
+int fill_or_fail_outparam_sized(
+    int* dst SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY_OUTPARAM(*out_count,
+                                                            capacity_bytes),
+    size_t capacity_bytes, size_t* out_count SANDBOX_OUT_PTR, int should_fail,
+    size_t write_count, int fill_value);
+
+int retain_signed_inout_db_buffer(
+    struct DbHandle* db SANDBOX_OPAQUE_PTR,
+    int* buf SANDBOX_INOUT_PTR SANDBOX_ELEM_SIZED_BY(*inout_count)
+        SANDBOX_RETAIN_AND_BIND(db),
+    int* inout_count SANDBOX_INOUT_PTR, int actual_count, int base_value);
+
+int sum_in_ptr_with_signed_inout_count(
+    const int* src SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(*inout_count),
+    int* inout_count SANDBOX_INOUT_PTR, int updated_count);
+
+typedef int (*out_counted_fill_cb)(
+    int* dst SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY_OUTPARAM(*out_count,
+                                                            cap_bytes),
+    size_t cap_bytes, int* out_count SANDBOX_OUT_PTR, int should_fail);
+
+int invoke_out_counted_callback(out_counted_fill_cb cb,
+                                int initial_out_count_garbage, int should_fail,
+                                int* observed_first_elem SANDBOX_OUT_PTR);
+
+typedef int (*inout_counted_xform_cb)(
+    int* buf SANDBOX_INOUT_PTR SANDBOX_ELEM_SIZED_BY_OUTPARAM(*inout_count,
+                                                              cap_bytes),
+    size_t cap_bytes, int* inout_count SANDBOX_INOUT_PTR, int should_fail);
+
+int invoke_inout_counted_callback(inout_counted_xform_cb cb,
+                                  int initial_inout_count, int should_fail,
+                                  int* final_inout_count SANDBOX_OUT_PTR);
+
+int is_marshaled_copy(const int* probe SANDBOX_IN_PTR, uintptr_t caller_addr);
 
 }  // extern "C"

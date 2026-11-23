@@ -15,6 +15,7 @@
 #include "sandboxed_api/tests/testcases/replaced_library_multi_level_ptrs.h"
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <string>
 #include <vector>
@@ -22,6 +23,11 @@
 #include "gtest/gtest.h"
 
 namespace {
+
+bool IsSandboxed() {
+  int probe = 123;
+  return is_marshaled_copy(&probe, reinterpret_cast<uintptr_t>(&probe)) != 0;
+}
 
 TEST(MultiLevelPointersTest, TwoLevelOpaqueHandleOutAndInOut) {
   DbHandle* db = nullptr;
@@ -230,6 +236,330 @@ TEST(MultiLevelPointersTest,
   EXPECT_EQ(get_default_sax_attr_byte_sum(), kTagSum);
   reset_default_sax_attr_byte_sum();
   EXPECT_EQ(get_default_sax_attr_byte_sum(), 0);
+}
+
+TEST(MultiLevelPointersTest,
+     NonConstAndInPlaceMutableNullTerminatedStringsRestoreZeroSentinel) {
+  char buf[] = "hello";
+  unsigned char ubuf[] = {'w', 'o', 'r', 'l', 'd', 0};
+  EXPECT_EQ(measure_non_const_c_strings(buf, ubuf), 10u);
+
+  uppercase_and_clobber_terminator(buf, /*clobber_terminator=*/0);
+  EXPECT_EQ(std::string(buf), "HELLO");
+
+  // Under the sandbox, if the sandboxee overwrites the trailing NUL byte in an
+  // in-place `SANDBOX_INOUT_PTR SANDBOX_NULL_TERMINATED` buffer, the host
+  // restores the trailing zero sentinel after copying the buffer back.
+  if (IsSandboxed()) {
+    char mutable_buf[] = "abc";
+    uppercase_and_clobber_terminator(mutable_buf, /*clobber_terminator=*/1);
+    ASSERT_EQ(mutable_buf[3], '\0');
+    EXPECT_EQ(std::string(mutable_buf), "ABC");
+  }
+}
+
+TEST(MultiLevelPointersTest,
+     SingleStructPointerInfersStructSyncFromAnnotateStruct) {
+  std::vector<int> values = {2, 4, 6};
+  TaggedIntSlice slice{
+      .label = "items",
+      .elems = values.data(),
+      .count = values.size(),
+  };
+
+  // strlen("items") == 5, plus (2*3 + 4*3 + 6*3) == 36 -> 41.
+  EXPECT_EQ(sum_and_scale_tagged_slice(&slice, /*factor=*/3), 41);
+  EXPECT_EQ(values, (std::vector<int>{6, 12, 18}));
+}
+
+TEST(MultiLevelPointersTest, InOutCountCapacityUsesPreCallCapacity) {
+  std::vector<int> dst(8, -1);
+  size_t count = dst.size();
+  ASSERT_EQ(fill_up_to_inout_count(dst.data(), &count, /*actual_count=*/3,
+                                   /*base_value=*/50),
+            0);
+  EXPECT_EQ(count, 3u);
+  EXPECT_EQ(dst, (std::vector<int>{50, 51, 52, -1, -1, -1, -1, -1}));
+  EXPECT_EQ(fill_up_to_inout_count(nullptr, nullptr, /*actual_count=*/3,
+                                   /*base_value=*/50),
+            -1);
+  EXPECT_EQ(fill_up_to_inout_count(dst.data(), nullptr, /*actual_count=*/3,
+                                   /*base_value=*/50),
+            -1);
+
+  if (IsSandboxed()) {
+    // If the sandboxee overwrites `*inout_count` with a size larger than the
+    // pre-call capacity, the host checks against the pre-call capacity stored
+    // in `sapi_tmp_dst.GetSize()` rather than re-reading the overwritten
+    // `*inout_count`.
+    EXPECT_DEATH(
+        {
+          std::vector<int> small_dst(3, 0);
+          size_t small_cap = small_dst.size();
+          fill_up_to_inout_count(small_dst.data(), &small_cap,
+                                 /*actual_count=*/6, /*base_value=*/1);
+        },
+        "Sandboxee returned size \\(24\\) exceeding capacity \\(12\\)");
+  }
+}
+
+TEST(MultiLevelPointersTest, RetainedInOutBufferClampsPostCallSizeToCapacity) {
+  DbHandle* db = nullptr;
+  ASSERT_EQ(open_db_handle(7, &db), 0);
+  ASSERT_NE(db, nullptr);
+
+  std::vector<int> buf = {10, 20, 30, 40, 900, 901};
+  size_t count = 4;
+  ASSERT_EQ(retain_inout_db_buffer(db, buf.data(), &count, /*actual_count=*/2,
+                                   /*base_value=*/100),
+            0);
+  EXPECT_EQ(count, 2u);
+  // The sandboxee updates the first 2 elements in place. Elements past the
+  // pre-call capacity of 4 are never touched.
+  EXPECT_EQ(buf, (std::vector<int>{110, 121, 30, 40, 900, 901}));
+  close_db_handle(db);
+
+  // A zero post-call count is accepted and written back.
+  DbHandle* db_zero = nullptr;
+  ASSERT_EQ(open_db_handle(8, &db_zero), 0);
+  size_t zero_cap = 2;
+  ASSERT_EQ(retain_inout_db_buffer(db_zero, buf.data(), &zero_cap,
+                                   /*actual_count=*/0, /*base_value=*/5),
+            0);
+  EXPECT_EQ(zero_cap, 0u);
+  close_db_handle(db_zero);
+
+  if (IsSandboxed()) {
+    EXPECT_DEATH(([] {
+                   DbHandle* bad_db = nullptr;
+                   ASSERT_EQ(open_db_handle(9, &bad_db), 0);
+                   std::vector<int> small_buf = {1, 2, 3};
+                   size_t small_cap = small_buf.size();
+                   retain_inout_db_buffer(bad_db, small_buf.data(), &small_cap,
+                                          /*actual_count=*/6, /*base_value=*/1);
+                 }()),
+                 "sapi_post_size_buf <= sapi_cap_buf");
+  }
+}
+
+TEST(MultiLevelPointersTest,
+     OutparamSizedBufferPreservesInitialOutCountOnEarlyReturnAndZeroCapacity) {
+  std::vector<int> dst(4, -7);
+  size_t out_count = 0;
+
+  // Populate and free a call first so sandboxee heap chunks are non-zero, then
+  // trigger an early error return that leaves `*out_count` unwritten.
+  ASSERT_EQ(fill_or_fail_outparam_sized(dst.data(), dst.size() * sizeof(int),
+                                        &out_count, /*should_fail=*/0,
+                                        /*write_count=*/3, /*fill_value=*/10),
+            0);
+  EXPECT_EQ(out_count, 3u);
+  EXPECT_EQ(dst, (std::vector<int>{10, 11, 12, -7}));
+
+  out_count = 0;
+  std::vector<int> untouched(4, 55);
+  EXPECT_EQ(fill_or_fail_outparam_sized(
+                untouched.data(), untouched.size() * sizeof(int), &out_count,
+                /*should_fail=*/1, /*write_count=*/999, /*fill_value=*/1),
+            -1);
+  EXPECT_EQ(out_count, 0u);
+  EXPECT_EQ(untouched, (std::vector<int>{55, 55, 55, 55}));
+
+  // A zero-byte capacity with a zero-byte result succeeds and leaves `dst`
+  // untouched.
+  int sentinel = 4242;
+  out_count = 3;
+  ASSERT_EQ(fill_or_fail_outparam_sized(&sentinel, /*capacity_bytes=*/0,
+                                        &out_count, /*should_fail=*/0,
+                                        /*write_count=*/0, /*fill_value=*/9),
+            0);
+  EXPECT_EQ(out_count, 0u);
+  EXPECT_EQ(sentinel, 4242);
+}
+
+TEST(MultiLevelPointersTest,
+     RetainedBufferWithNullOrSignedInOutCountGuardsDereferenceAndNegativeSize) {
+  std::vector<int> buf = {5, 6, 7};
+  // Null `inout_count` with a non-null `buf` must not dereference `inout_count`
+  // on the host.
+  DbHandle* db_null1 = nullptr;
+  ASSERT_EQ(open_db_handle(10, &db_null1), 0);
+  EXPECT_EQ(retain_inout_db_buffer(db_null1, buf.data(),
+                                   /*inout_count=*/nullptr,
+                                   /*actual_count=*/2, /*base_value=*/10),
+            -1);
+  close_db_handle(db_null1);
+
+  DbHandle* db_null2 = nullptr;
+  ASSERT_EQ(open_db_handle(11, &db_null2), 0);
+  EXPECT_EQ(retain_signed_inout_db_buffer(db_null2, buf.data(),
+                                          /*inout_count=*/nullptr,
+                                          /*actual_count=*/2,
+                                          /*base_value=*/10),
+            -1);
+  close_db_handle(db_null2);
+
+  DbHandle* db = nullptr;
+  ASSERT_EQ(open_db_handle(12, &db), 0);
+  ASSERT_NE(db, nullptr);
+
+  int count = 2;
+  ASSERT_EQ(retain_signed_inout_db_buffer(db, buf.data(), &count,
+                                          /*actual_count=*/2,
+                                          /*base_value=*/100),
+            0);
+  EXPECT_EQ(count, 2);
+  EXPECT_EQ(buf, (std::vector<int>{105, 107, 7}));
+  close_db_handle(db);
+
+  if (IsSandboxed()) {
+    // Negative pre-call signed `*inout_count` traps on the host via
+    // `CheckedToSizeT`.
+    EXPECT_DEATH(([] {
+                   DbHandle* neg_db = nullptr;
+                   ASSERT_EQ(open_db_handle(12, &neg_db), 0);
+                   std::vector<int> tmp = {1, 2};
+                   int neg_count = -2;
+                   retain_signed_inout_db_buffer(neg_db, tmp.data(), &neg_count,
+                                                 /*actual_count=*/0,
+                                                 /*base_value=*/1);
+                 }()),
+                 "Negative buffer size");
+
+    // Negative post-call signed `*inout_count` written by the sandboxee traps
+    // on the host via `CheckedToSizeT`.
+    EXPECT_DEATH(([] {
+                   DbHandle* neg_post_db = nullptr;
+                   ASSERT_EQ(open_db_handle(13, &neg_post_db), 0);
+                   std::vector<int> tmp = {1, 2};
+                   int cap_count = 2;
+                   retain_signed_inout_db_buffer(neg_post_db, tmp.data(),
+                                                 &cap_count,
+                                                 /*actual_count=*/-3,
+                                                 /*base_value=*/1);
+                 }()),
+                 "Negative buffer size");
+  }
+}
+
+TEST(MultiLevelPointersTest,
+     InPtrSizedBySignedInOutCountGuardsNullAndSkipsWritebackIntoReadOnlySrc) {
+  static constexpr int kReadOnlySrc[] = {10, 20, 30, 40};
+
+  EXPECT_EQ(sum_in_ptr_with_signed_inout_count(nullptr, nullptr, 0), -1);
+  EXPECT_EQ(sum_in_ptr_with_signed_inout_count(kReadOnlySrc, nullptr, 0), -1);
+
+  int count = 3;
+  // `updated_count` (99) exceeds the pre-call input count (3): because `src` is
+  // `SANDBOX_IN_PTR`, `*inout_count` updates to 99 without rejecting or writing
+  // back into read-only `kReadOnlySrc`.
+  EXPECT_EQ(sum_in_ptr_with_signed_inout_count(kReadOnlySrc, &count,
+                                               /*updated_count=*/99),
+            60);
+  EXPECT_EQ(count, 99);
+
+  if (IsSandboxed()) {
+    EXPECT_DEATH(
+        {
+          int neg_count = -4;
+          sum_in_ptr_with_signed_inout_count(kReadOnlySrc, &neg_count, 0);
+        },
+        "Negative buffer size");
+  }
+}
+
+int TestOutCountedFillCb(int* dst, size_t cap_bytes, int* out_count,
+                         int should_fail) {
+  if (should_fail != 0) {
+    return -1;
+  }
+  if (dst == nullptr || out_count == nullptr || cap_bytes < 2 * sizeof(int)) {
+    return -2;
+  }
+  dst[0] = 42;
+  dst[1] = 43;
+  *out_count = 2;
+  return 0;
+}
+
+int TestInOutCountedXformCb(int* buf, size_t cap_bytes, int* inout_count,
+                            int should_fail) {
+  if (buf == nullptr || inout_count == nullptr) {
+    return -2;
+  }
+  if (should_fail != 0) {
+    return -1;
+  }
+  int sum = 0;
+  for (int i = 0;
+       i < *inout_count && static_cast<size_t>(i) < cap_bytes / sizeof(int);
+       ++i) {
+    sum += buf[i];
+    buf[i] += 1;
+  }
+  *inout_count = 1;
+  return sum;
+}
+
+TEST(MultiLevelPointersTest,
+     CallbackOutCountSiblingIgnoresSandboxeePreCallGarbageOnEarlyReturn) {
+  int first_elem = 0;
+  // Even when the sandboxee leaves out-of-range, negative, or in-bounds garbage
+  // in its `SANDBOX_OUT_PTR` count slot before calling the host callback, an
+  // early return from the host callback must neither abort the host nor
+  // overwrite the sandboxee buffer with zeroes.
+  for (int garbage : {99999, -5, 2}) {
+    first_elem = 0;
+    EXPECT_EQ(invoke_out_counted_callback(&TestOutCountedFillCb, garbage,
+                                          /*should_fail=*/1, &first_elem),
+              -1);
+    EXPECT_EQ(first_elem, 777);
+  }
+
+  first_elem = 0;
+  EXPECT_EQ(invoke_out_counted_callback(&TestOutCountedFillCb,
+                                        /*initial_out_count_garbage=*/99999,
+                                        /*should_fail=*/0, &first_elem),
+            0);
+  EXPECT_EQ(first_elem, 42);
+}
+
+TEST(MultiLevelPointersTest,
+     CallbackInOutCountSiblingValidatesPreCallBoundsAndHandlesEarlyReturn) {
+  int final_count = 0;
+  EXPECT_EQ(invoke_inout_counted_callback(&TestInOutCountedXformCb,
+                                          /*initial_inout_count=*/2,
+                                          /*should_fail=*/0, &final_count),
+            30);
+  EXPECT_EQ(final_count, 1);
+
+  final_count = 0;
+  EXPECT_EQ(invoke_inout_counted_callback(&TestInOutCountedXformCb,
+                                          /*initial_inout_count=*/2,
+                                          /*should_fail=*/1, &final_count),
+            -1);
+  EXPECT_EQ(final_count, 2);
+
+  if (IsSandboxed()) {
+    // The callback accepts a negative count when `should_fail` is 0, so only
+    // the pre-call check can abort here.
+    EXPECT_DEATH(
+        {
+          int unused_final = 0;
+          invoke_inout_counted_callback(&TestInOutCountedXformCb,
+                                        /*initial_inout_count=*/-3,
+                                        /*should_fail=*/0, &unused_final);
+        },
+        "Negative buffer size");
+    EXPECT_DEATH(
+        {
+          int unused_final = 0;
+          invoke_inout_counted_callback(&TestInOutCountedXformCb,
+                                        /*initial_inout_count=*/99,
+                                        /*should_fail=*/1, &unused_final);
+        },
+        "sapi_in_bytes_buf <= sapi_arr_buf->GetSize\\(\\)");
+  }
 }
 
 }  // namespace

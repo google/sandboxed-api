@@ -2966,16 +2966,17 @@ TEST_F(IrConvertTest,
   }
 }
 
-TEST_F(IrConvertTest, RejectsNullTerminatedNonConstOrVoidInputParameter) {
+TEST_F(IrConvertTest, RejectsNullTerminatedNonConstStructOrVoidInputParameter) {
   EXPECT_THAT(ConvertSnippetToIR(R"(
+    struct MyStruct { int x; };
     extern "C" void bad_mutable_null_terminated(
-        int* p [[clang::annotate("sandbox", "in_ptr")]]
-               [[clang::annotate("sandbox", "null_terminated")]]);
+        MyStruct* p [[clang::annotate("sandbox", "in_ptr")]]
+                    [[clang::annotate("sandbox", "null_terminated")]]);
   )",
                                  "bad_mutable_null_terminated"),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("pointer argument p is null-terminated but "
-                                 "not a const integer, enum, or struct "
+                                 "not an integer, enum, or const struct "
                                  "pointer")));
 
   EXPECT_THAT(ConvertSnippetToIR(R"(
@@ -2986,7 +2987,7 @@ TEST_F(IrConvertTest, RejectsNullTerminatedNonConstOrVoidInputParameter) {
                                  "bad_void_null_terminated"),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("pointer argument p is null-terminated but "
-                                 "not a const integer, enum, or struct "
+                                 "not an integer, enum, or const struct "
                                  "pointer")));
 
   EXPECT_THAT(ConvertSnippetToIR(R"(
@@ -2997,7 +2998,7 @@ TEST_F(IrConvertTest, RejectsNullTerminatedNonConstOrVoidInputParameter) {
                                  "bad_float_null_terminated"),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("pointer argument p is null-terminated but "
-                                 "not a const integer, enum, or struct "
+                                 "not an integer, enum, or const struct "
                                  "pointer")));
 
   EXPECT_THAT(ConvertSnippetToIR(R"(
@@ -3106,6 +3107,19 @@ TEST_F(IrConvertTest, RejectsNullTerminatedNonConstOrVoidInputParameter) {
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("struct_sync access path p->utf16: null_terminated "
                          "output member requires a lifetime annotation")));
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    typedef char* mut_c_str_pointee
+        [[clang::annotate("sandbox", "inout_ptr")]]
+        [[clang::annotate("sandbox", "null_terminated")]];
+    extern "C" void bad_inout_null_terminated_pointee(
+        mut_c_str_pointee* p [[clang::annotate("sandbox", "inout_ptr")]]);
+  )",
+                                 "bad_inout_null_terminated_pointee"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("pointer argument mut_c_str_pointee: "
+                                 "null_terminated annotation for output "
+                                 "requires a lifetime annotation")));
 }
 
 TEST_F(IrConvertTest,
@@ -3673,6 +3687,309 @@ TEST_F(IrConvertTest,
                HasSubstr("struct_sync access path p->items has unsupported "
                          "pointee type: 'const NonTrivialInner' is not "
                          "trivially copyable")));
+}
+
+// Auto-inferred `struct_sync` on a single in-out struct pointer must also
+// reject callback fields reached through a sized pointer member: the buffer is
+// copied back from the sandboxee as raw bytes, so a compromised sandboxee could
+// otherwise write arbitrary function pointers into host memory.
+TEST_F(IrConvertTest,
+       RejectsInferredInOutStructSyncOfPointeeStructWithCallbackField) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations hook_ann{.name = "Hook"};
+  hook_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "cb",
+      .callback_typedef = "adder",
+  });
+  record_annotations["Hook"] = std::move(hook_ann);
+  RecordAnnotations table_ann{.name = "HookTable"};
+  table_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "hooks",
+      .size_type = ElemSizedBy{.expr = "count"},
+  });
+  record_annotations["HookTable"] = std::move(table_ann);
+
+  const absl::flat_hash_map<std::string, CallbackTypedef> typedefs = {
+      {"adder",
+       CallbackTypedef{
+           .name = "adder",
+           .canonical_type = "int (int, int)",
+           .params = {{.name = "a"}, {.name = "b"}},
+       }},
+  };
+
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    struct Hook {
+      int (*cb)(int, int);
+    };
+    struct HookTable {
+      Hook* hooks;
+      unsigned long count;
+    };
+    extern "C" void update_hook_table(
+        HookTable* table [[clang::annotate("sandbox", "inout_ptr")]]);
+  )",
+                         "update_hook_table", record_annotations, typedefs),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("field hooks of 'HookTable': field cb of 'Hook': "
+                         "callback fields inside an array are not "
+                         "supported")));
+}
+
+TEST_F(IrConvertTest,
+       RejectsInferredStructSyncOnOutPtrWithCallerAllocatedPointerMember) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations slice_ann{.name = "MutSlice"};
+  slice_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "elems",
+      .size_type = ElemSizedBy{.expr = "count"},
+  });
+  record_annotations["MutSlice"] = std::move(slice_ann);
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    struct MutSlice {
+      int* elems;
+      unsigned long count;
+    };
+    extern "C" void fill_out_slice(
+        MutSlice* out [[clang::annotate("sandbox", "out_ptr")]]);
+  )",
+                                 "fill_out_slice", record_annotations),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("field elems of 'MutSlice': caller-allocated "
+                                 "pointer field on out_ptr struct requires "
+                                 "inout_ptr on the struct parameter")));
+}
+
+TEST_F(IrConvertTest,
+       InOutDerefRewriteAppliesOnlyToSingleLevelTopLevelOutputBuffers) {
+  // Single-level `ByteCount("*len")` with an `inout_ptr` sibling rewrites to
+  // `ByteSizedByOutparam`. Its pre-call capacity guards a null `len` and checks
+  // the count with `CheckedToSizeT`.
+  SAPI_ASSERT_OK_AND_ASSIGN(Function byte_fn,
+                            ConvertSnippetToIR(R"(
+    extern "C" void xform_bytes(
+        void* buf [[clang::annotate("sandbox", "inout_ptr")]]
+                  [[clang::annotate("sandbox", "byte_sized_by", "*len")]],
+        unsigned long* len [[clang::annotate("sandbox", "inout_ptr")]]);
+  )",
+                                               "xform_bytes"));
+  Library lib1{.name = "L", .functions = {byte_fn}};
+  ASSERT_THAT(ValidateAndLinkLibraryIR(lib1), IsOk());
+  const auto* rewritten_buf = lib1.functions[0].parameters[0].As<BufferParam>();
+  ASSERT_NE(rewritten_buf, nullptr);
+  const auto* byte_out =
+      std::get_if<bounds::ByteSizedByOutparam>(&rewritten_buf->bounds);
+  ASSERT_NE(byte_out, nullptr);
+  EXPECT_EQ(byte_out->outparam_name, "len");
+  EXPECT_THAT(byte_out->capacity_expr,
+              AllOf(HasSubstr("len == nullptr ? 0"),
+                    HasSubstr("sapi::lwbox::CheckedToSizeT(*len)")));
+
+  // Outer multi-level pointer array and inner pointee contract sized by `*len`
+  // must keep `ElemCount` so `EmitMultiLevelPointerParam` /
+  // `EmitShadowPointerElement` remain valid.
+  SAPI_ASSERT_OK_AND_ASSIGN(Function ml_fn, ConvertSnippetToIR(R"(
+    typedef void* dev_pt
+        [[clang::annotate("sandbox", "sandbox_opaque_ptr")]];
+    typedef int* row_pt
+        [[clang::annotate("sandbox", "inout_ptr")]]
+        [[clang::annotate("sandbox", "elem_sized_by", "*len")]];
+    extern "C" void enum_devs(
+        dev_pt* devs [[clang::annotate("sandbox", "out_ptr")]]
+                     [[clang::annotate("sandbox", "elem_sized_by", "*count")]],
+        unsigned long* count [[clang::annotate("sandbox", "inout_ptr")]],
+        row_pt* row [[clang::annotate("sandbox", "inout_ptr")]],
+        unsigned long* len [[clang::annotate("sandbox", "inout_ptr")]]);
+  )",
+                                                               "enum_devs"));
+  Library lib2{.name = "L", .functions = {ml_fn}};
+  ASSERT_THAT(ValidateAndLinkLibraryIR(lib2), IsOk());
+  const auto* devs_buf = lib2.functions[0].parameters[0].As<BufferParam>();
+  ASSERT_NE(devs_buf, nullptr);
+  EXPECT_TRUE(std::holds_alternative<bounds::ElemCount>(devs_buf->bounds));
+  const auto* row_buf = lib2.functions[0].parameters[2].As<BufferParam>();
+  ASSERT_NE(row_buf, nullptr);
+  ASSERT_NE(row_buf->pointee, nullptr);
+  const auto* inner_row = row_buf->pointee->As<BufferParam>();
+  ASSERT_NE(inner_row, nullptr);
+  EXPECT_TRUE(std::holds_alternative<bounds::ElemCount>(inner_row->bounds));
+}
+
+TEST_F(IrConvertTest,
+       RejectsOutPtrSiblingsAndUnrewrittenCompoundInOutSiblingsInSizeExprs) {
+  // 1. SANDBOX_ELEM_SIZED_BY / SANDBOX_BYTE_SIZED_BY cannot read a
+  //    SANDBOX_OUT_PTR sibling before the call (direct, dereferenced, or
+  //    compound), nor can capacity_expr in *SizedByOutparam.
+  SAPI_ASSERT_OK_AND_ASSIGN(Function elem_out_fn,
+                            ConvertSnippetToIR(R"(
+    extern "C" void read_elem_from_out_ptr(
+        int* dst [[clang::annotate("sandbox", "out_ptr")]]
+                 [[clang::annotate("sandbox", "elem_sized_by", "*out_len")]],
+        unsigned long* out_len [[clang::annotate("sandbox", "out_ptr")]]);
+  )",
+                                               "read_elem_from_out_ptr"));
+  Library lib_elem_out{.name = "L", .functions = {elem_out_fn}};
+  EXPECT_THAT(
+      ValidateAndLinkLibraryIR(lib_elem_out),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstr("cannot read SANDBOX_OUT_PTR parameter out_len"),
+                     HasSubstr("SANDBOX_ELEM_SIZED_BY_OUTPARAM"))));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(Function byte_out_compound_fn,
+                            ConvertSnippetToIR(R"(
+    extern "C" void read_byte_from_out_ptr(
+        void* dst [[clang::annotate("sandbox", "out_ptr")]]
+                  [[clang::annotate("sandbox", "byte_sized_by",
+                                    "*out_len * 4")]],
+        unsigned long* out_len [[clang::annotate("sandbox", "out_ptr")]]);
+  )",
+                                               "read_byte_from_out_ptr"));
+  Library lib_byte_out{.name = "L", .functions = {byte_out_compound_fn}};
+  EXPECT_THAT(
+      ValidateAndLinkLibraryIR(lib_byte_out),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("cannot read SANDBOX_OUT_PTR parameter out_len before")));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(Function outparam_bad_cap_fn,
+                            ConvertSnippetToIR(R"(
+    extern "C" void outparam_with_out_ptr_cap(
+        char* dst [[clang::annotate("sandbox", "out_ptr")]]
+                  [[clang::annotate("sandbox", "byte_sized_by_outparam",
+                                    "*out_len", "*out_len")]],
+        unsigned long* out_len [[clang::annotate("sandbox", "out_ptr")]]);
+  )",
+                                               "outparam_with_out_ptr_cap"));
+  Library lib_bad_cap{.name = "L", .functions = {outparam_bad_cap_fn}};
+  EXPECT_THAT(
+      ValidateAndLinkLibraryIR(lib_bad_cap),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("cannot read SANDBOX_OUT_PTR parameter out_len before")));
+
+  // 2. Compound or non-dereferenced SANDBOX_INOUT_PTR sibling on a non-retained
+  //    output buffer is rejected rather than leaving post-call sync unclamped.
+  SAPI_ASSERT_OK_AND_ASSIGN(Function compound_inout_fn,
+                            ConvertSnippetToIR(R"(
+    extern "C" void fill_compound_inout(
+        char* dst [[clang::annotate("sandbox", "out_ptr")]]
+                  [[clang::annotate("sandbox", "byte_sized_by",
+                                    "*inout_len * 2")]],
+        unsigned long* inout_len [[clang::annotate("sandbox", "inout_ptr")]]);
+  )",
+                                               "fill_compound_inout"));
+  Library lib_compound_inout{.name = "L", .functions = {compound_inout_fn}};
+  EXPECT_THAT(ValidateAndLinkLibraryIR(lib_compound_inout),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("cannot reference SANDBOX_INOUT_PTR parameter "
+                                 "inout_len")));
+
+  // 3. Unevaluated `sizeof(*dst)` on an output pointer, compound `*inout_len`
+  //    on an input-only buffer, and retained buffers sized by `*inout_len`
+  //    remain valid.
+  SAPI_ASSERT_OK_AND_ASSIGN(Function valid_fn,
+                            ConvertSnippetToIR(R"(
+    struct Ctx;
+    extern "C" void valid_cases(
+        Ctx* ctx [[clang::annotate("sandbox", "sandbox_opaque_ptr")]],
+        int* dst [[clang::annotate("sandbox", "out_ptr")]]
+                 [[clang::annotate("sandbox", "byte_sized_by_outparam",
+                                   "*out_len", "sizeof(*dst) * cap")]],
+        unsigned long* out_len [[clang::annotate("sandbox", "out_ptr")]],
+        unsigned long cap,
+        const char* src [[clang::annotate("sandbox", "in_ptr")]]
+                        [[clang::annotate("sandbox", "byte_sized_by",
+                                          "*inout_len * 2")]],
+        char* retained [[clang::annotate("sandbox", "inout_ptr")]]
+                       [[clang::annotate("sandbox", "byte_sized_by",
+                                         "*inout_len")]]
+                       [[clang::annotate("sandbox", "retain_and_bind",
+                                         "ctx", "ret_buf")]],
+        unsigned long* inout_len [[clang::annotate("sandbox", "inout_ptr")]]);
+  )",
+                                               "valid_cases"));
+  Library lib_valid{.name = "L", .functions = {valid_fn}};
+  ASSERT_THAT(ValidateAndLinkLibraryIR(lib_valid), IsOk());
+  // The retained `inout_ptr` buffer sized by `*inout_len` is rewritten to
+  // `ByteSizedByOutparam`, while the `in_ptr` buffer remains `ByteCount`.
+  const auto* src_buf = lib_valid.functions[0].parameters[4].As<BufferParam>();
+  ASSERT_NE(src_buf, nullptr);
+  EXPECT_TRUE(std::holds_alternative<bounds::ByteCount>(src_buf->bounds));
+  const auto* retained_buf =
+      lib_valid.functions[0].parameters[5].As<BufferParam>();
+  ASSERT_NE(retained_buf, nullptr);
+  EXPECT_TRUE(std::holds_alternative<bounds::ByteSizedByOutparam>(
+      retained_buf->bounds));
+}
+
+TEST_F(IrConvertTest,
+       RetainedOutputBufferRewritesInOutDerefWhileInputBufferKeepsElemCount) {
+  SAPI_ASSERT_OK_AND_ASSIGN(Function fn,
+                            ConvertSnippetToIR(R"(
+    struct Ctx;
+    extern "C" void retain_and_read_with_inout_count(
+        Ctx* ctx [[clang::annotate("sandbox", "sandbox_opaque_ptr")]],
+        int* retained_out [[clang::annotate("sandbox", "inout_ptr")]]
+                          [[clang::annotate("sandbox", "elem_sized_by",
+                                            "*inout_count")]]
+                          [[clang::annotate("sandbox", "retain_and_bind",
+                                            "ctx", "ret_out")]],
+        const int* retained_in [[clang::annotate("sandbox", "in_ptr")]]
+                               [[clang::annotate("sandbox", "elem_sized_by",
+                                                 "*inout_count")]]
+                               [[clang::annotate("sandbox", "retain_and_bind",
+                                                 "ctx", "ret_in")]],
+        const int* plain_in [[clang::annotate("sandbox", "in_ptr")]]
+                            [[clang::annotate("sandbox", "elem_sized_by",
+                                              "*inout_count")]],
+        int* inout_count [[clang::annotate("sandbox", "inout_ptr")]]);
+  )",
+                                               "retain_and_read_"
+                                               "with_inout_count"));
+  Library lib{.name = "L", .functions = {fn}};
+  ASSERT_THAT(ValidateAndLinkLibraryIR(lib), IsOk());
+
+  const auto* ret_out_buf = lib.functions[0].parameters[1].As<BufferParam>();
+  ASSERT_NE(ret_out_buf, nullptr);
+  const auto* elem_out =
+      std::get_if<bounds::ElemSizedByOutparam>(&ret_out_buf->bounds);
+  ASSERT_NE(elem_out, nullptr);
+  EXPECT_EQ(elem_out->outparam_name, "inout_count");
+  EXPECT_THAT(elem_out->capacity_expr,
+              AllOf(HasSubstr("inout_count == nullptr ? 0"),
+                    HasSubstr("sapi::lwbox::CheckedToSizeT(*inout_count)")));
+
+  const auto* ret_in_buf = lib.functions[0].parameters[2].As<BufferParam>();
+  ASSERT_NE(ret_in_buf, nullptr);
+  EXPECT_TRUE(std::holds_alternative<bounds::ElemCount>(ret_in_buf->bounds));
+
+  const auto* plain_in_buf = lib.functions[0].parameters[3].As<BufferParam>();
+  ASSERT_NE(plain_in_buf, nullptr);
+  EXPECT_TRUE(std::holds_alternative<bounds::ElemCount>(plain_in_buf->bounds));
+}
+
+TEST_F(IrConvertTest,
+       RejectsCompoundInOutSiblingSizeExprOnRetainedOutputBuffer) {
+  SAPI_ASSERT_OK_AND_ASSIGN(Function fn, ConvertSnippetToIR(R"(
+    struct Ctx;
+    extern "C" void retain_compound_inout(
+        Ctx* ctx [[clang::annotate("sandbox", "sandbox_opaque_ptr")]],
+        char* retained [[clang::annotate("sandbox", "inout_ptr")]]
+                       [[clang::annotate("sandbox", "byte_sized_by",
+                                         "*inout_len * 2")]]
+                       [[clang::annotate("sandbox", "retain_and_bind",
+                                         "ctx", "ret_buf")]],
+        unsigned long* inout_len [[clang::annotate("sandbox", "inout_ptr")]]);
+  )",
+                                                            "retain_compound_"
+                                                            "inout"));
+  Library lib{.name = "L", .functions = {fn}};
+  EXPECT_THAT(ValidateAndLinkLibraryIR(lib),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("cannot reference SANDBOX_INOUT_PTR parameter "
+                                 "inout_len")));
 }
 
 }  // namespace

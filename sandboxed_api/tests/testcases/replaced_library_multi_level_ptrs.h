@@ -16,6 +16,7 @@
 #define SANDBOXED_API_TESTS_TESTCASES_REPLACED_LIBRARY_MULTI_LEVEL_PTRS_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 extern "C" {
 
@@ -109,6 +110,73 @@ void dispatch_sax_start_element(void* ctx, const sax_xml_char_t* name,
 sax_start_element_cb get_default_sax_start_element_cb();
 int get_default_sax_attr_byte_sum();
 void reset_default_sax_attr_byte_sum();
+
+// Non-`const` null-terminated input (`char*`, `unsigned char*`) and in-place
+// mutable null-terminated buffer (`char*`).
+size_t measure_non_const_c_strings(char* str, unsigned char* ustr);
+void uppercase_and_clobber_terminator(char* str, int clobber_terminator);
+
+// Single `Struct*` parameter with inner pointers annotated via
+// `SANDBOX_ANNOTATE_STRUCT` (automatic `struct_sync` inference without explicit
+// `SANDBOX_STRUCT_SYNC` on the function parameter).
+struct TaggedIntSlice {
+  const char* label;
+  int* elems;
+  size_t count;
+};
+
+int sum_and_scale_tagged_slice(struct TaggedIntSlice* slice, int factor);
+
+// In-out count parameter (`size_t* inout_count`) used as both initial capacity
+// and output element count in `SANDBOX_ELEM_SIZED_BY(*inout_count)` (modeled on
+// `lzo1x_decompress_safe` / `uncompress`).
+int fill_up_to_inout_count(int* dst, size_t* inout_count, size_t actual_count,
+                           int base_value);
+
+// Retains an in-out caller buffer sized by `*inout_count` elements on `db`
+// (`SANDBOX_RETAIN_AND_BIND(db)`), writing `min(actual_count, *inout_count)`
+// elements and setting `*inout_count = actual_count`.
+int retain_inout_db_buffer(struct DbHandle* db, int* buf, size_t* inout_count,
+                           size_t actual_count, int base_value);
+
+// Writes `write_count` elements of `fill_value` into `dst` (capacity
+// `capacity_bytes`) and sets `*out_count = write_count`, or returns -1 early
+// without touching `*out_count` when `should_fail != 0`.
+int fill_or_fail_outparam_sized(int* dst, size_t capacity_bytes,
+                                size_t* out_count, int should_fail,
+                                size_t write_count, int fill_value);
+
+// Retains an in-out caller buffer sized by signed `*inout_count` elements on
+// `db`, writing `min(actual_count, *inout_count)` elements when `actual_count`
+// is non-negative and setting `*inout_count = actual_count`.
+int retain_signed_inout_db_buffer(struct DbHandle* db, int* buf,
+                                  int* inout_count, int actual_count,
+                                  int base_value);
+
+// Sums `*inout_count` elements from read-only `src` and updates
+// `*inout_count = updated_count` (which may exceed the pre-call input count).
+int sum_in_ptr_with_signed_inout_count(const int* src, int* inout_count,
+                                       int updated_count);
+
+// Invokes `cb` on a stack buffer pre-filled with `777` and an `out_count`
+// variable pre-filled with `initial_out_count_garbage`, returning `cb`'s result
+// and reporting `local_dst[0]` via `*observed_first_elem`.
+typedef int (*out_counted_fill_cb)(int* dst, size_t cap_bytes, int* out_count,
+                                   int should_fail);
+int invoke_out_counted_callback(out_counted_fill_cb cb,
+                                int initial_out_count_garbage, int should_fail,
+                                int* observed_first_elem);
+
+// Invokes `cb` on a 4-element in-out buffer `{10, 20, 30, 40}` with
+// `*inout_count = initial_inout_count`, returning `cb`'s result and reporting
+// `*inout_count` via `*final_inout_count`.
+typedef int (*inout_counted_xform_cb)(int* buf, size_t cap_bytes,
+                                      int* inout_count, int should_fail);
+int invoke_inout_counted_callback(inout_counted_xform_cb cb,
+                                  int initial_inout_count, int should_fail,
+                                  int* final_inout_count);
+
+int is_marshaled_copy(const int* probe, uintptr_t caller_addr);
 
 }  // extern "C"
 

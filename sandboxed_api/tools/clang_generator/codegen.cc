@@ -252,6 +252,59 @@ bool UsesCStringEmission(const ir::Parameter& param,
          !buf.context_bound.retain_and_bind.has_value();
 }
 
+absl::string_view StripBalancedParens(absl::string_view s) {
+  s = absl::StripAsciiWhitespace(s);
+  while (s.size() >= 2 && s.front() == '(' && s.back() == ')') {
+    int depth = 0;
+    bool wraps_whole = true;
+    for (size_t i = 0; i < s.size() - 1; ++i) {
+      if (s[i] == '(') {
+        ++depth;
+      } else if (s[i] == ')') {
+        --depth;
+        if (depth == 0) {
+          wraps_whole = false;
+          break;
+        }
+      }
+    }
+    if (!wraps_whole || depth != 1) {
+      break;
+    }
+    s = absl::StripAsciiWhitespace(s.substr(1, s.size() - 2));
+  }
+  return s;
+}
+
+// If `expr` is a single dereferenced identifier (such as `*len` or `(*len)`),
+// returns that identifier so callers can guard against a null pointer on the
+// host and validate signed counts via `CheckedToSizeT`.
+std::optional<absl::string_view> DereferencedIdent(absl::string_view expr) {
+  expr = StripBalancedParens(expr);
+  if (!absl::ConsumePrefix(&expr, "*")) {
+    return std::nullopt;
+  }
+  expr = StripBalancedParens(expr);
+  if (expr.empty() || !(absl::ascii_isalpha(expr[0]) || expr[0] == '_') ||
+      expr == "this") {
+    return std::nullopt;
+  }
+  for (char c : expr) {
+    if (!(absl::ascii_isalnum(c) || c == '_')) {
+      return std::nullopt;
+    }
+  }
+  return expr;
+}
+
+std::string CompileDerefOrRawSizeExpr(absl::string_view expr) {
+  if (std::optional<absl::string_view> ident = DereferencedIdent(expr)) {
+    return absl::Substitute(
+        "($0 == nullptr ? 0 : sapi::lwbox::CheckedToSizeT(*$0))", *ident);
+  }
+  return std::string(expr);
+}
+
 // Computes the maximum allocation capacity in bytes for a buffer parameter.
 // Capacity is always in bytes.
 std::string GetParamCapacityAsBytesExpr(const ir::Parameter& param,
@@ -266,11 +319,21 @@ std::string GetParamCapacityAsBytesExpr(const ir::Parameter& param,
           [&](const ir::bounds::ElemCount& elem) {
             DCHECK(!param.type.is_pointee_void())
                 << "void* buffer parameter cannot use element-count bounds";
+            if (std::optional<absl::string_view> ident =
+                    DereferencedIdent(elem.size_expr)) {
+              return absl::Substitute(
+                  "($1 == nullptr ? 0 : "
+                  "sandbox->CheckedMultiply(sizeof(*$0), "
+                  "sapi::lwbox::CheckedToSizeT(*$1)))",
+                  param.name, *ident);
+            }
             return absl::Substitute(
                 "sandbox->CheckedMultiply(sizeof(*$0), ($1))", param.name,
                 elem.size_expr);
           },
-          [](const ir::bounds::ByteCount& byte) { return byte.size_expr; },
+          [](const ir::bounds::ByteCount& byte) {
+            return CompileDerefOrRawSizeExpr(byte.size_expr);
+          },
           [&](const ir::bounds::ElemSizedByOutparam& elem) {
             DCHECK(!elem.capacity_expr.empty());
             return elem.capacity_expr;
@@ -308,6 +371,14 @@ std::string GetParamSizeAsBytesExpr(const ir::Parameter& param,
           [&](const ir::bounds::ElemCount& elem) {
             DCHECK(!param.type.is_pointee_void())
                 << "void* buffer parameter cannot use element-count bounds";
+            if (std::optional<absl::string_view> ident =
+                    DereferencedIdent(elem.size_expr)) {
+              return absl::Substitute(
+                  "($1 == nullptr ? 0 : "
+                  "sandbox->CheckedMultiply(sizeof(*$0), "
+                  "sapi::lwbox::CheckedToSizeT(*$1)))",
+                  param.name, *ident);
+            }
             return absl::Substitute(
                 "sandbox->CheckedMultiply(sizeof(*$0), ($1))", param.name,
                 elem.size_expr);
@@ -316,12 +387,18 @@ std::string GetParamSizeAsBytesExpr(const ir::Parameter& param,
             DCHECK(!param.type.is_pointee_void())
                 << "void* buffer parameter cannot use element-count bounds";
             return absl::Substitute(
-                "sandbox->CheckedMultiply(sizeof(*$0), (*$1))", param.name,
-                elem.outparam_name);
+                "($1 == nullptr ? 0 : "
+                "sandbox->CheckedMultiply(sizeof(*$0), "
+                "sapi::lwbox::CheckedToSizeT(*$1)))",
+                param.name, elem.outparam_name);
           },
-          [](const ir::bounds::ByteCount& byte) { return byte.size_expr; },
+          [](const ir::bounds::ByteCount& byte) {
+            return CompileDerefOrRawSizeExpr(byte.size_expr);
+          },
           [](const ir::bounds::ByteSizedByOutparam& byte) {
-            return absl::StrCat("*", byte.outparam_name);
+            return absl::Substitute(
+                "($0 == nullptr ? 0 : sapi::lwbox::CheckedToSizeT(*$0))",
+                byte.outparam_name);
           },
           [](const ir::bounds::SizedByBinding& binding) {
             std::string context_var = ResolveContextName(binding.context_expr);
@@ -609,6 +686,18 @@ std::string EmitStructMemberSyncsPreCall(
                                 param.name, cb_field.member_name,
                                 RegisterCallbackName(cb_field.typedef_name));
     }
+  } else if (std::any_of(sync_param.members.begin(), sync_param.members.end(),
+                         [](const ir::StructMemberSync& s) {
+                           return s.direction != PointerDir::kSandboxOpaque;
+                         })) {
+    for (const auto& cb_field : sync_param.callbacks) {
+      absl::SubstituteAndAppend(&ret,
+                                R"(  if ($0 != nullptr) {
+    sapi_tmp_$0.mutable_data()->$1 = nullptr;
+  }
+)",
+                                param.name, cb_field.member_name);
+    }
   }
   return ret;
 }
@@ -625,6 +714,45 @@ std::string EmitStructMemberSyncsPostCall(
     std::string suffix = absl::StrCat(param.name, "_", member_terminal);
     std::string host_ptr_expr = sync.access_path();
 
+    std::string post_size_check;
+    std::string copy_size_expr = absl::StrCat("sapi_member_size_", suffix);
+    const bool struct_written_back =
+        param.direction() != PointerDir::kIn && !param.type.is_const &&
+        !(param.type.pointee && param.type.pointee->is_const);
+    if (struct_written_back) {
+      if (const auto* byte = std::get_if<ir::bounds::ByteCount>(&sync.bounds)) {
+        post_size_check = absl::Substitute(
+            "    size_t sapi_post_member_size_$0 =\n"
+            "        sapi::lwbox::CheckedToSizeT($1);\n"
+            "    if (sapi_post_member_size_$0 > sapi_member_size_$0) {\n"
+            "      sandbox->Check(absl::OutOfRangeError(\n"
+            "          absl::StrCat(\"Sandboxee returned size (\",\n"
+            "                       sapi_post_member_size_$0,\n"
+            "                       \") exceeding capacity (\",\n"
+            "                       sapi_member_size_$0,\n"
+            "                       \") for struct member $2\")));\n"
+            "    }\n",
+            suffix, byte->size_expr, host_ptr_expr);
+        copy_size_expr = absl::StrCat("sapi_post_member_size_", suffix);
+      } else if (const auto* elem =
+                     std::get_if<ir::bounds::ElemCount>(&sync.bounds)) {
+        post_size_check = absl::Substitute(
+            "    size_t sapi_post_member_size_$0 =\n"
+            "        sandbox->CheckedMultiply(\n"
+            "            sizeof(*($1)), sapi::lwbox::CheckedToSizeT($2));\n"
+            "    if (sapi_post_member_size_$0 > sapi_member_size_$0) {\n"
+            "      sandbox->Check(absl::OutOfRangeError(\n"
+            "          absl::StrCat(\"Sandboxee returned size (\",\n"
+            "                       sapi_post_member_size_$0,\n"
+            "                       \") exceeding capacity (\",\n"
+            "                       sapi_member_size_$0,\n"
+            "                       \") for struct member $1\")));\n"
+            "    }\n",
+            suffix, host_ptr_expr, elem->size_expr);
+        copy_size_expr = absl::StrCat("sapi_post_member_size_", suffix);
+      }
+    }
+
     if (sync.direction == PointerDir::kOut ||
         sync.direction == PointerDir::kInOut) {
       std::string rezero_sentinel;
@@ -640,12 +768,19 @@ std::string EmitStructMemberSyncsPostCall(
       }
       absl::SubstituteAndAppend(&out,
                                 R"(  if (sapi_sb_copy_$0 != nullptr) {
-    sapi::lwbox::SyncFromSandboxToHost(
+$4    sapi::lwbox::SyncFromSandboxToHost(
         *sandbox, reinterpret_cast<uintptr_t>(sapi_sb_copy_$0),
-        reinterpret_cast<void*>($1), sapi_member_size_$0);
+        reinterpret_cast<void*>($1), $3);
 $2  }
 )",
-                                suffix, host_ptr_expr, rezero_sentinel);
+                                suffix, host_ptr_expr, rezero_sentinel,
+                                copy_size_expr, post_size_check);
+    } else if (!post_size_check.empty()) {
+      absl::SubstituteAndAppend(&out,
+                                R"(  if (sapi_sb_copy_$0 != nullptr) {
+$1  }
+)",
+                                suffix, post_size_check);
     }
     if (sync.context_bound.retain_and_bind.has_value()) {
       std::string ctx_name =
@@ -683,8 +818,8 @@ std::string EmitCopyFromAndBindOutPtrCode(
   std::string alloc_and_copy_code;
 
   if (const auto* byte = std::get_if<ir::bounds::ByteCount>(&buffer_bounds)) {
-    size_calc =
-        absl::Substitute("size_t sapi_binding_size = $0;\n", byte->size_expr);
+    size_calc = absl::Substitute("size_t sapi_binding_size = $0;\n",
+                                 CompileDerefOrRawSizeExpr(byte->size_expr));
     alloc_and_copy_code = R"(
         sapi_host_copy = calloc(sapi_binding_size, sizeof(char));
         sapi::lwbox::SyncFromSandboxToHost(
@@ -695,7 +830,7 @@ std::string EmitCopyFromAndBindOutPtrCode(
     size_calc = absl::Substitute(
         "size_t sapi_binding_size = "
         "sandbox->CheckedMultiply(sizeof(*sapi_returned_sb_ptr), ($0));\n",
-        elem->size_expr);
+        CompileDerefOrRawSizeExpr(elem->size_expr));
     alloc_and_copy_code = R"(
         sapi_host_copy = calloc(sapi_binding_size, sizeof(char));
         sapi::lwbox::SyncFromSandboxToHost(
@@ -1065,9 +1200,20 @@ void EmitCallbackParamMarshaling(absl::Span<const ir::Parameter> parameters,
                 return;
               }
               std::string size_expr = GetParamCapacityAsBytesExpr(p, p_buf);
+              // Output-only callback buffers (including `SANDBOX_OUT_PTR` count
+              // siblings) must never be transferred from the untrusted
+              // sandboxee before invoking the host callback: an uninitialized
+              // or sandboxee-crafted count would otherwise trigger `CHECK_LE`
+              // or overwrite the output buffer on early callback return. Zero
+              // the host buffer instead so unwritten output slots stay 0.
               std::string maybe_transfer_from =
                   p_buf.direction == PointerDir::kOut
-                      ? ""
+                      ? absl::Substitute(
+                            "        if (sapi_arr_$0->GetSize() > 0) {\n"
+                            "          memset(sapi_arr_$0->GetData(), 0, "
+                            "sapi_arr_$0->GetSize());\n"
+                            "        }\n",
+                            p_name)
                       : absl::Substitute(
                             "        "
                             "sandbox->Check(sandbox->"
@@ -1092,7 +1238,7 @@ $3        sapi_host_$0 = reinterpret_cast<$1>(sapi_arr_$0->GetData());
                           std::string active_bytes_expr = absl::Substitute(
                               "(sapi_host_$1 == nullptr ? 0 : "
                               "sandbox->CheckedMultiply(sizeof(*$0), "
-                              "(*sapi_host_$1)))",
+                              "sapi::lwbox::CheckedToSizeT(*sapi_host_$1)))",
                               p_name, elem_out.outparam_name);
                           absl::SubstituteAndAppend(
                               &param_sync_post_call,
@@ -1115,7 +1261,7 @@ $3        sapi_host_$0 = reinterpret_cast<$1>(sapi_arr_$0->GetData());
                         [&](const ir::bounds::ByteSizedByOutparam& byte_out) {
                           std::string active_bytes_expr = absl::Substitute(
                               "(sapi_host_$0 == nullptr ? 0 : "
-                              "static_cast<size_t>(*sapi_host_$0))",
+                              "sapi::lwbox::CheckedToSizeT(*sapi_host_$0))",
                               byte_out.outparam_name);
                           absl::SubstituteAndAppend(
                               &param_sync_post_call,
@@ -1222,6 +1368,55 @@ $3        sapi_host_$0 = reinterpret_cast<$1>(sapi_arr_$0->GetData());
             },
         },
         p.payload);
+  }
+
+  // When an `ElemSizedByOutparam` / `ByteSizedByOutparam` callback buffer
+  // references a `SANDBOX_INOUT_PTR` count sibling, `*sapi_host_<outparam>` was
+  // transferred from the untrusted sandboxee before the call. Validate that it
+  // is non-negative and fits within `sapi_arr_<buf>->GetSize()` before invoking
+  // the host callback so the callback cannot index out of bounds on the host
+  // heap or leave an out-of-range count intact on early return.
+  for (const auto& p : parameters) {
+    const auto* p_buf = p.As<ir::BufferParam>();
+    if (p_buf == nullptr) {
+      continue;
+    }
+    absl::string_view outparam_name;
+    std::string in_bytes_expr;
+    if (const auto* elem_out =
+            std::get_if<ir::bounds::ElemSizedByOutparam>(&p_buf->bounds)) {
+      outparam_name = elem_out->outparam_name;
+      in_bytes_expr = absl::Substitute(
+          "sandbox->CheckedMultiply(sizeof(*$0), "
+          "sapi::lwbox::CheckedToSizeT(*sapi_host_$1))",
+          p.name, outparam_name);
+    } else if (const auto* byte_out =
+                   std::get_if<ir::bounds::ByteSizedByOutparam>(
+                       &p_buf->bounds)) {
+      outparam_name = byte_out->outparam_name;
+      in_bytes_expr = absl::Substitute(
+          "sapi::lwbox::CheckedToSizeT(*sapi_host_$0)", outparam_name);
+    } else {
+      continue;
+    }
+    const ir::Parameter* out_sib = nullptr;
+    for (const auto& cand : parameters) {
+      if (cand.name == outparam_name) {
+        out_sib = &cand;
+        break;
+      }
+    }
+    if (out_sib != nullptr && out_sib->direction() == PointerDir::kInOut) {
+      pre_call_blocks.push_back(absl::Substitute(
+          R"(      if (sapi_host_$1 != nullptr) {
+        size_t sapi_in_bytes_$0 =
+            $2;
+        if (sapi_arr_$0.has_value()) {
+          CHECK_LE(sapi_in_bytes_$0, sapi_arr_$0->GetSize());
+        }
+      })",
+          p.name, outparam_name, in_bytes_expr));
+    }
   }
 }
 
@@ -1980,10 +2175,11 @@ void EmitShadowPointerElement(const ir::Parameter& inner_param,
       absl::Overload{
           [](const ir::bounds::Singleton&) -> std::string { return "1"; },
           [](const ir::bounds::ElemCount& e) -> std::string {
-            return e.size_expr;
+            return CompileDerefOrRawSizeExpr(e.size_expr);
           },
           [&](const ir::bounds::ByteCount& b) -> std::string {
-            return absl::Substitute("(($0) / sizeof($1))", b.size_expr,
+            return absl::Substitute("(($0) / sizeof($1))",
+                                    CompileDerefOrRawSizeExpr(b.size_expr),
                                     child_ptr_type);
           },
           [&](const ir::bounds::NullTerminated&) -> std::string {
@@ -2265,18 +2461,19 @@ void EmitMultiLevelPointerParam(const ir::Parameter& param,
         param.name);
   } else {
     // Array outer pointer (`ElemCount` or `ByteCount`).
-    std::string count_expr =
-        std::visit(absl::Overload{
-                       [](const ir::bounds::ElemCount& e) -> std::string {
-                         return e.size_expr;
-                       },
-                       [&](const ir::bounds::ByteCount& b) -> std::string {
-                         return absl::Substitute("(($0) / sizeof($1))",
-                                                 b.size_expr, inner_ptr_type);
-                       },
-                       [](const auto&) -> std::string { return "1"; },
-                   },
-                   buf.bounds);
+    std::string count_expr = std::visit(
+        absl::Overload{
+            [](const ir::bounds::ElemCount& e) -> std::string {
+              return CompileDerefOrRawSizeExpr(e.size_expr);
+            },
+            [&](const ir::bounds::ByteCount& b) -> std::string {
+              return absl::Substitute("(($0) / sizeof($1))",
+                                      CompileDerefOrRawSizeExpr(b.size_expr),
+                                      inner_ptr_type);
+            },
+            [](const auto&) -> std::string { return "1"; },
+        },
+        buf.bounds);
     absl::SubstituteAndAppend(
         &pre_call,
         "  size_t sapi_count_$0 = ($0 != nullptr) ? static_cast<size_t>($1) : "
@@ -2453,8 +2650,102 @@ void EmitNullTerminatedStructSyncParam(const ir::Parameter& param,
                             param.name);
 }
 
+// Emits host marshaling for a pointer to a `SANDBOX_ANNOTATE_STRUCT` record.
+// Null-terminated struct arrays go to `EmitNullTerminatedStructSyncParam()`.
+// Otherwise, the record is staged in a `sapi::v::Struct`, its annotated
+// members are synced before and after the call, and host member pointers that
+// the sandboxee must not change are restored after the copy-back.
+void EmitStructSyncParam(const ir::Parameter& param,
+                         const ir::StructSyncParam& sync, std::string& pre_call,
+                         std::string& call_args, std::string& post_call) {
+  if (std::holds_alternative<ir::bounds::NullTerminated>(sync.array_bounds)) {
+    EmitNullTerminatedStructSyncParam(param, sync, pre_call, call_args);
+    return;
+  }
+  std::string struct_type = param.type.unqualified_pointee_type_name();
+  bool has_pre_alloc_members = false;
+  for (const auto& s : sync.members) {
+    if (s.direction != PointerDir::kSandboxOpaque) {
+      has_pre_alloc_members = true;
+      break;
+    }
+  }
+  absl::StrAppend(
+      &pre_call,
+      absl::Substitute("  sapi::v::Struct<$0> sapi_tmp_$1($1 != nullptr ? *$1 "
+                       ": ($0){});\n",
+                       struct_type, param.name));
+  if (!sync.members.empty() || !sync.callbacks.empty()) {
+    absl::StrAppend(&pre_call, EmitStructMemberSyncsPreCall(param, sync));
+  }
+  std::string ptr_access =
+      (param.direction() == PointerDir::kIn)
+          ? "PtrBefore()"
+          : ((param.direction() == PointerDir::kOut && !has_pre_alloc_members)
+                 ? "PtrAfter()"
+                 : "PtrBoth()");
+  absl::StrAppend(&call_args,
+                  absl::Substitute("$0 == nullptr ? nullptr : sapi_tmp_$0.$1",
+                                   param.name, ptr_access));
+  if (!sync.members.empty() || !sync.callbacks.empty()) {
+    std::string save_ptrs;
+    std::string restore_ptrs;
+    for (const auto& s : sync.members) {
+      // Allow the sandbox to modify sandbox opaque members, and don't restore
+      // them.
+      if (s.direction == PointerDir::kSandboxOpaque) continue;
+      std::string member_terminal =
+          s.member_name.empty() ? s.access_path() : s.member_name;
+      std::string suffix = absl::StrCat(param.name, "_", member_terminal);
+      std::string host_ptr_expr = s.access_path();
+      absl::SubstituteAndAppend(&save_ptrs,
+                                "    const auto sapi_host_ptr_$0 = $1;\n",
+                                suffix, host_ptr_expr);
+      absl::SubstituteAndAppend(&restore_ptrs,
+                                "    if ($0 != nullptr) {\n"
+                                "      $0 = sapi_host_ptr_$1;\n"
+                                "    }\n",
+                                host_ptr_expr, suffix);
+    }
+    for (const auto& cb_field : sync.callbacks) {
+      absl::SubstituteAndAppend(
+          &restore_ptrs,
+          "    $0->$1 = reinterpret_cast<decltype($0->$1)>(\n"
+          "        $2(reinterpret_cast<uintptr_t>(\n"
+          "            sapi_tmp_$0.data().$1)));\n",
+          param.name, cb_field.member_name,
+          BindThunkName(cb_field.typedef_name));
+    }
+    if (param.direction() != PointerDir::kIn && !param.type.is_const &&
+        !(param.type.pointee && param.type.pointee->is_const)) {
+      absl::SubstituteAndAppend(
+          &post_call,
+          "  if ($0 != nullptr) {\n"
+          "    // Save original host pointers\n"
+          "$1"
+          "    // Sync post-call sandbox data to the struct\n"
+          "    if ($0 != nullptr) {\n"
+          "      *$0 = sapi_tmp_$0.data();\n"
+          "    }\n"
+          "    // Restore original host pointers\n"
+          "$2"
+          "  }\n",
+          param.name, save_ptrs, restore_ptrs);
+    }
+    absl::StrAppend(&post_call, EmitStructMemberSyncsPostCall(param, sync));
+  } else if (param.direction() == PointerDir::kOut ||
+             param.direction() == PointerDir::kInOut) {
+    absl::StrAppend(&post_call,
+                    absl::Substitute("  if ($0 != nullptr) {\n"
+                                     "    *$0 = sapi_tmp_$0.data();\n"
+                                     "  }\n",
+                                     param.name));
+  }
+}
+
 void EmitHostSrcParam(const ir::Parameter& param, std::string& pre_call,
-                      std::string& call_args, std::string& post_call) {
+                      std::string& call_args, std::string& post_call,
+                      bool is_outparam_size_sibling = false) {
   std::visit(
       absl::Overload{
           [&](const ir::CallbackParam& cb) {
@@ -2567,90 +2858,7 @@ void EmitHostSrcParam(const ir::Parameter& param, std::string& pre_call,
                                  param.name));
           },
           [&](const ir::StructSyncParam& sync) {
-            if (std::holds_alternative<ir::bounds::NullTerminated>(
-                    sync.array_bounds)) {
-              EmitNullTerminatedStructSyncParam(param, sync, pre_call,
-                                                call_args);
-              return;
-            }
-            std::string struct_type =
-                param.type.unqualified_pointee_type_name();
-            absl::StrAppend(
-                &pre_call,
-                absl::Substitute(
-                    "  sapi::v::Struct<$0> sapi_tmp_$1($1 != nullptr ? *$1 "
-                    ": ($0){});\n",
-                    struct_type, param.name));
-            if (!sync.members.empty() || !sync.callbacks.empty()) {
-              absl::StrAppend(&pre_call,
-                              EmitStructMemberSyncsPreCall(param, sync));
-            }
-            std::string ptr_access =
-                (param.direction() == PointerDir::kIn)
-                    ? "PtrBefore()"
-                    : ((param.direction() == PointerDir::kOut) ? "PtrAfter()"
-                                                               : "PtrBoth()");
-            absl::StrAppend(
-                &call_args,
-                absl::Substitute("$0 == nullptr ? nullptr : sapi_tmp_$0.$1",
-                                 param.name, ptr_access));
-            if (!sync.members.empty() || !sync.callbacks.empty()) {
-              std::string save_ptrs;
-              std::string restore_ptrs;
-              for (const auto& s : sync.members) {
-                // Allow the sandbox to modify sandbox opaque members, and
-                // don't restore them.
-                if (s.direction == PointerDir::kSandboxOpaque) continue;
-                std::string member_terminal =
-                    s.member_name.empty() ? s.access_path() : s.member_name;
-                std::string suffix =
-                    absl::StrCat(param.name, "_", member_terminal);
-                std::string host_ptr_expr = s.access_path();
-                absl::SubstituteAndAppend(
-                    &save_ptrs, "    const auto sapi_host_ptr_$0 = $1;\n",
-                    suffix, host_ptr_expr);
-                absl::SubstituteAndAppend(&restore_ptrs,
-                                          "    if ($0 != nullptr) {\n"
-                                          "      $0 = sapi_host_ptr_$1;\n"
-                                          "    }\n",
-                                          host_ptr_expr, suffix);
-              }
-              for (const auto& cb_field : sync.callbacks) {
-                absl::SubstituteAndAppend(
-                    &restore_ptrs,
-                    "    $0->$1 = reinterpret_cast<decltype($0->$1)>(\n"
-                    "        $2(reinterpret_cast<uintptr_t>(\n"
-                    "            sapi_tmp_$0.data().$1)));\n",
-                    param.name, cb_field.member_name,
-                    BindThunkName(cb_field.typedef_name));
-              }
-              if (param.direction() != PointerDir::kIn &&
-                  !param.type.is_const &&
-                  !(param.type.pointee && param.type.pointee->is_const)) {
-                absl::SubstituteAndAppend(
-                    &post_call,
-                    "  if ($0 != nullptr) {\n"
-                    "    // Save original host pointers\n"
-                    "$1"
-                    "    // Sync post-call sandbox data to the struct\n"
-                    "    if ($0 != nullptr) {\n"
-                    "      *$0 = sapi_tmp_$0.data();\n"
-                    "    }\n"
-                    "    // Restore original host pointers\n"
-                    "$2"
-                    "  }\n",
-                    param.name, save_ptrs, restore_ptrs);
-              }
-              absl::StrAppend(&post_call,
-                              EmitStructMemberSyncsPostCall(param, sync));
-            } else if (param.direction() == PointerDir::kOut ||
-                       param.direction() == PointerDir::kInOut) {
-              absl::StrAppend(&post_call,
-                              absl::Substitute("  if ($0 != nullptr) {\n"
-                                               "    *$0 = sapi_tmp_$0.data();\n"
-                                               "  }\n",
-                                               param.name));
-            }
+            EmitStructSyncParam(param, sync, pre_call, call_args, post_call);
           },
           [&](const ir::BufferParam& buf) {
             if (buf.pointee != nullptr) {
@@ -2794,30 +3002,53 @@ void EmitHostSrcParam(const ir::Parameter& param, std::string& pre_call,
               if (buf.context_bound.retain_and_bind.has_value()) {
                 absl::SubstituteAndAppend(
                     &pre_call,
+                    "  const size_t sapi_cap_$0 = ($0 != nullptr) ? ($1) : 0;\n"
                     "  sapi::v::RemotePtr sapi_tmp_$0(nullptr);\n"
                     "  if ($0 != nullptr) {\n"
                     "    void* sapi_sb_ptr = nullptr;\n"
                     "    sandbox->Check(\n"
                     "        sandbox->rpc_channel()->Allocate("
-                    "$1, &sapi_sb_ptr));\n"
+                    "sapi_cap_$0, &sapi_sb_ptr));\n"
                     "    sapi_tmp_$0 = sapi::v::RemotePtr(sapi_sb_ptr);\n"
                     "  }\n",
                     param.name, cap_expr);
                 if (param.direction() == PointerDir::kIn ||
                     param.direction() == PointerDir::kInOut) {
-                  absl::SubstituteAndAppend(
-                      &pre_call,
-                      "  if ($0 != nullptr) {\n"
-                      "    sandbox->Check(\n"
-                      "        sandbox->rpc_channel()\n"
-                      "            ->CopyToSandbox("
-                      "sapi_tmp_$0.GetRemoteValue(),\n"
-                      "                            "
-                      "absl::MakeSpan(reinterpret_cast<const char*>($0),\n"
-                      "                                           $1))\n"
-                      "            .status());\n"
-                      "  }\n",
-                      param.name, cap_expr);
+                  if (is_deref_outparam) {
+                    absl::SubstituteAndAppend(
+                        &pre_call,
+                        "  if ($0 != nullptr) {\n"
+                        "    const size_t sapi_init_size_$0 = $1;\n"
+                        "    CHECK_LE(sapi_init_size_$0, sapi_cap_$0);\n"
+                        "    if (sapi_init_size_$0 > 0) {\n"
+                        "      sandbox->Check(\n"
+                        "          sandbox->rpc_channel()\n"
+                        "              ->CopyToSandbox(\n"
+                        "                  sapi_tmp_$0.GetRemoteValue(),\n"
+                        "                  absl::MakeSpan(\n"
+                        "                      reinterpret_cast<const "
+                        "char*>($0),\n"
+                        "                      sapi_init_size_$0))\n"
+                        "              .status());\n"
+                        "    }\n"
+                        "  }\n",
+                        param.name, size_expr);
+                  } else {
+                    absl::SubstituteAndAppend(
+                        &pre_call,
+                        "  if ($0 != nullptr && sapi_cap_$0 > 0) {\n"
+                        "    sandbox->Check(\n"
+                        "        sandbox->rpc_channel()\n"
+                        "            ->CopyToSandbox("
+                        "sapi_tmp_$0.GetRemoteValue(),\n"
+                        "                            "
+                        "absl::MakeSpan(reinterpret_cast<const char*>($0),\n"
+                        "                                           "
+                        "sapi_cap_$0))\n"
+                        "            .status());\n"
+                        "  }\n",
+                        param.name);
+                  }
                 }
                 absl::StrAppend(
                     &call_args,
@@ -2829,11 +3060,31 @@ void EmitHostSrcParam(const ir::Parameter& param, std::string& pre_call,
                   absl::SubstituteAndAppend(
                       &post_call,
                       "  if (sapi_tmp_$0.GetRemoteValue() != 0) {\n"
-                      "    sapi::lwbox::SyncFromSandboxToHost(\n"
-                      "        *sandbox, sapi_tmp_$0.GetRemoteValue(),\n"
-                      "        reinterpret_cast<void*>($0), $1);\n"
+                      "    const size_t sapi_post_size_$0 = $1;\n"
+                      "    CHECK_LE(sapi_post_size_$0, sapi_cap_$0);\n"
+                      "    if (sapi_post_size_$0 > 0) {\n"
+                      "      sapi::lwbox::SyncFromSandboxToHost(\n"
+                      "          *sandbox, sapi_tmp_$0.GetRemoteValue(),\n"
+                      "          reinterpret_cast<void*>($0), "
+                      "sapi_post_size_$0);\n"
+                      "    }\n"
                       "  }\n",
-                      param.name, cap_expr);
+                      param.name, size_expr);
+                }
+                if (param.type.is_pointer()) {
+                  std::string ctx_name = ResolveContextName(
+                      buf.context_bound.retain_and_bind->context);
+                  absl::SubstituteAndAppend(
+                      &post_call,
+                      "  if (sapi_tmp_$0.GetRemoteValue() != 0 && $1 != "
+                      "nullptr) {\n"
+                      "    sapi::lwbox::ContextBindingRegistry::Instance()->"
+                      "RetainPointer(\n"
+                      "        $1, \"$2\", sapi_tmp_$0.GetRemoteValue(), "
+                      "sapi_cap_$0);\n"
+                      "  }\n",
+                      param.name, ctx_name,
+                      buf.context_bound.retain_and_bind->binding_name);
                 }
               } else {
                 // Wrap every non-retained buffer (scalars, void*, and
@@ -2874,98 +3125,113 @@ void EmitHostSrcParam(const ir::Parameter& param, std::string& pre_call,
                         "sapi_tmp_$0(const_cast<char*>(reinterpret_cast<"
                         "const char*>($0)), $1);\n",
                         param.name, cap_expr));
-              }
 
-              if (is_deref_outparam) {
-                absl::StrAppend(
-                    &pre_call,
-                    absl::Substitute(
-                        "  if ($0 != nullptr) {\n"
-                        "    "
-                        "sandbox->Check(sandbox->Allocate(&sapi_tmp_$0, "
-                        "/*automatic_free=*/true));\n"
-                        "  }\n",
-                        param.name));
-                if (param.direction() == PointerDir::kInOut ||
-                    param.direction() == PointerDir::kIn) {
+                if (is_deref_outparam) {
                   absl::StrAppend(
                       &pre_call,
                       absl::Substitute(
                           "  if ($0 != nullptr) {\n"
                           "    "
-                          "sandbox->Check("
-                          "sandbox->rpc_channel()->CopyToSandbox(\n"
-                          "        "
-                          "reinterpret_cast<uintptr_t>("
-                          "sapi_tmp_$0.GetRemote()),\n"
-                          "        absl::MakeSpan(reinterpret_cast<const "
-                          "char*>($0), "
-                          "$1)).status());\n"
+                          "sandbox->Check(sandbox->Allocate(&sapi_tmp_$0, "
+                          "/*automatic_free=*/true));\n"
                           "  }\n",
-                          param.name, size_expr));
-                }
-                absl::StrAppend(
-                    &call_args,
-                    absl::Substitute(
-                        "$0 == nullptr ? nullptr : sapi_tmp_$0.PtrNone()",
-                        param.name));
-                absl::StrAppend(
-                    &post_call,
-                    absl::Substitute(
-                        "  if ($0 != nullptr) {\n"
-                        "    size_t sapi_final_size = $1;\n"
-                        "    size_t sapi_cap_size = $2;\n"
-                        "    if (sapi_final_size > sapi_cap_size) {\n"
-                        "      sandbox->Check(absl::OutOfRangeError(\n"
-                        "          absl::StrCat(\"Sandboxee returned size "
-                        "(\", sapi_final_size,\n"
-                        "                       \") exceeding capacity "
-                        "(\", "
-                        "sapi_cap_size, \") for param $0\")));\n"
-                        "    }\n"
-                        "    sandbox->Check(\n"
-                        "        sandbox->rpc_channel()\n"
-                        "            ->CopyFromSandbox(\n"
-                        "                "
-                        "reinterpret_cast<uintptr_t>(sapi_tmp_$0."
-                        "GetRemote()),\n"
-                        "                "
-                        "absl::MakeSpan("
-                        "reinterpret_cast<char*>($0), sapi_final_size))\n"
-                        "            .status());\n"
+                          param.name));
+                  if (param.direction() == PointerDir::kInOut ||
+                      param.direction() == PointerDir::kIn) {
+                    absl::StrAppend(
+                        &pre_call,
+                        absl::Substitute(
+                            "  if ($0 != nullptr) {\n"
+                            "    "
+                            "sandbox->Check("
+                            "sandbox->rpc_channel()->CopyToSandbox(\n"
+                            "        "
+                            "reinterpret_cast<uintptr_t>("
+                            "sapi_tmp_$0.GetRemote()),\n"
+                            "        absl::MakeSpan(reinterpret_cast<const "
+                            "char*>($0), "
+                            "$1)).status());\n"
+                            "  }\n",
+                            param.name, size_expr));
+                  }
+                  absl::StrAppend(
+                      &call_args,
+                      absl::Substitute(
+                          "$0 == nullptr ? nullptr : sapi_tmp_$0.PtrNone()",
+                          param.name));
+                  // Always check against the pre-call capacity captured in
+                  // `sapi_tmp_<param>.GetSize()` rather than re-evaluating
+                  // `cap_expr` after the sandboxee has run (avoiding TOCTOU
+                  // when `cap_expr` reads `*len` directly or through a
+                  // helper/macro).
+                  std::string post_call_cap_expr =
+                      absl::Substitute("sapi_tmp_$0.GetSize()", param.name);
+                  absl::StrAppend(
+                      &post_call,
+                      absl::Substitute(
+                          "  if ($0 != nullptr) {\n"
+                          "    size_t sapi_final_size = $1;\n"
+                          "    size_t sapi_cap_size = $2;\n"
+                          "    if (sapi_final_size > sapi_cap_size) {\n"
+                          "      sandbox->Check(absl::OutOfRangeError(\n"
+                          "          absl::StrCat(\"Sandboxee returned size "
+                          "(\", sapi_final_size,\n"
+                          "                       \") exceeding capacity "
+                          "(\", "
+                          "sapi_cap_size, \") for param $0\")));\n"
+                          "    }\n"
+                          "    if (sapi_final_size > 0) {\n"
+                          "      sandbox->Check(\n"
+                          "          sandbox->rpc_channel()\n"
+                          "              ->CopyFromSandbox(\n"
+                          "                  "
+                          "reinterpret_cast<uintptr_t>(sapi_tmp_$0."
+                          "GetRemote()),\n"
+                          "                  "
+                          "absl::MakeSpan("
+                          "reinterpret_cast<char*>($0), sapi_final_size))\n"
+                          "              .status());\n"
+                          "    }\n"
+                          "  }\n",
+                          param.name, size_expr, post_call_cap_expr));
+                } else {
+                  const bool sync_out_as_inout =
+                      is_outparam_size_sibling &&
+                      param.direction() == PointerDir::kOut &&
+                      std::holds_alternative<ir::bounds::Singleton>(
+                          buf.bounds) &&
+                      param.type.is_pointee_arithmetic();
+                  std::string ptr_access =
+                      (param.direction() == PointerDir::kIn)
+                          ? "PtrBefore()"
+                          : ((param.direction() == PointerDir::kOut &&
+                              !sync_out_as_inout)
+                                 ? "PtrAfter()"
+                                 : "PtrBoth()");
+                  absl::StrAppend(
+                      &call_args,
+                      absl::Substitute(
+                          "$0 == nullptr ? nullptr : sapi_tmp_$0.$1",
+                          param.name, ptr_access));
+                  if (param.direction() == PointerDir::kInOut &&
+                      std::holds_alternative<ir::bounds::NullTerminated>(
+                          buf.bounds)) {
+                    // Security invariant: ensure an in-place mutated
+                    // null-terminated buffer remains null-terminated on the
+                    // host even if the sandboxee overwrote the trailing
+                    // sentinel.
+                    absl::SubstituteAndAppend(
+                        &post_call,
+                        "  if ($0 != nullptr && sapi_tmp_$0.GetSize() >= "
+                        "sizeof(*$0)) {\n"
+                        "    memset(reinterpret_cast<char*>($0) + "
+                        "sapi_tmp_$0.GetSize() - sizeof(*$0),\n"
+                        "           0, sizeof(*$0));\n"
                         "  }\n",
-                        param.name, size_expr, cap_expr));
-              } else if (!buf.context_bound.retain_and_bind.has_value()) {
-                std::string ptr_access =
-                    (param.direction() == PointerDir::kIn)
-                        ? "PtrBefore()"
-                        : ((param.direction() == PointerDir::kOut)
-                               ? "PtrAfter()"
-                               : "PtrBoth()");
-                absl::StrAppend(
-                    &call_args,
-                    absl::Substitute("$0 == nullptr ? nullptr : sapi_tmp_$0.$1",
-                                     param.name, ptr_access));
+                        param.name);
+                  }
+                }
               }
-            }
-
-            if (buf.context_bound.retain_and_bind.has_value() &&
-                param.type.is_pointer()) {
-              std::string ctx_name = ResolveContextName(
-                  buf.context_bound.retain_and_bind->context);
-              std::string cap_expr = GetParamCapacityAsBytesExpr(param, buf);
-              absl::SubstituteAndAppend(
-                  &post_call,
-                  "  if (sapi_tmp_$0.GetRemoteValue() != 0 && $1 != "
-                  "nullptr) "
-                  "{\n"
-                  "    "
-                  "sapi::lwbox::ContextBindingRegistry::Instance()->"
-                  "RetainPointer(\n"
-                  "        $1, \"$2\", sapi_tmp_$0.GetRemoteValue(), $3);\n"
-                  "  }\n",
-                  param.name, ctx_name,
-                  buf.context_bound.retain_and_bind->binding_name, cap_expr);
             }
           },
           [&](const auto& p) {
@@ -3012,6 +3278,8 @@ absl::flat_hash_set<std::string> GatherHostIncludes(
           } else if (std::holds_alternative<ir::bounds::NullTerminated>(
                          buf->bounds)) {
             host_includes.insert("<vector>");
+          } else if (buf->direction == PointerDir::kOut) {
+            host_includes.insert("<cstring>");
           }
         }
       }
@@ -3069,6 +3337,8 @@ absl::flat_hash_set<std::string> GatherHostIncludes(
                                              cb_buf.bounds)) {
                                 host_includes.insert("<vector>");
                                 host_includes.insert("<cstdint>");
+                              } else if (cb_buf.direction == PointerDir::kOut) {
+                                host_includes.insert("<cstring>");
                               }
                             },
                             [&](const auto& p) {
@@ -3389,9 +3659,25 @@ absl::StatusOr<std::string> EmitHostSrc(
     std::string call_args;
     std::string post_call;
 
+    absl::flat_hash_set<absl::string_view> outparam_size_siblings;
+    for (const auto& param : func->parameters) {
+      if (const auto* buf = param.As<ir::BufferParam>()) {
+        if (const auto* elem_out =
+                std::get_if<ir::bounds::ElemSizedByOutparam>(&buf->bounds)) {
+          outparam_size_siblings.insert(elem_out->outparam_name);
+        } else if (const auto* byte_out =
+                       std::get_if<ir::bounds::ByteSizedByOutparam>(
+                           &buf->bounds)) {
+          outparam_size_siblings.insert(byte_out->outparam_name);
+        }
+      }
+    }
+
     for (size_t i = 0; i < func->parameters.size(); ++i) {
       if (i > 0) absl::StrAppend(&call_args, ", ");
-      EmitHostSrcParam(func->parameters[i], pre_call, call_args, post_call);
+      EmitHostSrcParam(
+          func->parameters[i], pre_call, call_args, post_call,
+          outparam_size_siblings.contains(func->parameters[i].name));
     }
 
     if (func->return_value) {

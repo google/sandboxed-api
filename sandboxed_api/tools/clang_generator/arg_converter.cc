@@ -200,16 +200,29 @@ bool IsIntegerOrEnumType(clang::QualType type) {
 }
 
 // Returns true if the type is a supported NullTerminated input pointer type
-// (`const` integer, enum, or struct pointee, e.g., `const char*`,
-// `const unsigned char*`, `const char16_t*`, `const wchar_t*`, `const int*`,
-// `const Enum*`, `const Struct*`).
+// (integer, enum, or `const` struct pointee, e.g., `const char*`, `char*`,
+// `const unsigned char*`, `unsigned char*`, `const char16_t*`,
+// `const wchar_t*`, `const int*`, `const Enum*`, `const Struct*`).
 bool IsSupportedNullTerminatedInputType(clang::QualType type) {
   if (!type->isPointerType()) {
     return false;
   }
   clang::QualType pointee = type->getPointeeType();
-  return pointee.isConstQualified() &&
-         (IsIntegerOrEnumType(pointee) || pointee->isRecordType());
+  if (pointee->isRecordType()) {
+    return pointee.isConstQualified();
+  }
+  return IsIntegerOrEnumType(pointee);
+}
+
+// Returns true if the type is a mutable integer or enum pointer (e.g., `char*`,
+// `unsigned char*`, `wchar_t*`, `int*`) supported for in-place
+// `SANDBOX_INOUT_PTR SANDBOX_NULL_TERMINATED` mutation.
+bool IsSupportedInPlaceNullTerminatedInOutType(clang::QualType type) {
+  if (!type->isPointerType()) {
+    return false;
+  }
+  clang::QualType pointee = type->getPointeeType();
+  return !pointee.isConstQualified() && IsIntegerOrEnumType(pointee);
 }
 
 // Returns true if the type is a supported NullTerminated outparam type.
@@ -853,8 +866,8 @@ absl::Status ValidateParamAnnotations(absl::string_view name,
         if (!ann.pointee_contract.has_value() &&
             !IsSupportedNullTerminatedInputType(type)) {
           return absl::InvalidArgumentError(absl::Substitute(
-              "pointer argument $0 is null-terminated but not a const integer, "
-              "enum, or struct pointer",
+              "pointer argument $0 is null-terminated but not an integer, "
+              "enum, or const struct pointer",
               name));
         }
       } else if (ann.ptr_dir != PointerDir::kIn) {
@@ -867,7 +880,11 @@ absl::Status ValidateParamAnnotations(absl::string_view name,
                 "be a const char**",
                 name));
           }
-        } else {
+        } else if (!(ann.ptr_dir == PointerDir::kInOut && !is_callback_param &&
+                     !is_pointee_contract &&
+                     !ann.pointee_contract.has_value() &&
+                     std::holds_alternative<std::monostate>(ann.lifetime) &&
+                     IsSupportedInPlaceNullTerminatedInOutType(type))) {
           return absl::InvalidArgumentError(absl::Substitute(
               "pointer argument $0: null_terminated annotation for "
               "output requires a lifetime annotation.",
@@ -1133,8 +1150,15 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
         ast_ctx != nullptr) {
       const clang::ASTContext& context = *ast_ctx;
       std::string copyability_reason;
-      if (!is_callback_param && ann.ptr_dir == PointerDir::kIn &&
-          std::holds_alternative<NullTerminated>(ann.size_type) &&
+      const bool is_null_terminated_struct_array =
+          ann.ptr_dir == PointerDir::kIn &&
+          std::holds_alternative<NullTerminated>(ann.size_type);
+      const bool is_single_struct_ptr =
+          std::holds_alternative<std::monostate>(ann.size_type) &&
+          (ann.ptr_dir == PointerDir::kIn || ann.ptr_dir == PointerDir::kOut ||
+           ann.ptr_dir == PointerDir::kInOut);
+      if (!is_callback_param && !is_pointee_contract &&
+          (is_null_terminated_struct_array || is_single_struct_ptr) &&
           ann.struct_sync.empty() && !ann.shallow_struct_sync) {
         if (const auto* record_decl = type->getPointeeType()->getAsRecordDecl();
             record_decl != nullptr &&
@@ -1164,7 +1188,9 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                         matched_member->size_type) &&
                     field->getType()->isPointerType() &&
                     !field->getType()->isFunctionPointerType() &&
-                    field->getType()->getPointeeType().isConstQualified()) {
+                    (!std::holds_alternative<NullTerminated>(
+                         matched_member->size_type) ||
+                     IsSupportedNullTerminatedInputType(field->getType()))) {
                   const bool is_void_byte_sized =
                       (std::holds_alternative<ByteSizedBy>(
                            matched_member->size_type) ||
@@ -1187,10 +1213,39 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                     all_fields_ok = false;
                     break;
                   }
+                  const bool is_const_or_null_term =
+                      field->getType()->getPointeeType().isConstQualified() ||
+                      std::holds_alternative<NullTerminated>(
+                          matched_member->size_type);
+                  if (is_null_terminated_struct_array &&
+                      !field->getType()->getPointeeType().isConstQualified()) {
+                    copyability_reason = absl::Substitute(
+                        "field $0 of '$1': null-terminated struct array "
+                        "requires const pointee",
+                        std::string(field_name),
+                        type->getPointeeType().getAsString());
+                    all_fields_ok = false;
+                    break;
+                  }
+                  if (is_single_struct_ptr &&
+                      *ann.ptr_dir == PointerDir::kOut) {
+                    copyability_reason = absl::Substitute(
+                        "field $0 of '$1': caller-allocated pointer field on "
+                        "out_ptr struct requires inout_ptr on the struct "
+                        "parameter",
+                        std::string(field_name),
+                        type->getPointeeType().getAsString());
+                    all_fields_ok = false;
+                    break;
+                  }
+                  PointerDir member_dir =
+                      (is_null_terminated_struct_array || is_const_or_null_term)
+                          ? PointerDir::kIn
+                          : *ann.ptr_dir;
                   inferred_syncs.push_back(StructSync{
                       .access_path =
                           absl::StrCat(name, "->", field->getNameAsString()),
-                      .ptr_dir = PointerDir::kIn,
+                      .ptr_dir = member_dir,
                   });
                   continue;
                 }

@@ -37,6 +37,7 @@ namespace {
 using ::absl_testing::IsOk;
 using ::absl_testing::StatusIs;
 using ::testing::AllOf;
+using ::testing::ContainsRegex;
 using ::testing::HasSubstr;
 using ::testing::Not;
 using ::testing::StartsWith;
@@ -708,6 +709,138 @@ TEST_F(SandboxedLibraryEmitterTest, UnusedPointeeContractIsReported) {
                      Not(HasSubstr("referenced_pointee")),
                      Not(HasSubstr("transitive_leaf_pointee")),
                      Not(HasSubstr("outer_matrix_pointee")))));
+}
+
+TEST_F(SandboxedLibraryEmitterTest,
+       NonConstAndInPlaceMutableNullTerminatedArrays) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  options.sandboxed_library_gen = true;
+  SandboxedLibraryEmitter emitter;
+  ASSERT_THAT(
+      RunFrontendAction(R"(
+    extern "C" int read_non_const_str(
+        char* in_str [[clang::annotate("sandbox", "in_ptr")]]
+                     [[clang::annotate("sandbox", "null_terminated")]],
+        unsigned char* ustr [[clang::annotate("sandbox", "in_ptr")]]
+                            [[clang::annotate("sandbox", "null_terminated")]]);
+
+    extern "C" void munge_in_place_str(
+        char* io_str [[clang::annotate("sandbox", "inout_ptr")]]
+                     [[clang::annotate("sandbox", "null_terminated")]],
+        int* codes [[clang::annotate("sandbox", "inout_ptr")]]
+                   [[clang::annotate("sandbox", "null_terminated")]]);
+  )",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+
+  ASSERT_THAT(emitter.PostParseAllFiles(), IsOk());
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string host_src, emitter.EmitHostSrc(options));
+  EXPECT_THAT(host_src,
+              HasSubstr("sapi::lwbox::NullTerminatedByteSize(in_str)"));
+  EXPECT_THAT(host_src, HasSubstr("sapi_tmp_in_str.PtrBefore()"));
+  EXPECT_THAT(
+      host_src,
+      Not(HasSubstr("reinterpret_cast<char*>(in_str) + sapi_tmp_in_str")));
+  EXPECT_THAT(host_src, HasSubstr("sapi::lwbox::NullTerminatedByteSize(ustr)"));
+  EXPECT_THAT(host_src, HasSubstr("sapi_tmp_io_str.PtrBoth()"));
+  EXPECT_THAT(host_src, HasSubstr("sapi_tmp_codes.PtrBoth()"));
+  EXPECT_THAT(
+      host_src,
+      ContainsRegex(
+          R"(memset\(reinterpret_cast<char\*>\(io_str\) \+\s*sapi_tmp_io_str\.GetSize\(\)\s*-\s*sizeof\(\*io_str\))"));
+  // For `int*`, the restored zero sentinel spans a whole element.
+  EXPECT_THAT(
+      host_src,
+      ContainsRegex(
+          R"(memset\(reinterpret_cast<char\*>\(codes\) \+\s*sapi_tmp_codes\.GetSize\(\)\s*-\s*sizeof\(\*codes\),\s*0,\s*sizeof\(\*codes\)\))"));
+}
+
+TEST_F(SandboxedLibraryEmitterTest,
+       SingleStructPointerInfersStructSyncFromAnnotateStruct) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  options.sandboxed_library_gen = true;
+  SandboxedLibraryEmitter emitter;
+  ASSERT_THAT(
+      RunFrontendAction(R"(
+    struct Packet {
+      const char* tag;
+      int* values;
+      void* raw_payload;
+      unsigned long count;
+    };
+
+    inline void sandbox_annotation_1() {
+      struct Packet {
+        [[clang::annotate("sandbox", "null_terminated")]] const char* tag;
+        [[clang::annotate("sandbox", "elem_sized_by", "count")]] int* values;
+        [[clang::annotate("sandbox", "byte_sized_by", "count")]]
+        void* raw_payload;
+        unsigned long count;
+      };
+    }
+
+    extern "C" int inspect_packet(
+        const Packet* pkt [[clang::annotate("sandbox", "in_ptr")]]);
+
+    extern "C" int mutate_packet(
+        Packet* pkt [[clang::annotate("sandbox", "inout_ptr")]]);
+  )",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+
+  ASSERT_THAT(emitter.PostParseAllFiles(), IsOk());
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string host_src, emitter.EmitHostSrc(options));
+  EXPECT_THAT(host_src, HasSubstr("sapi_sb_copy_pkt_tag"));
+  EXPECT_THAT(host_src,
+              HasSubstr("sapi::lwbox::NullTerminatedByteSize(pkt->tag)"));
+  EXPECT_THAT(host_src, HasSubstr("sapi_sb_copy_pkt_values"));
+  EXPECT_THAT(host_src, HasSubstr("sapi_sb_copy_pkt_raw_payload"));
+  // The in-out `values` pointee is copied back into host memory, but the
+  // `const char*` `tag` is never written back.
+  EXPECT_THAT(
+      host_src,
+      ContainsRegex(
+          R"(SyncFromSandboxToHost\(\s*\*sandbox,\s*reinterpret_cast<uintptr_t>\(sapi_sb_copy_pkt_values\))"));
+  EXPECT_THAT(
+      host_src,
+      Not(ContainsRegex(
+          R"(SyncFromSandboxToHost\(\s*\*sandbox,\s*reinterpret_cast<uintptr_t>\(sapi_sb_copy_pkt_tag\))")));
+}
+
+TEST_F(SandboxedLibraryEmitterTest, InOutCountCapacityUsesCapturedPreCallSize) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  options.sandboxed_library_gen = true;
+  SandboxedLibraryEmitter emitter;
+  ASSERT_THAT(
+      RunFrontendAction(R"(
+    extern "C" int compress_buf(
+        char* dst [[clang::annotate("sandbox", "out_ptr")]]
+                  [[clang::annotate("sandbox", "byte_sized_by_outparam",
+                                    "*dst_len", "*dst_len")]],
+        unsigned long* dst_len [[clang::annotate("sandbox", "inout_ptr")]]);
+
+    extern "C" int fill_items(
+        int* items [[clang::annotate("sandbox", "out_ptr")]]
+                   [[clang::annotate("sandbox", "elem_sized_by", "*count")]],
+        unsigned long* count [[clang::annotate("sandbox", "inout_ptr")]]);
+  )",
+                        std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+
+  ASSERT_THAT(emitter.PostParseAllFiles(), IsOk());
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string host_src, emitter.EmitHostSrc(options));
+  EXPECT_THAT(host_src,
+              HasSubstr("size_t sapi_cap_size = sapi_tmp_dst.GetSize();"));
+  EXPECT_THAT(host_src,
+              HasSubstr("size_t sapi_cap_size = sapi_tmp_items.GetSize();"));
+  EXPECT_THAT(
+      host_src,
+      ContainsRegex(
+          R"(size_t sapi_final_size =\s*\(count == nullptr\s*\?\s*0\s*:\s*sandbox->CheckedMultiply\(\s*sizeof\(\*items\),\s*sapi::lwbox::CheckedToSizeT\(\*count\)\)\);)"));
+  EXPECT_THAT(host_src, HasSubstr("sapi::lwbox::CheckedToSizeT(*dst_len)"));
 }
 
 using SandboxedLibraryEmitterErrorTest = SandboxedLibraryEmitterTest;

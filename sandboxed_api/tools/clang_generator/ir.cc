@@ -25,6 +25,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
 #include "absl/strings/ascii.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
@@ -202,16 +203,12 @@ std::optional<absl::string_view> SoleReferencedParam(
   return stripped;
 }
 
-// Rejects callback sizing or capacity expressions that reference any
-// non-scalar sibling parameter. In host callback trampolines, non-scalar
-// lambda parameters hold raw untrusted sandboxee addresses or tokens rather
-// than host values, so evaluating expressions such as `*len` or `hdr->len`
-// directly in the lambda would dereference an untrusted sandboxee pointer in
-// host memory. Unevaluated `sizeof` / `alignof` / `decltype` operands and
-// struct member names after `.` or `->` are skipped.
-absl::Status ValidateCallbackExprUsesOnlyScalarParams(
-    absl::Span<const Parameter> scope, absl::string_view scope_desc,
-    absl::string_view role, absl::string_view expr) {
+// Invokes `visit(ident)` on every evaluated identifier in `expr`, skipping
+// string/character literals, struct member names after `.` or `->`, and
+// unevaluated `sizeof`, `alignof`, and `decltype` operands.
+template <typename VisitFn>
+absl::Status ForEachEvaluatedIdentifier(absl::string_view expr,
+                                        VisitFn&& visit) {
   size_t i = 0;
   const size_t n = expr.size();
   auto skip_ws = [&]() {
@@ -276,7 +273,11 @@ absl::Status ValidateCallbackExprUsesOnlyScalarParams(
                            absl::ascii_isspace(expr[i]))) {
             ++i;
           }
-          while (i < n && (absl::ascii_isalnum(expr[i]) || expr[i] == '_')) {
+          while (i < n &&
+                 (absl::ascii_isalnum(expr[i]) || expr[i] == '_' ||
+                  expr[i] == '.' ||
+                  (expr[i] == '-' && i + 1 < n && expr[i + 1] == '>'))) {
+            if (expr[i] == '-') ++i;
             ++i;
           }
         }
@@ -284,13 +285,7 @@ absl::Status ValidateCallbackExprUsesOnlyScalarParams(
         continue;
       }
       if (!after_member_op) {
-        const Parameter* param = FindInScope(scope, ident);
-        if (param != nullptr && !param->Is<ScalarParam>()) {
-          return absl::InvalidArgumentError(absl::Substitute(
-              "$0 $1: callback sizing expression '$2' cannot reference "
-              "non-scalar parameter $3.",
-              scope_desc, role, expr, ident));
-        }
+        ABSL_RETURN_IF_ERROR(visit(ident));
       }
       after_member_op = false;
       continue;
@@ -301,8 +296,14 @@ absl::Status ValidateCallbackExprUsesOnlyScalarParams(
   return absl::OkStatus();
 }
 
-// Checks that a sizing expression which names exactly one sibling parameter
-// names one that exists, and in callbacks only references scalar parameters.
+// Checks that a sizing expression which names a single sibling parameter names
+// one that exists, never reads an output-only (`SANDBOX_OUT_PTR`) parameter
+// before the call, and in callbacks only references scalar parameters.
+//
+// In host callback trampolines, non-scalar lambda parameters hold raw untrusted
+// sandboxee addresses or tokens rather than host values, so evaluating
+// expressions such as `*len` or `hdr->len` directly in the lambda would
+// dereference an untrusted sandboxee pointer in host memory.
 absl::Status ValidateSizeExpr(absl::Span<const Parameter> scope,
                               absl::string_view scope_desc,
                               absl::string_view role,
@@ -315,11 +316,28 @@ absl::Status ValidateSizeExpr(absl::Span<const Parameter> scope,
         "its sizing expression.",
         scope_desc, role, *sibling));
   }
-  if (in_callback) {
-    ABSL_RETURN_IF_ERROR(ValidateCallbackExprUsesOnlyScalarParams(
-        scope, scope_desc, role, size_expr));
-  }
-  return absl::OkStatus();
+  return ForEachEvaluatedIdentifier(
+      size_expr, [&](absl::string_view ident) -> absl::Status {
+        const Parameter* sib = FindInScope(scope, ident);
+        if (sib == nullptr) {
+          return absl::OkStatus();
+        }
+        if (in_callback && !sib->Is<ScalarParam>()) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "$0 $1: callback sizing expression '$2' cannot reference "
+              "non-scalar parameter $3.",
+              scope_desc, role, size_expr, ident));
+        }
+        if (sib->direction() == PointerDir::kOut) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "$0 $1: sizing expression '$2' cannot read SANDBOX_OUT_PTR "
+              "parameter $3 before the call; use "
+              "SANDBOX_ELEM_SIZED_BY_OUTPARAM / SANDBOX_BYTE_SIZED_BY_OUTPARAM "
+              "or SANDBOX_INOUT_PTR.",
+              scope_desc, role, size_expr, ident));
+        }
+        return absl::OkStatus();
+      });
 }
 
 // Checks that the sibling an outparam-sized buffer is sized by exists and is
@@ -437,7 +455,8 @@ absl::Status ValidateCallbackScope(absl::string_view cb_param_name,
 // that concern a single parameter in isolation are enforced by the frontend
 // when the IR is built (see arg_converter.cc); everything here needs the whole
 // parameter list, either to look a sibling up or to write back to it.
-absl::Status ValidateAndLinkParameter(Function& func, Parameter& param) {
+absl::Status ValidateAndLinkParameter(Function& func, Parameter& param,
+                                      bool is_top_level = true) {
   std::string role = param.is_return_value
                          ? "return value"
                          : absl::StrCat("parameter ", param.name);
@@ -454,7 +473,7 @@ absl::Status ValidateAndLinkParameter(Function& func, Parameter& param) {
   }
 
   const LifetimePolicy* policy = nullptr;
-  if (const auto* buf = param.As<BufferParam>()) {
+  if (auto* buf = param.As<BufferParam>()) {
     policy = &buf->lifetime;
     absl::Span<const Parameter> scope = func.parameters;
     std::string scope_desc = absl::StrCat("Function ", func.name);
@@ -465,6 +484,74 @@ absl::Status ValidateAndLinkParameter(Function& func, Parameter& param) {
     }
     ABSL_RETURN_IF_ERROR(ValidateBufferBounds(scope, scope_desc, role,
                                               buf->bounds, in_callback));
+    if (is_top_level && buf->pointee == nullptr && param.IsOutput() &&
+        !param.is_return_value &&
+        !buf->context_bound.copy_from_and_bind.has_value()) {
+      if (const auto* elem = std::get_if<bounds::ElemCount>(&buf->bounds)) {
+        absl::string_view trimmed = absl::StripAsciiWhitespace(elem->size_expr);
+        std::optional<absl::string_view> sibling =
+            SoleReferencedParam(elem->size_expr);
+        if (absl::StartsWith(trimmed, "*") && sibling.has_value()) {
+          const Parameter* sib = FindInScope(scope, *sibling);
+          if (sib != nullptr && sib != &param && sib->IsInOut()) {
+            buf->bounds = bounds::ElemSizedByOutparam{
+                .outparam_name = std::string(*sibling),
+                .capacity_expr =
+                    absl::Substitute("($0 == nullptr ? 0 : "
+                                     "sandbox->CheckedMultiply(sizeof(*$1), "
+                                     "sapi::lwbox::CheckedToSizeT(*$0)))",
+                                     *sibling, param.name),
+            };
+          }
+        }
+      } else if (const auto* byte =
+                     std::get_if<bounds::ByteCount>(&buf->bounds)) {
+        absl::string_view trimmed = absl::StripAsciiWhitespace(byte->size_expr);
+        std::optional<absl::string_view> sibling =
+            SoleReferencedParam(byte->size_expr);
+        if (absl::StartsWith(trimmed, "*") && sibling.has_value()) {
+          const Parameter* sib = FindInScope(scope, *sibling);
+          if (sib != nullptr && sib != &param && sib->IsInOut()) {
+            buf->bounds = bounds::ByteSizedByOutparam{
+                .outparam_name = std::string(*sibling),
+                .capacity_expr = absl::Substitute(
+                    "($0 == nullptr ? 0 : sapi::lwbox::CheckedToSizeT(*$0))",
+                    *sibling),
+            };
+          }
+        }
+      }
+
+      // Any remaining ElemCount/ByteCount on a single-level output buffer
+      // (excluding callee-allocated copy_from_and_bind) was not rewritten to
+      // *SizedByOutparam (for example, a compound expression such as
+      // '*inout_len * 2' or missing '*' on an in-out pointer sibling). Reject
+      // references to SANDBOX_INOUT_PTR siblings so output sizing is never
+      // silently fixed at the pre-call value while ignoring post-call updates
+      // to the sibling.
+      const std::string* unrewritten_expr = nullptr;
+      if (const auto* elem = std::get_if<bounds::ElemCount>(&buf->bounds)) {
+        unrewritten_expr = &elem->size_expr;
+      } else if (const auto* byte =
+                     std::get_if<bounds::ByteCount>(&buf->bounds)) {
+        unrewritten_expr = &byte->size_expr;
+      }
+      if (unrewritten_expr != nullptr) {
+        ABSL_RETURN_IF_ERROR(ForEachEvaluatedIdentifier(
+            *unrewritten_expr, [&](absl::string_view ident) -> absl::Status {
+              const Parameter* sib = FindInScope(scope, ident);
+              if (sib != nullptr && sib->IsInOut()) {
+                return absl::InvalidArgumentError(absl::Substitute(
+                    "$0 $1: sizing expression '$2' on an output buffer cannot "
+                    "reference SANDBOX_INOUT_PTR parameter $3 unless written "
+                    "as '*$3'; use SANDBOX_ELEM_SIZED_BY_OUTPARAM / "
+                    "SANDBOX_BYTE_SIZED_BY_OUTPARAM or SANDBOX_IN_PTR.",
+                    scope_desc, role, *unrewritten_expr, ident));
+              }
+              return absl::OkStatus();
+            }));
+      }
+    }
     if (buf->pointee != nullptr) {
       if (in_callback) {
         if (const auto* inner_buf = buf->pointee->As<BufferParam>();
@@ -475,7 +562,8 @@ absl::Status ValidateAndLinkParameter(Function& func, Parameter& param) {
               scope_desc, role));
         }
       }
-      ABSL_RETURN_IF_ERROR(ValidateAndLinkParameter(func, *buf->pointee));
+      ABSL_RETURN_IF_ERROR(ValidateAndLinkParameter(func, *buf->pointee,
+                                                    /*is_top_level=*/false));
     }
   } else if (const auto* opaque = param.As<OpaquePointerParam>()) {
     policy = &opaque->lifetime;

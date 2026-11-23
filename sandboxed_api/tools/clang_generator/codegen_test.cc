@@ -716,11 +716,13 @@ TEST(EmitHostSrcTest,
   ASSERT_THAT(src, IsOk());
   EXPECT_THAT(
       *src,
-      AllOf(HasSubstr("(items)), cap_bytes)"),
-            HasSubstr("sapi_tmp_items.PtrNone()"),
-            Not(HasSubstr("CopyToSandbox")),
-            HasSubstr("sandbox->CheckedMultiply(sizeof(*items), (*out_count))"),
-            HasSubstr("absl::OutOfRangeError"), HasSubstr("CopyFromSandbox")));
+      AllOf(
+          HasSubstr("(items)), cap_bytes)"),
+          HasSubstr("sapi_tmp_items.PtrNone()"),
+          Not(HasSubstr("CopyToSandbox")),
+          ContainsRegex(
+              R"(\(out_count == nullptr\s*\?\s*0\s*:\s*sandbox->CheckedMultiply\(\s*sizeof\(\*items\),\s*sapi::lwbox::CheckedToSizeT\(\*out_count\)\)\))"),
+          HasSubstr("absl::OutOfRangeError"), HasSubstr("CopyFromSandbox")));
 }
 
 // Packet-transformation C APIs often mutate a buffer in place where the buffer
@@ -755,10 +757,11 @@ TEST(EmitHostSrcTest, ByteSizedByOutparamInOutCopiesInitialAndFinalSize) {
       *src,
       AllOf(
           HasSubstr("(pkt)), cap_bytes)"), HasSubstr("CopyToSandbox"),
-          HasSubstr(
-              "absl::MakeSpan(reinterpret_cast<const char*>(pkt), *inout_len)"),
+          ContainsRegex(
+              R"(absl::MakeSpan\(reinterpret_cast<const char\*>\(pkt\),\s*\(inout_len == nullptr\s*\?\s*0\s*:\s*sapi::lwbox::CheckedToSizeT\(\*inout_len\)\)\))"),
           HasSubstr("sapi_tmp_inout_len.PtrBoth()"),
-          HasSubstr("size_t sapi_final_size = *inout_len;"),
+          ContainsRegex(
+              R"(size_t sapi_final_size =\s*\(inout_len == nullptr\s*\?\s*0\s*:\s*sapi::lwbox::CheckedToSizeT\(\*inout_len\)\);)"),
           HasSubstr("absl::OutOfRangeError"), HasSubstr("CopyFromSandbox")));
 }
 
@@ -1628,5 +1631,171 @@ TEST(EmitHostSrcTest,
       HasSubstr("sapi::lwbox::ReadNullTerminatedArray<KeyValuePair>(\n"
                 "            *sandbox, reinterpret_cast<uintptr_t>(pairs))"));
 }
+
+TEST(EmitHostSrcTest,
+     RetainedInOutBufferEvaluatesCapacityOnceAndClampsPostCallSync) {
+  ir::Parameter data = BufferArg("data", ScalarType("int"), PointerDir::kInOut,
+                                 ElemCount("*inout_len"));
+  data.As<ir::BufferParam>()->context_bound.retain_and_bind =
+      RetainAndBind{.context = "ctx", .binding_name = "payload"};
+
+  ir::Function func{
+      .name = "ctx_bind_inout_ints",
+      .parameters =
+          {
+              ir::Parameter{
+                  .name = "ctx",
+                  .type = PointerTo(VoidType()),
+                  .payload =
+                      ir::OpaquePointerParam{
+                          .direction = PointerDir::kSandboxOpaque,
+                      },
+              },
+              std::move(data),
+              BufferArg("inout_len", ScalarType("size_t"), PointerDir::kInOut,
+                        ir::bounds::Singleton{}),
+          },
+  };
+
+  absl::StatusOr<std::string> src = HostSrc(std::move(func));
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(
+          ContainsRegex(
+              R"(const size_t sapi_cap_data =\s*\(data != nullptr\)\s*\?\s*\(\(inout_len == nullptr\s*\?\s*0\s*:\s*sandbox->CheckedMultiply\(\s*sizeof\(\*data\),\s*sapi::lwbox::CheckedToSizeT\(\*inout_len\)\)\)\)\s*:\s*0;)"),
+          HasSubstr("Allocate(sapi_cap_data, &sapi_sb_ptr)"),
+          HasSubstr("if (data != nullptr && sapi_cap_data > 0)"),
+          ContainsRegex(
+              R"(const size_t sapi_post_size_data =\s*\(inout_len == nullptr\s*\?\s*0\s*:\s*sandbox->CheckedMultiply\(\s*sizeof\(\*data\),\s*sapi::lwbox::CheckedToSizeT\(\*inout_len\)\)\);)"),
+          HasSubstr("CHECK_LE(sapi_post_size_data, sapi_cap_data);"),
+          HasSubstr("if (sapi_post_size_data > 0)"),
+          HasSubstr("RetainPointer(\n"
+                    "        ctx, \"payload\", sapi_tmp_data.GetRemoteValue(), "
+                    "sapi_cap_data)")));
+}
+
+TEST(EmitHostSrcTest,
+     InputBufferSizedByDerefGuardsNullAndChecksSignedCountWithoutWriteback) {
+  ir::Function func{
+      .name = "read_in_buffers_with_deref_counts",
+      .parameters =
+          {
+              BufferArg("elems", ScalarType("const int"), PointerDir::kIn,
+                        ElemCount("*inout_count")),
+              BufferArg("bytes", ScalarType("const char"), PointerDir::kIn,
+                        ByteCount("*inout_bytes")),
+              BufferArg("inout_count", ScalarType("int"), PointerDir::kInOut,
+                        ir::bounds::Singleton{}),
+              BufferArg("inout_bytes", ScalarType("int"), PointerDir::kInOut,
+                        ir::bounds::Singleton{}),
+          },
+  };
+
+  absl::StatusOr<std::string> src = HostSrc(std::move(func));
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(
+          ContainsRegex(
+              R"(\(inout_count == nullptr\s*\?\s*0\s*:\s*sandbox->CheckedMultiply\(\s*sizeof\(\*elems\),\s*sapi::lwbox::CheckedToSizeT\(\*inout_count\)\)\))"),
+          ContainsRegex(
+              R"(\(inout_bytes == nullptr\s*\?\s*0\s*:\s*sapi::lwbox::CheckedToSizeT\(\*inout_bytes\)\))"),
+          HasSubstr("sapi_tmp_elems.PtrBefore()"),
+          HasSubstr("sapi_tmp_bytes.PtrBefore()"),
+          Not(HasSubstr("CopyFromSandbox"))));
+}
+
+TEST(EmitHostSrcTest,
+     CallbackOutparamCountSiblingZerosOutPtrAndValidatesInOutPtrBounds) {
+  ir::Function out_invoker{
+      .name = "sapi_invoke_fill_signed_out",
+      .parameters =
+          {
+              ScalarArg("sapi_target", "uintptr_t"),
+              BufferArg("buf", ScalarType("int"), PointerDir::kOut,
+                        ir::bounds::ElemSizedByOutparam{
+                            .outparam_name = "out_count",
+                            .capacity_expr = "cap_bytes",
+                        }),
+              BufferArg("out_count", ScalarType("int"), PointerDir::kOut,
+                        ir::bounds::Singleton{}),
+              ScalarArg("cap_bytes", "size_t"),
+          },
+      .invoker_for_typedef = "fill_signed_out",
+  };
+
+  absl::StatusOr<std::string> out_src = HostSrc(std::move(out_invoker));
+  ASSERT_THAT(out_src, IsOk());
+  EXPECT_THAT(
+      *out_src,
+      AllOf(
+          Not(HasSubstr("TransferFromSandboxee(&sapi_arr_out_count.value())")),
+          ContainsRegex(
+              R"(memset\(sapi_arr_out_count->GetData\(\),\s*0,\s*sapi_arr_out_count->GetSize\(\)\);)"),
+          ContainsRegex(
+              R"(sapi::lwbox::CheckedToSizeT\(\s*\*sapi_host_out_count\))"),
+          HasSubstr("TransferToSandboxee(&sapi_arr_out_count.value())")));
+
+  ir::Function inout_invoker{
+      .name = "sapi_invoke_xform_signed_inout",
+      .parameters =
+          {
+              ScalarArg("sapi_target", "uintptr_t"),
+              BufferArg("buf", ScalarType("char"), PointerDir::kInOut,
+                        ir::bounds::ByteSizedByOutparam{
+                            .outparam_name = "inout_len",
+                            .capacity_expr = "cap_bytes",
+                        }),
+              BufferArg("inout_len", ScalarType("int"), PointerDir::kInOut,
+                        ir::bounds::Singleton{}),
+              ScalarArg("cap_bytes", "size_t"),
+          },
+      .invoker_for_typedef = "xform_signed_inout",
+  };
+
+  absl::StatusOr<std::string> inout_src = HostSrc(std::move(inout_invoker));
+  ASSERT_THAT(inout_src, IsOk());
+  EXPECT_THAT(
+      *inout_src,
+      AllOf(
+          HasSubstr("TransferFromSandboxee(&sapi_arr_inout_len.value())"),
+          ContainsRegex(
+              R"(size_t sapi_in_bytes_buf =\s*sapi::lwbox::CheckedToSizeT\(\s*\*sapi_host_inout_len\);)"),
+          HasSubstr("CHECK_LE(sapi_in_bytes_buf, sapi_arr_buf->GetSize());"),
+          ContainsRegex(
+              R"(sapi_host_inout_len == nullptr\s*\?\s*0\s*:\s*sapi::lwbox::CheckedToSizeT\(\s*\*sapi_host_inout_len\))"),
+          HasSubstr("CHECK_LE(sapi_out_bytes_buf, sapi_arr_buf->GetSize());")));
+}
+
+TEST(EmitHostSrcTest,
+     OutparamSizedBufferSyncsOutLengthPtrBothAndGuardsZeroByteCopyFromSandbox) {
+  ir::Function func{
+      .name = "read_items_or_fail",
+      .parameters =
+          {
+              BufferArg("items", ScalarType("int"), PointerDir::kOut,
+                        ir::bounds::ElemSizedByOutparam{
+                            .outparam_name = "out_count",
+                            .capacity_expr = "cap_bytes"}),
+              BufferArg("out_count", ScalarType("size_t"), PointerDir::kOut,
+                        ir::bounds::Singleton{}),
+              BufferArg("unrelated_out", ScalarType("size_t"), PointerDir::kOut,
+                        ir::bounds::Singleton{}),
+              ScalarArg("cap_bytes", "size_t"),
+          },
+  };
+
+  absl::StatusOr<std::string> src = HostSrc(std::move(func));
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(
+          HasSubstr("sapi_tmp_out_count.PtrBoth()"),
+          HasSubstr("sapi_tmp_unrelated_out.PtrAfter()"),
+          ContainsRegex(
+              R"(if \(sapi_final_size > 0\) \{\s*sandbox->Check\(\s*sandbox->rpc_channel\(\)\s*->CopyFromSandbox)")));
+}
+
 }  // namespace
 }  // namespace sapi
