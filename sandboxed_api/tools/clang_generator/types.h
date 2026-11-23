@@ -55,6 +55,12 @@ inline bool IsPointerOrReference(clang::QualType qual) {
 // For example, for `int**` it returns `int`.
 clang::QualType GetFinalPointeeType(clang::QualType qual);
 
+// Returns true if `qual` can be marshaled directly by value as a SAPI scalar,
+// void, enum, or pointer/reference parameter/return type. Rejects extended
+// scalar types not supported by `sapi::v::Reg` (such as 128-bit integers and
+// half/quad precision floats) and `std::nullptr_t`.
+bool IsSupportedQualType(clang::QualType qual);
+
 // RenderedType objects are used to keep track of types that are going to be
 // emitted in the generated header.
 class RenderedType {

@@ -43,6 +43,52 @@ clang::QualType GetFinalPointeeType(clang::QualType qual) {
   return pointee_type;
 }
 
+bool IsSupportedQualType(clang::QualType qual) {
+  if (IsPointerOrReference(qual)) {
+    return true;
+  }
+  if (const auto* enum_type = qual->getAs<clang::EnumType>()) {
+    const clang::EnumDecl* enum_decl = enum_type->getDecl();
+    if (const clang::EnumDecl* def = enum_decl->getDefinition()) {
+      enum_decl = def;
+    }
+    clang::QualType int_type = enum_decl->getIntegerType();
+    return int_type.isNull() || IsSupportedQualType(int_type);
+  }
+  if (const auto* builtin = qual->getAs<clang::BuiltinType>()) {
+    switch (builtin->getKind()) {
+      case clang::BuiltinType::Void:
+      case clang::BuiltinType::Bool:
+      case clang::BuiltinType::Char_U:
+      case clang::BuiltinType::UChar:
+      case clang::BuiltinType::WChar_U:
+      case clang::BuiltinType::Char8:
+      case clang::BuiltinType::Char16:
+      case clang::BuiltinType::Char32:
+      case clang::BuiltinType::UShort:
+      case clang::BuiltinType::UInt:
+      case clang::BuiltinType::ULong:
+      case clang::BuiltinType::ULongLong:
+      case clang::BuiltinType::Char_S:
+      case clang::BuiltinType::SChar:
+      case clang::BuiltinType::WChar_S:
+      case clang::BuiltinType::Short:
+      case clang::BuiltinType::Int:
+      case clang::BuiltinType::Long:
+      case clang::BuiltinType::LongLong:
+      case clang::BuiltinType::Float:
+      case clang::BuiltinType::Double:
+      case clang::BuiltinType::LongDouble:
+        return true;
+      // Reject all other types, including `std::nullptr_t`. `MapQualType()`
+      // maps `std::nullptr_t` to `::sapi::v::Void`, which cannot hold a value.
+      default:
+        return false;
+    }
+  }
+  return false;
+}
+
 namespace {
 
 // Checks if a record declaration is a google::protobuf::Message.

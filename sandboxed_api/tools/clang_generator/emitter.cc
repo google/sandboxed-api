@@ -472,6 +472,14 @@ absl::StatusOr<std::string> Emitter::DoEmitFunction(
         "Returning record by value, skipping function.");
   }
 
+  // Skip functions returning unsupported scalar/extended types by value.
+  if (!IsSupportedQualType(return_type)) {
+    return MakeStatusWithDiagnostic(
+        decl->getBeginLoc(), absl::StatusCode::kCancelled,
+        absl::StrCat("Unsupported return type '", return_type.getAsString(),
+                     "', skipping function."));
+  }
+
   // Skip variadic functions.
   if (decl->isVariadic()) {
     return MakeStatusWithDiagnostic(decl->getBeginLoc(),
@@ -508,6 +516,14 @@ absl::StatusOr<std::string> Emitter::DoEmitFunction(
           absl::StrCat("Passing record parameter '",
                        ToStringView(param->getName()),
                        "' by value, skipping function."));
+    }
+    if (!IsSupportedQualType(param->getType())) {
+      return MakeStatusWithDiagnostic(
+          param->getBeginLoc(), absl::StatusCode::kCancelled,
+          absl::StrCat("Unsupported parameter type '",
+                       param->getType().getAsString(), "' for parameter '",
+                       ToStringView(param->getName()),
+                       "', skipping function."));
     }
 
     ParameterInfo& param_info = params.emplace_back();
@@ -757,7 +773,6 @@ absl::StatusOr<std::string> Emitter::DoEmitHeader() {
 
 absl::Status Emitter::AddFunction(clang::FunctionDecl* decl) {
   if (rendered_functions_.insert(decl->getQualifiedNameAsString()).second) {
-    rendered_functions_unqualified_.insert(decl->getNameAsString());
     ABSL_ASSIGN_OR_RETURN(std::string function, DoEmitFunction(decl));
     if (options_.has_sandboxee_src_out()) {
       ABSL_ASSIGN_OR_RETURN(std::string sandboxee_function,
@@ -768,6 +783,7 @@ absl::Status Emitter::AddFunction(clang::FunctionDecl* decl) {
           prototype_sandboxee_function);
       rendered_sandboxee_handler_ordered_.push_back(sandboxee_function);
     }
+    rendered_functions_unqualified_.insert(decl->getNameAsString());
     rendered_functions_ordered_.push_back(function);
   }
   return absl::OkStatus();

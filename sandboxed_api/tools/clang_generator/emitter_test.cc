@@ -968,6 +968,45 @@ TEST_F(SandboxeeTest, VariadicParametersSkipsFunction) {
   EXPECT_THAT(emitter.GetRenderedSandboxeePrototypes(), IsEmpty());
 }
 
+TEST_F(SandboxeeTest, UnsupportedExtendedScalarTypesSkipFunction) {
+  GeneratorOptions options;
+  options.namespace_name = "sandboxed";
+  options.sandboxee_src_out = "sandboxee_src.cc";
+  EmitterForTesting emitter(&options);
+  ASSERT_THAT(RunFrontendAction(
+                  R"(typedef __int128 MyInt128;
+                     typedef decltype(nullptr) MyNullptr;
+                     extern "C" __int128 RetInt128(int a);
+                     extern "C" void ParamUInt128(unsigned __int128 a);
+                     extern "C" MyInt128 RetTypedefInt128();
+                     extern "C" _Float16 RetFloat16(_Float16 x);
+                     extern "C" __bf16 RetBFloat16(__bf16 x);
+                     extern "C" decltype(nullptr) RetNullptr();
+                     extern "C" void ParamNullptr(MyNullptr p);
+                     extern "C" int SupportedPtr(__int128* p);)",
+                  std::make_unique<GeneratorAction>(&emitter, &options)),
+              IsOk());
+
+  EXPECT_THAT(emitter.GetRenderedFunctions(), SizeIs(1));
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string header, emitter.EmitHeader());
+  EXPECT_THAT(header, HasSubstr("SupportedPtr"));
+  EXPECT_THAT(header, Not(HasSubstr("RetInt128")));
+  EXPECT_THAT(header, Not(HasSubstr("ParamUInt128")));
+  EXPECT_THAT(header, Not(HasSubstr("RetTypedefInt128")));
+  EXPECT_THAT(header, Not(HasSubstr("RetFloat16")));
+  EXPECT_THAT(header, Not(HasSubstr("RetBFloat16")));
+  EXPECT_THAT(header, Not(HasSubstr("RetNullptr")));
+  EXPECT_THAT(header, Not(HasSubstr("ParamNullptr")));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string sandboxee_src,
+                            emitter.EmitSandboxeeSrc());
+  EXPECT_THAT(sandboxee_src, HasSubstr("HandleCall_SupportedPtr"));
+  EXPECT_THAT(sandboxee_src, Not(HasSubstr("RetInt128")));
+  EXPECT_THAT(sandboxee_src, Not(HasSubstr("ParamUInt128")));
+  EXPECT_THAT(sandboxee_src, Not(HasSubstr("RetNullptr")));
+  EXPECT_THAT(sandboxee_src, Not(HasSubstr("ParamNullptr")));
+}
+
 TEST_F(SandboxeeTest, DefaultModeUsesFunctionLocalMap) {
   GeneratorOptions options;
   options.sandboxee_src_out = "sandboxee_src.cc";
