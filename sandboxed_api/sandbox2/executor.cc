@@ -157,7 +157,7 @@ std::unique_ptr<ForkClient> Executor::StartForkServer() {
 
 void Executor::SetUpServerSideCommsFd() {
   int sv[2];
-  PCHECK(socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0);
+  PCHECK(socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sv) == 0);
   client_comms_fd_ = file_util::fileops::FDCloser(sv[0]);
   ipc_.SetUpServerSideComms(sv[1]);
 }

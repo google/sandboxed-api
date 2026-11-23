@@ -22,6 +22,7 @@
 #include <atomic>
 #include <cerrno>
 #include <csignal>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
@@ -325,6 +326,55 @@ TEST_P(Sandbox2Test, SandboxeeWalltimeLimitDisarmed) {
   auto result = sandbox.AwaitResult();
   EXPECT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
+// Kills and reaps a child process when it goes out of scope.
+struct ChildReaper {
+  pid_t pid;
+  ~ChildReaper() {
+    kill(pid, SIGKILL);
+    waitpid(pid, nullptr, 0);
+  }
+};
+
+// A child that the host forks and execs while a sandbox is being set up must
+// not inherit the Comms socket pair. Otherwise it holds the sandboxee's end
+// open, and the host's Recv blocks after the sandboxee exits.
+TEST(Sandbox2Test, ExecedChildDoesNotKeepCommsOpen) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/minimal");
+  const std::string sleep_path = GetTestSourcePath("sandbox2/testcases/sleep");
+  {
+    // Starts the fork server first, so only the child below could hold the
+    // Comms socket.
+    SAPI_ASSERT_OK_AND_ASSIGN(
+        auto policy, CreateDefaultPermissiveTestPolicy(path).TryBuild());
+    Sandbox2 warmup(
+        std::make_unique<Executor>(path, std::vector<std::string>{path}),
+        std::move(policy));
+    ASSERT_THAT(warmup.Run().final_status(), Eq(Result::OK));
+  }
+
+  auto executor =
+      std::make_unique<Executor>(path, std::vector<std::string>{path});
+  const pid_t child = fork();
+  ASSERT_NE(child, -1);
+  if (child == 0) {
+    execl(sleep_path.c_str(), sleep_path.c_str(), nullptr);
+    _exit(127);
+  }
+  ChildReaper reaper{child};
+
+  SAPI_ASSERT_OK_AND_ASSIGN(auto policy,
+                            CreateDefaultPermissiveTestPolicy(path).TryBuild());
+  Sandbox2 sandbox(std::move(executor), std::move(policy));
+  ASSERT_THAT(sandbox.RunAsync(), IsTrue());
+  const absl::Time start = absl::Now();
+  uint32_t unused;
+  EXPECT_THAT(sandbox.comms()->RecvUint32(&unused), IsFalse());
+  // `sleep` runs for 10 seconds, so an inherited socket would block Recv
+  // until then.
+  EXPECT_THAT(absl::Now() - start, Lt(absl::Seconds(5)));
+  EXPECT_THAT(sandbox.AwaitResult().final_status(), Eq(Result::OK));
 }
 
 // Tests that we do not collect stack traces if it was disabled (violation).
