@@ -244,6 +244,36 @@ bool HasSizedByOutparam(const ArraySizedByType& size_type) {
                     size_type);
 }
 
+// Looks up the `PointeeContract` referenced by `ann.pointee_contract` and
+// verifies that the contract has been declared and matches the outer pointer's
+// pointee type.
+absl::StatusOr<const PointeeContract*> ResolvePointeeContract(
+    absl::string_view name, clang::QualType type, const Annotations& ann,
+    const ConversionContext& conv_ctx) {
+  if (!ann.pointee_contract.has_value()) {
+    return absl::InternalError(
+        absl::StrCat("pointer ", name, " has no pointee_contract"));
+  }
+  const std::string& contract_name = *ann.pointee_contract;
+  auto it = conv_ctx.pointee_contracts.find(contract_name);
+  if (it == conv_ctx.pointee_contracts.end()) {
+    return absl::InvalidArgumentError(
+        absl::Substitute("pointer argument $0 names unknown pointee typedef $1",
+                         name, contract_name));
+  }
+  const PointeeContract& contract = it->second;
+  std::string actual_pointee_type = type->getPointeeType()
+                                        .getCanonicalType()
+                                        .getUnqualifiedType()
+                                        .getAsString();
+  if (actual_pointee_type != contract.canonical_type) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "pointer argument $0 has pointee type '$1', which does not match "
+        "pointee typedef $2 of type '$3'",
+        name, actual_pointee_type, contract_name, contract.canonical_type));
+  }
+  return &contract;
+}
 absl::Status CheckCallbackParamAnnotations(const clang::ASTContext& context,
                                            absl::string_view cb_name,
                                            absl::string_view cb_param_name,
@@ -332,12 +362,49 @@ absl::Status CheckCallbackParamAnnotations(const clang::ASTContext& context,
           cb_name, cb_param_name));
     }
 
+    if (annotations.pointee_contract.has_value()) {
+      if (*ptr_dir != PointerDir::kIn) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "callback $0 parameter $1: only input multi-level pointers "
+            "(SANDBOX_IN_PTR) are supported for callbacks",
+            cb_name, cb_param_name));
+      }
+      ABSL_ASSIGN_OR_RETURN(const PointeeContract* contract,
+                            ResolvePointeeContract(cb_param_name, cb_param_type,
+                                                   annotations, conv_ctx));
+      if (contract->annotations.ptr_dir != PointerDir::kIn &&
+          contract->annotations.ptr_dir != PointerDir::kSandboxOpaque &&
+          contract->annotations.ptr_dir != PointerDir::kHostOpaque) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "callback $0 parameter $1: pointee typedef $2 must be an input "
+            "or opaque pointer for callbacks",
+            cb_name, cb_param_name, contract->name));
+      }
+      bool has_nested_pointee_contract =
+          contract->annotations.pointee_contract.has_value();
+      if (!has_nested_pointee_contract && cb_param_type->isPointerType()) {
+        if (const clang::TypedefNameDecl* inner_td =
+                FindPointeeTypedef(cb_param_type->getPointeeType())) {
+          has_nested_pointee_contract =
+              conv_ctx.pointee_contracts.contains(inner_td->getNameAsString());
+        }
+      }
+      if (has_nested_pointee_contract) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "callback $0 parameter $1: multi-level pointers deeper than two "
+            "levels are not supported for callbacks",
+            cb_name, cb_param_name));
+      }
+    }
+
     // Check supported size annotations. For now, this is different from the
     // non-callback case.
     std::string copyability_reason;
-    bool is_copyable_pointee = IsDeeplyTriviallyCopyableType(
-        context, cb_param_type->getPointeeType(), conv_ctx, &copyability_reason,
-        /*in_array=*/false, /*in_callback=*/true);
+    bool is_copyable_pointee =
+        annotations.pointee_contract.has_value() ||
+        IsDeeplyTriviallyCopyableType(context, cb_param_type->getPointeeType(),
+                                      conv_ctx, &copyability_reason,
+                                      /*in_array=*/false, /*in_callback=*/true);
     absl::Status error_status = absl::InvalidArgumentError(absl::Substitute(
         "callback $0 pointer argument $1 has unsupported pointee type: $2",
         cb_name, cb_param_name,
@@ -371,7 +438,8 @@ absl::Status CheckCallbackParamAnnotations(const clang::ASTContext& context,
                     "pointers are supported for callbacks",
                     cb_name, cb_param_name));
               }
-              if (!IsSupportedNullTerminatedInputType(cb_param_type))
+              if (!annotations.pointee_contract.has_value() &&
+                  !IsSupportedNullTerminatedInputType(cb_param_type))
                 return error_status;
               return absl::OkStatus();
             },
@@ -628,6 +696,19 @@ absl::Status ValidateParamAnnotations(absl::string_view name,
     }
   }
 
+  // TODO(b/561450349): Harmonize pointer direction defaulting for callback
+  // parameters with regular function parameters (which require explicit
+  // annotations).
+  if (is_callback_param && type->isPointerType() &&
+      !type->isFunctionPointerType() && !ann.ptr_dir.has_value()) {
+    if (type->getPointeeType().isConstQualified()) {
+      ann.ptr_dir = PointerDir::kIn;
+    } else {
+      return absl::InvalidArgumentError(
+          absl::Substitute("callback parameter $0: unknown direction", name));
+    }
+  }
+
   if (ann.pointee_contract.has_value()) {
     if (ann.ptr_dir == PointerDir::kSandboxOpaque ||
         ann.ptr_dir == PointerDir::kHostOpaque) {
@@ -642,12 +723,13 @@ absl::Status ValidateParamAnnotations(absl::string_view name,
           "be combined with a pointee contract on the outer pointer",
           name));
     }
-    if (std::holds_alternative<NullTerminated>(ann.size_type)) {
+    if (std::holds_alternative<NullTerminated>(ann.size_type) &&
+        ann.ptr_dir != PointerDir::kIn) {
       return absl::InvalidArgumentError(absl::Substitute(
-          "pointer argument $0: null_terminated cannot be combined with a "
-          "pointee contract on the outer pointer; place "
-          "SANDBOX_NULL_TERMINATED on the pointer typedef "
-          "declaration instead",
+          "pointer argument $0: null_terminated on a pointer with a pointee "
+          "contract is only supported with SANDBOX_IN_PTR; to describe a "
+          "null-terminated pointee, place SANDBOX_NULL_TERMINATED on the "
+          "pointer typedef declaration instead",
           name));
     }
     if (ann.context_bound.copy_from_and_bind.has_value() ||
@@ -700,19 +782,6 @@ absl::Status ValidateParamAnnotations(absl::string_view name,
           "pointee typedef $0: only copy_from_and_bind_out_ptr context "
           "binding is supported on a pointee typedef",
           name));
-    }
-  }
-
-  // TODO(b/561450349): Harmonize pointer direction defaulting for callback
-  // parameters with regular function parameters (which require explicit
-  // annotations).
-  if (is_callback_param && type->isPointerType() &&
-      !type->isFunctionPointerType() && !ann.ptr_dir.has_value()) {
-    if (type->getPointeeType().isConstQualified()) {
-      ann.ptr_dir = PointerDir::kIn;
-    } else {
-      return absl::InvalidArgumentError(
-          absl::Substitute("callback parameter $0: unknown direction", name));
     }
   }
 
@@ -779,7 +848,8 @@ absl::Status ValidateParamAnnotations(absl::string_view name,
                                name));
         }
       } else if (ann.ptr_dir == PointerDir::kIn) {
-        if (!IsSupportedNullTerminatedInputType(type)) {
+        if (!ann.pointee_contract.has_value() &&
+            !IsSupportedNullTerminatedInputType(type)) {
           return absl::InvalidArgumentError(absl::Substitute(
               "pointer argument $0 is null-terminated but not a const integer "
               "or enum pointer",
@@ -942,37 +1012,6 @@ const CallbackTypedef* LookupCallbackTypedef(
   return &it->second;
 }
 
-// Looks up the `PointeeContract` referenced by `ann.pointee_contract` and
-// verifies that the contract has been declared and matches the outer pointer's
-// pointee type.
-absl::StatusOr<const PointeeContract*> ResolvePointeeContract(
-    absl::string_view name, clang::QualType type, const Annotations& ann,
-    const ConversionContext& conv_ctx) {
-  if (!ann.pointee_contract.has_value()) {
-    return absl::InternalError(
-        absl::StrCat("pointer ", name, " has no pointee_contract"));
-  }
-  const std::string& contract_name = *ann.pointee_contract;
-  auto it = conv_ctx.pointee_contracts.find(contract_name);
-  if (it == conv_ctx.pointee_contracts.end()) {
-    return absl::InvalidArgumentError(
-        absl::Substitute("pointer argument $0 names unknown pointee typedef $1",
-                         name, contract_name));
-  }
-  const PointeeContract& contract = it->second;
-  std::string actual_pointee_type = type->getPointeeType()
-                                        .getCanonicalType()
-                                        .getUnqualifiedType()
-                                        .getAsString();
-  if (actual_pointee_type != contract.canonical_type) {
-    return absl::InvalidArgumentError(absl::Substitute(
-        "pointer argument $0 has pointee type '$1', which does not match "
-        "pointee typedef $2 of type '$3'",
-        name, actual_pointee_type, contract_name, contract.canonical_type));
-  }
-  return &contract;
-}
-
 // Collects the annotations for each parameter of a callback (from `cb_typedef`
 // if non-null, or parsed from `cb_decls` otherwise) and validates them against
 // the parameter types in `cb_decls`.
@@ -989,6 +1028,14 @@ absl::StatusOr<std::vector<Annotations>> ResolveCallbackParamAnnotations(
     } else {
       ABSL_ASSIGN_OR_RETURN(ann,
                             ParseAnnotations(cb_param_names[i], cb_decls[i]));
+    }
+    if (!ann.pointee_contract.has_value()) {
+      if (const clang::TypedefNameDecl* pt_td =
+              FindPointeeTypedef(cb_decls[i]->getType())) {
+        if (conv_ctx.pointee_contracts.contains(pt_td->getNameAsString())) {
+          ann.pointee_contract = pt_td->getNameAsString();
+        }
+      }
     }
     ABSL_RETURN_IF_ERROR(CheckCallbackParamAnnotations(
         cb_decls[i]->getASTContext(), name, cb_param_names[i], ann,
@@ -1761,6 +1808,89 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
   return ir_param;
 }
 
+bool HasSandboxAttr(const clang::Decl* decl) {
+  for (const auto* attr : decl->attrs()) {
+    const auto* ann = llvm::dyn_cast<clang::AnnotateAttr>(attr);
+    if (ann != nullptr && ann->getAnnotation() == "sandbox") {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool HasAnnotatedPointeeTypedef(clang::QualType type,
+                                const ConversionContext& conv_ctx) {
+  const clang::TypedefNameDecl* pt_td = FindPointeeTypedef(type);
+  return pt_td != nullptr &&
+         (HasSandboxAnnotations(*pt_td) ||
+          conv_ctx.pointee_contracts.contains(pt_td->getNameAsString()));
+}
+
+bool IsAnnotatedCallbackTypedef(const clang::TypedefNameDecl& cb_td,
+                                const ConversionContext& conv_ctx) {
+  if (HasSandboxAnnotations(cb_td)) {
+    return true;
+  }
+  if (auto it = conv_ctx.callback_typedefs.find(cb_td.getNameAsString());
+      it != conv_ctx.callback_typedefs.end()) {
+    return it->second.has_annotations;
+  }
+  return false;
+}
+
+int ReturnCallbackTypedefRank(clang::QualType type,
+                              const ConversionContext& conv_ctx) {
+  const clang::TypedefNameDecl* cb_td = FindCallbackTypedef(type);
+  if (cb_td == nullptr) {
+    return 0;
+  }
+  return IsAnnotatedCallbackTypedef(*cb_td, conv_ctx) ? 2 : 1;
+}
+
+// Ranks how much sandbox-specific type or annotation metadata `param` carries
+// so `ConvertFunctionToIR` upgrades to the most informative redeclaration
+// without letting unannotated C header typedefs shadow annotated ones:
+//   0: plain type or unannotated non-callback typedef (e.g. `raw_str*`).
+//   1: unannotated callback typedef (still preferred over a raw function
+//      pointer for reverse-callback thunk pool naming when unannotated).
+//   2: explicit sandbox annotations (annotated callback typedef, annotated
+//      pointee typedef, or inline callback parameter annotations).
+//
+// Outer `ParmVarDecl` attributes are intentionally not checked here: Clang Sema
+// merges outer parameter `AnnotateAttr`s onto the first `FunctionDecl`, so
+// scoring outer attributes would skip upgrading `param` to a redeclaration's
+// `FunctionProtoTypeLoc` or typedef sugar.
+int ParamRedeclRank(const clang::ParmVarDecl* param,
+                    const ConversionContext& conv_ctx) {
+  if (param == nullptr) {
+    return 0;
+  }
+  if (HasAnnotatedPointeeTypedef(param->getType(), conv_ctx)) {
+    return 2;
+  }
+  if (const clang::TypedefNameDecl* cb_td =
+          FindCallbackTypedef(param->getType());
+      cb_td != nullptr) {
+    return IsAnnotatedCallbackTypedef(*cb_td, conv_ctx) ? 2 : 1;
+  }
+  std::optional<clang::FunctionProtoTypeLoc> ftl =
+      ast::GetFunctionProtoTypeLoc(param->getTypeSourceInfo());
+  if (!ftl.has_value()) {
+    return 0;
+  }
+  for (unsigned i = 0; i < ftl->getNumParams(); ++i) {
+    const clang::ParmVarDecl* cb_param = ftl->getParam(i);
+    if (cb_param == nullptr) {
+      continue;
+    }
+    if (HasAnnotatedPointeeTypedef(cb_param->getType(), conv_ctx) ||
+        HasSandboxAttr(cb_param)) {
+      return 2;
+    }
+  }
+  return 0;
+}
+
 }  // namespace
 
 absl::StatusOr<sapi::ir::Function> ConvertFunctionToIR(
@@ -1778,11 +1908,17 @@ absl::StatusOr<sapi::ir::Function> ConvertFunctionToIR(
   ir_func.context_bound = std::move(func_decl_annotations.context_bound);
 
   clang::QualType ret_type = func_decl->getReturnType();
-  if (FindCallbackTypedef(ret_type) == nullptr) {
+  int best_ret_rank = ReturnCallbackTypedefRank(ret_type, conv_ctx);
+  if (best_ret_rank < 2) {
     for (const clang::FunctionDecl* redecl : func_decl->redecls()) {
-      if (FindCallbackTypedef(redecl->getReturnType()) != nullptr) {
+      const int cand_rank =
+          ReturnCallbackTypedefRank(redecl->getReturnType(), conv_ctx);
+      if (cand_rank > best_ret_rank) {
         ret_type = redecl->getReturnType();
-        break;
+        best_ret_rank = cand_rank;
+        if (best_ret_rank == 2) {
+          break;
+        }
       }
     }
   }
@@ -1796,16 +1932,20 @@ absl::StatusOr<sapi::ir::Function> ConvertFunctionToIR(
   ir_func.parameters.reserve(func_decl->getNumParams());
   for (size_t i = 0; i < func_decl->getNumParams(); ++i) {
     const clang::ParmVarDecl* param = func_decl->getParamDecl(i);
-    if (FindCallbackTypedef(param->getType()) == nullptr &&
-        FindPointeeTypedef(param->getType()) == nullptr) {
+    int best_rank = ParamRedeclRank(param, conv_ctx);
+    if (best_rank < 2) {
       for (const clang::FunctionDecl* redecl : func_decl->redecls()) {
-        if (i < redecl->getNumParams() &&
-            (FindCallbackTypedef(redecl->getParamDecl(i)->getType()) !=
-                 nullptr ||
-             FindPointeeTypedef(redecl->getParamDecl(i)->getType()) !=
-                 nullptr)) {
-          param = redecl->getParamDecl(i);
-          break;
+        if (i >= redecl->getNumParams()) {
+          continue;
+        }
+        const clang::ParmVarDecl* cand = redecl->getParamDecl(i);
+        const int cand_rank = ParamRedeclRank(cand, conv_ctx);
+        if (cand_rank > best_rank) {
+          param = cand;
+          best_rank = cand_rank;
+          if (best_rank == 2) {
+            break;
+          }
         }
       }
     }
@@ -1894,6 +2034,14 @@ absl::StatusOr<InvokerConversion> ConvertCallbackTypedefToInvokerIR(
   for (unsigned i = 0; i < ftl->getNumParams(); ++i) {
     const clang::ParmVarDecl* param = ftl->getParam(i);
     Annotations param_ann = cb_typedef.params[i].annotations;
+    if (!param_ann.pointee_contract.has_value()) {
+      if (const clang::TypedefNameDecl* pt_td =
+              FindPointeeTypedef(param->getType())) {
+        if (conv_ctx.pointee_contracts.contains(pt_td->getNameAsString())) {
+          param_ann.pointee_contract = pt_td->getNameAsString();
+        }
+      }
+    }
     if (param_ann.ptr_dir != PointerDir::kSandboxOpaque) {
       ABSL_RETURN_IF_ERROR(CheckCallbackParamAnnotations(
           decl.getASTContext(), cb_typedef.name, cb_typedef.params[i].name,

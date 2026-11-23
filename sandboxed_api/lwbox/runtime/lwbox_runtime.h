@@ -470,6 +470,33 @@ class HostCallbackRegistry {
 void SyncFromSandboxToHost(sapi::SandboxBase& sandbox, uintptr_t remote_ptr,
                            void* host_ptr, size_t bytes);
 
+// Converts an integral size expression to `size_t`, aborting via `CHECK_GE` if
+// a signed value is negative so untrusted signed sizes from a sandboxee cannot
+// wrap around to huge `size_t` values.
+template <typename T>
+size_t CheckedToSizeT(T value) {
+  static_assert(std::is_integral_v<T>,
+                "CheckedToSizeT requires an integral type");
+  if constexpr (std::is_signed_v<T>) {
+    CHECK_GE(value, 0) << "Negative buffer size: " << value;
+  }
+  return static_cast<size_t>(value);
+}
+
+// Returns the number of non-zero elements preceding the terminating zero
+// element in a null-terminated array, or 0 if `ptr` is null.
+template <typename T>
+size_t NullTerminatedCount(const T* absl_nullable ptr) {
+  if (ptr == nullptr) {
+    return 0;
+  }
+  size_t count = 0;
+  while (ptr[count] != T{}) {
+    ++count;
+  }
+  return count;
+}
+
 // Returns the size in bytes (including the terminating zero element) of a
 // null-terminated array of scalar, enum, or pointer elements, or 0 if `ptr`
 // is null.
@@ -478,11 +505,7 @@ size_t NullTerminatedByteSize(const T* absl_nullable ptr) {
   if (ptr == nullptr) {
     return 0;
   }
-  size_t count = 0;
-  while (ptr[count] != T{}) {
-    ++count;
-  }
-  return (count + 1) * sizeof(T);
+  return (NullTerminatedCount(ptr) + 1) * sizeof(T);
 }
 
 // Reads a zero-terminated array of elements of `elem_size` bytes from

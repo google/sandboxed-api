@@ -17,6 +17,8 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "absl/base/attributes.h"
+
 extern "C" {
 
 struct DbHandle {
@@ -186,5 +188,58 @@ int open_db_batch_via_3level_ptr(size_t count, int base_value,
   }
   return static_cast<int>(count);
 }
+
+int check_option_from_list(const char* name, const char* def,
+                           const char* const lst[]) {
+  const char* target = (name != nullptr && name[0] != '\0') ? name : def;
+  if (target == nullptr || lst == nullptr) {
+    return -1;
+  }
+  for (int i = 0; lst[i] != nullptr; ++i) {
+    if (strcmp(lst[i], target) == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+namespace {
+
+int g_default_sax_attr_byte_sum = 0;
+
+void default_sax_start_element(void* ctx, const sax_xml_char_t* name,
+                               const sax_xml_char_t** atts) {
+  (void)ctx;
+  if (name != nullptr) {
+    for (size_t i = 0; name[i] != 0; ++i) {
+      g_default_sax_attr_byte_sum += static_cast<int>(name[i]);
+    }
+  }
+  if (atts != nullptr) {
+    for (size_t i = 0; atts[i] != nullptr; ++i) {
+      for (size_t j = 0; atts[i][j] != 0; ++j) {
+        g_default_sax_attr_byte_sum += static_cast<int>(atts[i][j]);
+      }
+    }
+  }
+}
+
+}  // namespace
+
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI void dispatch_sax_start_element(
+    void* ctx, const sax_xml_char_t* name, const sax_xml_char_t** atts,
+    sax_start_element_cb cb) {
+  if (cb != nullptr) {
+    cb(ctx, name, atts);
+  }
+}
+
+sax_start_element_cb get_default_sax_start_element_cb() {
+  return &default_sax_start_element;
+}
+
+int get_default_sax_attr_byte_sum() { return g_default_sax_attr_byte_sum; }
+
+void reset_default_sax_attr_byte_sum() { g_default_sax_attr_byte_sum = 0; }
 
 }  // extern "C"

@@ -407,6 +407,20 @@ absl::Status ValidateCallbackScope(absl::string_view cb_param_name,
           cb.callback_parameters, scope_desc,
           absl::StrCat("parameter ", cb_param.name), buf->bounds,
           /*in_callback=*/true));
+      if (buf->pointee != nullptr) {
+        if (const auto* inner_buf = buf->pointee->As<BufferParam>()) {
+          if (inner_buf->pointee != nullptr) {
+            return absl::InvalidArgumentError(absl::Substitute(
+                "$0 parameter $1: multi-level pointers deeper than two levels "
+                "are not supported for callbacks",
+                scope_desc, cb_param.name));
+          }
+          ABSL_RETURN_IF_ERROR(ValidateBufferBounds(
+              cb.callback_parameters, scope_desc,
+              absl::StrCat("parameter ", buf->pointee->name), inner_buf->bounds,
+              /*in_callback=*/true));
+        }
+      }
     }
   }
   if (cb.return_value != nullptr) {
@@ -452,6 +466,15 @@ absl::Status ValidateAndLinkParameter(Function& func, Parameter& param) {
     ABSL_RETURN_IF_ERROR(ValidateBufferBounds(scope, scope_desc, role,
                                               buf->bounds, in_callback));
     if (buf->pointee != nullptr) {
+      if (in_callback) {
+        if (const auto* inner_buf = buf->pointee->As<BufferParam>();
+            inner_buf != nullptr && inner_buf->pointee != nullptr) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "$0 $1: multi-level pointers deeper than two levels are not "
+              "supported for callbacks",
+              scope_desc, role));
+        }
+      }
       ABSL_RETURN_IF_ERROR(ValidateAndLinkParameter(func, *buf->pointee));
     }
   } else if (const auto* opaque = param.As<OpaquePointerParam>()) {

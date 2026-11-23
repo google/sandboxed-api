@@ -3105,6 +3105,163 @@ TEST_F(IrConvertTest, RejectsNullTerminatedNonConstOrVoidInputParameter) {
                          "output member requires a lifetime annotation")));
 }
 
+TEST_F(IrConvertTest,
+       ConvertsNullTerminatedPointerArrayParametersAndCallbacks) {
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      const Function func, ConvertSnippetToIR(R"(
+    typedef unsigned char xmlChar;
+    typedef const char* c_str_in_pointee
+        [[clang::annotate("sandbox", "in_ptr")]]
+        [[clang::annotate("sandbox", "null_terminated")]];
+    typedef const xmlChar* xml_str_in_pointee
+        [[clang::annotate("sandbox", "in_ptr")]]
+        [[clang::annotate("sandbox", "null_terminated")]];
+    typedef void (*sax_start_element_cb)(
+        void* ctx [[clang::annotate("sandbox", "host_opaque_ptr")]],
+        const xmlChar* name
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "null_terminated")]],
+        xml_str_in_pointee* atts
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "null_terminated")]]);
+    extern "C" int check_option_and_dispatch_sax(
+        const c_str_in_pointee* lst
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "null_terminated")]],
+        sax_start_element_cb sax_cb,
+        void (*inline_cb)(
+            const c_str_in_pointee* opts
+                [[clang::annotate("sandbox", "null_terminated")]]));
+  )",
+                                              "check_option_and_dispatch_sax"));
+  ASSERT_EQ(func.parameters.size(), 3);
+
+  const auto* lst_buf = func.parameters[0].As<BufferParam>();
+  ASSERT_NE(lst_buf, nullptr);
+  EXPECT_EQ(lst_buf->direction, PointerDir::kIn);
+  EXPECT_TRUE(std::holds_alternative<bounds::NullTerminated>(lst_buf->bounds));
+  ASSERT_NE(lst_buf->pointee, nullptr);
+  const auto* lst_inner = lst_buf->pointee->As<BufferParam>();
+  ASSERT_NE(lst_inner, nullptr);
+  EXPECT_EQ(lst_inner->direction, PointerDir::kIn);
+  EXPECT_TRUE(
+      std::holds_alternative<bounds::NullTerminated>(lst_inner->bounds));
+
+  const auto* sax_cb = func.parameters[1].As<CallbackParam>();
+  ASSERT_NE(sax_cb, nullptr);
+  ASSERT_EQ(sax_cb->callback_parameters.size(), 3);
+  const auto* atts_buf = sax_cb->callback_parameters[2].As<BufferParam>();
+  ASSERT_NE(atts_buf, nullptr);
+  EXPECT_EQ(atts_buf->direction, PointerDir::kIn);
+  EXPECT_TRUE(std::holds_alternative<bounds::NullTerminated>(atts_buf->bounds));
+  ASSERT_NE(atts_buf->pointee, nullptr);
+  const auto* atts_inner = atts_buf->pointee->As<BufferParam>();
+  ASSERT_NE(atts_inner, nullptr);
+  EXPECT_EQ(atts_inner->direction, PointerDir::kIn);
+  EXPECT_TRUE(
+      std::holds_alternative<bounds::NullTerminated>(atts_inner->bounds));
+
+  const auto* inline_cb = func.parameters[2].As<CallbackParam>();
+  ASSERT_NE(inline_cb, nullptr);
+  ASSERT_EQ(inline_cb->callback_parameters.size(), 1);
+  const auto* opts_buf = inline_cb->callback_parameters[0].As<BufferParam>();
+  ASSERT_NE(opts_buf, nullptr);
+  EXPECT_EQ(opts_buf->direction, PointerDir::kIn);
+  EXPECT_TRUE(std::holds_alternative<bounds::NullTerminated>(opts_buf->bounds));
+  ASSERT_NE(opts_buf->pointee, nullptr);
+}
+
+TEST_F(IrConvertTest,
+       RejectsNullTerminatedOuterPointerWithOutputDirectionAndPointeeContract) {
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    typedef const char* c_str_out_pointee
+        [[clang::annotate("sandbox", "out_ptr")]]
+        [[clang::annotate("sandbox", "null_terminated")]]
+        [[clang::annotate("sandbox", "lifetime_sandbox_global")]];
+    extern "C" void bad_out_null_terminated_ptr_array(
+        c_str_out_pointee* out_str
+            [[clang::annotate("sandbox", "out_ptr")]]
+            [[clang::annotate("sandbox", "null_terminated")]]);
+  )",
+                                 "bad_out_null_terminated_ptr_array"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("pointer argument out_str: null_terminated on "
+                                 "a pointer with a pointee contract is only "
+                                 "supported with SANDBOX_IN_PTR")));
+
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    typedef const char* c_str_out_pointee_2
+        [[clang::annotate("sandbox", "out_ptr")]]
+        [[clang::annotate("sandbox", "null_terminated")]]
+        [[clang::annotate("sandbox", "lifetime_sandbox_global")]];
+    extern "C" void bad_in_ptr_with_callee_written_pointee(
+        c_str_out_pointee_2* in_str
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "null_terminated")]]);
+  )",
+                         "bad_in_ptr_with_callee_written_pointee"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("pointer argument in_str: output-only callee-written "
+                         "pointee typedef c_str_out_pointee_2 requires "
+                         "SANDBOX_OUT_PTR on the wrapping pointer")));
+}
+
+TEST_F(IrConvertTest, RejectsInvalidMultiLevelCallbackParametersAndDepthGt2) {
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    typedef const char* c_str_in_pt
+        [[clang::annotate("sandbox", "in_ptr")]]
+        [[clang::annotate("sandbox", "null_terminated")]];
+    extern "C" void bad_inout_outer_cb(
+        void (*cb)(c_str_in_pt* strs
+                       [[clang::annotate("sandbox", "inout_ptr")]]
+                       [[clang::annotate("sandbox", "elem_sized_by", "2")]]));
+  )",
+                         "bad_inout_outer_cb"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("callback cb parameter strs: only input multi-level "
+                         "pointers (SANDBOX_IN_PTR) are supported")));
+
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    typedef int* int_inout_pt
+        [[clang::annotate("sandbox", "inout_ptr")]]
+        [[clang::annotate("sandbox", "elem_sized_by", "2")]];
+    extern "C" void bad_inout_inner_cb(
+        void (*cb)(int_inout_pt* rows
+                       [[clang::annotate("sandbox", "in_ptr")]]
+                       [[clang::annotate("sandbox", "elem_sized_by", "2")]]));
+  )",
+                         "bad_inout_inner_cb"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("callback cb parameter rows: pointee typedef "
+                         "int_inout_pt must be an input or opaque pointer")));
+
+  // Three-level callback pointer where the inner typedef is re-annotated after
+  // the middle pointee typedef is declared (exercising `ParsePointeeContract`
+  // clearing `pointee_contract` while `FindPointeeTypedef` resolves the most
+  // recent declaration).
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    typedef const char* str_t;
+    typedef const str_t* str_list_pt
+        [[clang::annotate("sandbox", "in_ptr")]]
+        [[clang::annotate("sandbox", "null_terminated")]];
+    typedef const char* str_t
+        [[clang::annotate("sandbox", "in_ptr")]]
+        [[clang::annotate("sandbox", "null_terminated")]];
+    extern "C" void bad_three_level_cb(
+        void (*cb)(const str_list_pt* lists
+                       [[clang::annotate("sandbox", "in_ptr")]]
+                       [[clang::annotate("sandbox", "null_terminated")]]));
+  )",
+                         "bad_three_level_cb"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("callback cb parameter lists: multi-level pointers "
+                         "deeper than two levels are not supported")));
+}
+
 }  // namespace
 }  // namespace ir
 }  // namespace sapi

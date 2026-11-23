@@ -34,6 +34,8 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/Stmt.h"
+#include "clang/AST/Type.h"
+#include "clang/AST/TypeLoc.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
@@ -62,6 +64,15 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
   // unused. Walk all redeclarations because the first declaration in the
   // translation unit (from the library header) may spell out a raw function
   // pointer while a later redeclaration attaches the callback typedef.
+  auto record_pointee_use = [&](const clang::ParmVarDecl* p) {
+    if (p == nullptr) {
+      return;
+    }
+    if (const clang::TypedefNameDecl* pt_td =
+            FindPointeeTypedef(p->getType())) {
+      used_pointee_contracts_.insert(pt_td->getNameAsString());
+    }
+  };
   for (const clang::FunctionDecl* redecl : decl->redecls()) {
     if (const clang::TypedefNameDecl* td =
             FindCallbackTypedef(redecl->getReturnType())) {
@@ -71,9 +82,15 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
       if (const clang::TypedefNameDecl* td =
               FindCallbackTypedef(param->getType())) {
         referenced_callback_typedefs_.insert(td->getNameAsString());
-      } else if (const clang::TypedefNameDecl* pt_td =
-                     FindPointeeTypedef(param->getType())) {
-        used_pointee_contracts_.insert(pt_td->getNameAsString());
+      } else {
+        record_pointee_use(param);
+        if (std::optional<clang::FunctionProtoTypeLoc> ftl =
+                ast::GetFunctionProtoTypeLoc(param->getTypeSourceInfo());
+            ftl.has_value()) {
+          for (unsigned i = 0; i < ftl->getNumParams(); ++i) {
+            record_pointee_use(ftl->getParam(i));
+          }
+        }
       }
     }
   }
@@ -158,19 +175,6 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
     return absl::OkStatus();
   }
 
-  for (const clang::FunctionDecl* redecl : decl->redecls()) {
-    if (const clang::TypedefNameDecl* td =
-            FindCallbackTypedef(redecl->getReturnType())) {
-      used_callback_typedefs_.insert(td->getNameAsString());
-    }
-    for (const clang::ParmVarDecl* param : redecl->parameters()) {
-      if (const clang::TypedefNameDecl* td =
-              FindCallbackTypedef(param->getType())) {
-        used_callback_typedefs_.insert(td->getNameAsString());
-      }
-    }
-  }
-
   ABSL_ASSIGN_OR_RETURN(
       ir::Function ir_func,
       ConvertFunctionToIR(
@@ -179,6 +183,21 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
                     .callback_typedefs = library_ir_.callback_typedefs,
                     .pointee_contracts = library_ir_.pointee_contracts,
                 }));
+  auto record_ir_param_typedef = [&](const ir::Parameter& p) {
+    if (const auto* cb = p.As<ir::CallbackParam>();
+        cb != nullptr && cb->typedef_name.has_value()) {
+      used_callback_typedefs_.insert(*cb->typedef_name);
+    } else if (const auto* scb = p.As<ir::SandboxeeCallbackParam>();
+               scb != nullptr) {
+      used_callback_typedefs_.insert(scb->typedef_name);
+    }
+  };
+  if (ir_func.return_value.has_value()) {
+    record_ir_param_typedef(*ir_func.return_value);
+  }
+  for (const ir::Parameter& p : ir_func.parameters) {
+    record_ir_param_typedef(p);
+  }
   if (is_sandboxee_thunk) {
     // EmitSandboxeeSrc and EmitHostSrc always emit sandboxee thunks with
     // `extern "C"` linkage, so the IR function name must stay unmangled even if
@@ -269,6 +288,11 @@ absl::Status SandboxedLibraryEmitter::ParseCallbackTypedef(
     const clang::TypedefNameDecl& decl) {
   ABSL_ASSIGN_OR_RETURN(CallbackTypedef cb_typedef,
                         sapi::ParseCallbackTypedef(decl));
+  for (const auto& param : cb_typedef.params) {
+    if (param.annotations.pointee_contract.has_value()) {
+      used_pointee_contracts_.insert(*param.annotations.pointee_contract);
+    }
+  }
   std::string name = cb_typedef.name;
   auto it = library_ir_.callback_typedefs.find(name);
   if (it != library_ir_.callback_typedefs.end()) {

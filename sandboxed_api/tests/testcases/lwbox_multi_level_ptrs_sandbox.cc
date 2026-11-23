@@ -116,4 +116,33 @@ int open_db_batch_via_3level_ptr(size_t count, int base_value,
                                  db_handle_array_out_pointee* handle_list_ptr
                                      SANDBOX_INOUT_PTR);
 
+// ---------------------------------------------------------------------------
+// 5. `nullptr`-terminated pointer arrays (`const char* const*`, `const
+// xmlChar**`)
+// ---------------------------------------------------------------------------
+// Modeled on Lua's `luaL_checkoption(..., const char *const lst[])` and
+// libxml2/expat's `startElementSAXFunc(..., const xmlChar **atts)`.
+int check_option_from_list(
+    const char* name SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED,
+    const char* def SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED,
+    const c_str_in_pointee* lst SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
+
+typedef const sax_xml_char_t* sax_xml_str_in_pointee SANDBOX_IN_PTR
+    SANDBOX_NULL_TERMINATED;
+
+SANDBOX_CALLBACK_IDEMPOTENT typedef void (*sax_start_element_cb)(
+    void* ctx SANDBOX_HOST_OPAQUE_PTR,
+    const sax_xml_char_t* name SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED,
+    sax_xml_str_in_pointee* atts SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
+
+void dispatch_sax_start_element(
+    void* ctx SANDBOX_HOST_OPAQUE_PTR,
+    const sax_xml_char_t* name SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED,
+    sax_xml_str_in_pointee* atts SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED,
+    sax_start_element_cb cb);
+
+sax_start_element_cb get_default_sax_start_element_cb();
+int get_default_sax_attr_byte_sum();
+void reset_default_sax_attr_byte_sum();
+
 }  // extern "C"

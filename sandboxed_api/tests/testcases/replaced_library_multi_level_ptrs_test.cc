@@ -155,4 +155,81 @@ TEST(MultiLevelPointersTest, ThreeLevelOpaqueHandleBatchOut) {
   }
 }
 
+struct SaxCaptureState {
+  std::string tag;
+  bool atts_is_null = false;
+  std::vector<std::string> attrs;
+};
+
+void RecordSaxStartElement(void* ctx, const sax_xml_char_t* name,
+                           const sax_xml_char_t** atts) {
+  auto* state = static_cast<SaxCaptureState*>(ctx);
+  if (name != nullptr) {
+    state->tag = reinterpret_cast<const char*>(name);
+  }
+  state->atts_is_null = (atts == nullptr);
+  if (atts != nullptr) {
+    for (size_t i = 0; atts[i] != nullptr; ++i) {
+      state->attrs.emplace_back(reinterpret_cast<const char*>(atts[i]));
+    }
+  }
+}
+
+TEST(MultiLevelPointersTest,
+     NullTerminatedPointerArraysSupportLuaCheckOptionAndSaxAttributes) {
+  // 1. Lua `luaL_checkoption` pattern: `const char* const lst[]` terminated by
+  //    `nullptr`.
+  const char* const kModes[] = {"none", "line", "full", nullptr};
+  EXPECT_EQ(check_option_from_list("line", "none", kModes), 1);
+  EXPECT_EQ(check_option_from_list("full", "none", kModes), 2);
+  // Falls back to `def` when `name` is empty.
+  EXPECT_EQ(check_option_from_list("", "none", kModes), 0);
+  EXPECT_EQ(check_option_from_list("unknown", "none", kModes), -1);
+  EXPECT_EQ(check_option_from_list("line", "none", nullptr), -1);
+
+  // 2. libxml2/expat `startElementSAXFunc` pattern: `const xmlChar** atts`
+  //    terminated by `nullptr`, passed from host -> sandbox -> host callback.
+  const sax_xml_char_t kItemTag[] = {'i', 't', 'e', 'm', 0};
+  const sax_xml_char_t kAttrId[] = {'i', 'd', 0};
+  const sax_xml_char_t kVal42[] = {'4', '2', 0};
+  const sax_xml_char_t kAttrLang[] = {'l', 'a', 'n', 'g', 0};
+  const sax_xml_char_t kValEn[] = {'e', 'n', 0};
+  const sax_xml_char_t* atts[] = {kAttrId, kVal42, kAttrLang, kValEn, nullptr};
+
+  SaxCaptureState captured;
+  dispatch_sax_start_element(&captured, kItemTag, atts, &RecordSaxStartElement);
+  EXPECT_EQ(captured.tag, "item");
+  EXPECT_EQ(captured.attrs,
+            (std::vector<std::string>{"id", "42", "lang", "en"}));
+
+  // A null `atts` stays null across both boundaries.
+  SaxCaptureState empty_captured;
+  dispatch_sax_start_element(&empty_captured, kItemTag, nullptr,
+                             &RecordSaxStartElement);
+  EXPECT_EQ(empty_captured.tag, "item");
+  EXPECT_TRUE(empty_captured.atts_is_null);
+
+  // 3. Reverse callback: sandboxee returns `default_sax_start_element`, and the
+  //    host invokes it directly with a `nullptr`-terminated attribute array.
+  reset_default_sax_attr_byte_sum();
+  sax_start_element_cb default_cb = get_default_sax_start_element_cb();
+  ASSERT_NE(default_cb, nullptr);
+  default_cb(nullptr, kItemTag, atts);
+  int expected_sum = ('i' + 't' + 'e' + 'm') + ('i' + 'd') + ('4' + '2') +
+                     ('l' + 'a' + 'n' + 'g') + ('e' + 'n');
+  EXPECT_EQ(get_default_sax_attr_byte_sum(), expected_sum);
+
+  // The host can also pass a null `name` or `atts`. Only the non-null argument
+  // adds to the sum.
+  constexpr int kTagSum = 'i' + 't' + 'e' + 'm';
+  reset_default_sax_attr_byte_sum();
+  default_cb(nullptr, nullptr, atts);
+  EXPECT_EQ(get_default_sax_attr_byte_sum(), expected_sum - kTagSum);
+  reset_default_sax_attr_byte_sum();
+  default_cb(nullptr, kItemTag, nullptr);
+  EXPECT_EQ(get_default_sax_attr_byte_sum(), kTagSum);
+  reset_default_sax_attr_byte_sum();
+  EXPECT_EQ(get_default_sax_attr_byte_sum(), 0);
+}
+
 }  // namespace

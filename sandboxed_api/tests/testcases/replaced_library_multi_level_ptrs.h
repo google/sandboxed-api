@@ -85,6 +85,31 @@ int increment_3d_tensor(int*** tensor, size_t layers, size_t rows, size_t cols,
 int open_db_batch_via_3level_ptr(size_t count, int base_value,
                                  struct DbHandle*** handle_list_ptr);
 
+// `nullptr`-terminated array of `const char*` option strings (modeled on Lua's
+// `luaL_checkoption(lua_State *L, int arg, const char *def,
+// const char *const lst[])`).
+// Searches `lst` (terminated by `nullptr`) for `name` (or `def` when
+// `name` is null or empty) and returns the matching 0-based index, or -1 if
+// not found.
+int check_option_from_list(const char* name, const char* def,
+                           const char* const lst[]);
+
+// libxml2 `xmlChar` (`unsigned char`) and SAX2 `startElementSAXFunc` callback
+// signature (`void (*)(void *ctx, const xmlChar *name, const xmlChar **atts)`),
+// where `atts` is a `nullptr`-terminated array of `const xmlChar*` attribute
+// key/value pairs (`{"id", "42", "lang", "en", nullptr}`).
+typedef unsigned char sax_xml_char_t;
+typedef void (*sax_start_element_cb)(void* ctx, const sax_xml_char_t* name,
+                                     const sax_xml_char_t** atts);
+
+void dispatch_sax_start_element(void* ctx, const sax_xml_char_t* name,
+                                const sax_xml_char_t** atts,
+                                sax_start_element_cb cb);
+
+sax_start_element_cb get_default_sax_start_element_cb();
+int get_default_sax_attr_byte_sum();
+void reset_default_sax_attr_byte_sum();
+
 }  // extern "C"
 
 #endif  // SANDBOXED_API_TESTS_TESTCASES_REPLACED_LIBRARY_MULTI_LEVEL_PTRS_H_

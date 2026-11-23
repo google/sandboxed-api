@@ -340,6 +340,155 @@ TEST_F(SandboxedLibraryEmitterTest,
   EXPECT_THAT(redeclared.second, HasSubstr("decompress_stream"));
 }
 
+// Verifies that when an unannotated library header declares a function taking
+// an inline callback parameter (`void (*)(void*, const unsigned char**, ...)`)
+// and the annotation file redeclares that function with an inline callback
+// whose inner parameters use a pointee typedef and/or sandbox annotations,
+// `ConvertFunctionToIR` upgrades the parameter to the redeclared `ParmVarDecl`
+// and generates the same code as a single annotated declaration.
+TEST_F(SandboxedLibraryEmitterTest,
+       RedeclaringFunctionWithInlineCallbackPointeeTypedefAttachesAnnotations) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const auto redeclared, EmitHostAndSandboxeeSrc(R"(
+    extern "C" void register_sax(
+        void (*on_start)(void*, const unsigned char**, const int*,
+                         unsigned long));
+    extern "C" void register_pointee_only(
+        void (*on_attr)(const unsigned char* const*));
+
+    typedef const unsigned char* xml_str_pointee
+        [[clang::annotate("sandbox", "in_ptr")]]
+        [[clang::annotate("sandbox", "null_terminated")]];
+
+    extern "C" void register_sax(
+        [[clang::annotate("sandbox", "callback_idempotent")]]
+        void (*on_start)(
+            void* ctx [[clang::annotate("sandbox", "host_opaque_ptr")]],
+            xml_str_pointee* atts
+                [[clang::annotate("sandbox", "in_ptr")]]
+                [[clang::annotate("sandbox", "null_terminated")]],
+            const int* spans
+                [[clang::annotate("sandbox", "in_ptr")]]
+                [[clang::annotate("sandbox", "elem_sized_by", "count")]],
+            unsigned long count));
+    extern "C" void register_pointee_only(
+        void (*on_attr)(const xml_str_pointee* single_str));
+  )"));
+  SAPI_ASSERT_OK_AND_ASSIGN(const auto single_decl, EmitHostAndSandboxeeSrc(R"(
+    typedef const unsigned char* xml_str_pointee
+        [[clang::annotate("sandbox", "in_ptr")]]
+        [[clang::annotate("sandbox", "null_terminated")]];
+
+    extern "C" void register_sax(
+        [[clang::annotate("sandbox", "callback_idempotent")]]
+        void (*on_start)(
+            void* ctx [[clang::annotate("sandbox", "host_opaque_ptr")]],
+            xml_str_pointee* atts
+                [[clang::annotate("sandbox", "in_ptr")]]
+                [[clang::annotate("sandbox", "null_terminated")]],
+            const int* spans
+                [[clang::annotate("sandbox", "in_ptr")]]
+                [[clang::annotate("sandbox", "elem_sized_by", "count")]],
+            unsigned long count));
+    extern "C" void register_pointee_only(
+        void (*on_attr)(const xml_str_pointee* single_str));
+  )"));
+
+  EXPECT_EQ(redeclared.first, single_decl.first);
+  EXPECT_EQ(redeclared.second, single_decl.second);
+
+  // The annotated redeclaration is also used when its inline callback
+  // parameters have only sandbox attributes and no pointee typedef.
+  SAPI_ASSERT_OK_AND_ASSIGN(const auto attrs_only_redeclared,
+                            EmitHostAndSandboxeeSrc(R"(
+    extern "C" void register_spans(void (*cb)(const int*, unsigned long));
+    extern "C" void register_spans(
+        void (*cb)(
+            const int* spans
+                [[clang::annotate("sandbox", "in_ptr")]]
+                [[clang::annotate("sandbox", "elem_sized_by", "count")]],
+            unsigned long count));
+  )"));
+  SAPI_ASSERT_OK_AND_ASSIGN(const auto attrs_only_single_decl,
+                            EmitHostAndSandboxeeSrc(R"(
+    extern "C" void register_spans(
+        void (*cb)(
+            const int* spans
+                [[clang::annotate("sandbox", "in_ptr")]]
+                [[clang::annotate("sandbox", "elem_sized_by", "count")]],
+            unsigned long count));
+  )"));
+  EXPECT_EQ(attrs_only_redeclared.first, attrs_only_single_decl.first);
+  EXPECT_EQ(attrs_only_redeclared.second, attrs_only_single_decl.second);
+
+  // Unannotated C typedefs in the library header (both pointer typedefs and
+  // function-pointer typedefs) must not prevent upgrading parameters or return
+  // types to annotated redeclarations.
+  SAPI_ASSERT_OK_AND_ASSIGN(const auto upgraded_from_raw_typedefs,
+                            EmitHostAndSandboxeeSrc(R"(
+    typedef const unsigned char* raw_xml_str;
+    typedef void (*raw_spans_cb)(const int*, unsigned long);
+
+    extern "C" void parse_with_raw_typedefs(
+        raw_xml_str* attrs,
+        void (*on_row)(raw_xml_str* row, const int* spans, unsigned long count),
+        raw_spans_cb on_spans);
+    extern "C" raw_spans_cb get_spans_cb();
+
+    typedef const unsigned char* ann_xml_str
+        [[clang::annotate("sandbox", "in_ptr")]]
+        [[clang::annotate("sandbox", "null_terminated")]];
+    typedef void (*ann_spans_cb)(
+        const int* spans
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "elem_sized_by", "count")]],
+        unsigned long count);
+
+    extern "C" void parse_with_raw_typedefs(
+        ann_xml_str* attrs
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "null_terminated")]],
+        void (*on_row)(
+            ann_xml_str* row
+                [[clang::annotate("sandbox", "in_ptr")]]
+                [[clang::annotate("sandbox", "null_terminated")]],
+            const int* spans
+                [[clang::annotate("sandbox", "in_ptr")]]
+                [[clang::annotate("sandbox", "elem_sized_by", "count")]],
+            unsigned long count),
+        ann_spans_cb on_spans);
+    extern "C" ann_spans_cb get_spans_cb();
+  )"));
+  SAPI_ASSERT_OK_AND_ASSIGN(const auto single_annotated_typedefs,
+                            EmitHostAndSandboxeeSrc(R"(
+    typedef const unsigned char* ann_xml_str
+        [[clang::annotate("sandbox", "in_ptr")]]
+        [[clang::annotate("sandbox", "null_terminated")]];
+    typedef void (*ann_spans_cb)(
+        const int* spans
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "elem_sized_by", "count")]],
+        unsigned long count);
+
+    extern "C" void parse_with_raw_typedefs(
+        ann_xml_str* attrs
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "null_terminated")]],
+        void (*on_row)(
+            ann_xml_str* row
+                [[clang::annotate("sandbox", "in_ptr")]]
+                [[clang::annotate("sandbox", "null_terminated")]],
+            const int* spans
+                [[clang::annotate("sandbox", "in_ptr")]]
+                [[clang::annotate("sandbox", "elem_sized_by", "count")]],
+            unsigned long count),
+        ann_spans_cb on_spans);
+    extern "C" ann_spans_cb get_spans_cb();
+  )"));
+  EXPECT_EQ(upgraded_from_raw_typedefs.first, single_annotated_typedefs.first);
+  EXPECT_EQ(upgraded_from_raw_typedefs.second,
+            single_annotated_typedefs.second);
+}
+
 // Verifies that when a library header declares functions with raw function
 // pointers (both as parameters and as return values) and the annotation file
 // redeclares them in the same translation unit using callback typedefs, the

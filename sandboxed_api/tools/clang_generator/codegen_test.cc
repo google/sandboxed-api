@@ -1234,6 +1234,65 @@ TEST(EmitHostSrcTest,
           HasSubstr("sapi_owned_str_array.push_back(std::move(sapi_cstr));")));
 }
 
+TEST(EmitHostSrcTest, MultiLevelCallbackBoundsUseCheckedToSizeT) {
+  auto byte_row = std::make_shared<ir::Parameter>(
+      BufferArg("byte_row", ScalarType("const char"), PointerDir::kIn,
+                ByteCount("rlen")));
+  auto elem_row = std::make_shared<ir::Parameter>(BufferArg(
+      "elem_row", ScalarType("const int"), PointerDir::kIn, ElemCount("cols")));
+  ir::Parameter cb_param{
+      .name = "grid_cb",
+      .type = ir::TypeInfo{.kind = ir::TypeKind::kCallback,
+                           .canonical_name =
+                               "void (*)(const char**, int, int, const int**, "
+                               "int, int)"},
+      .payload =
+          ir::CallbackParam{
+              .callback_parameters =
+                  {
+                      ir::Parameter{
+                          .name = "byte_rows",
+                          .type = PointerTo(byte_row->type),
+                          .payload =
+                              ir::BufferParam{
+                                  .direction = PointerDir::kIn,
+                                  .bounds = ByteCount("outer_bytes"),
+                                  .pointee = byte_row,
+                              },
+                      },
+                      ScalarArg("outer_bytes", "int"),
+                      ScalarArg("rlen", "int"),
+                      ir::Parameter{
+                          .name = "elem_rows",
+                          .type = PointerTo(elem_row->type),
+                          .payload =
+                              ir::BufferParam{
+                                  .direction = PointerDir::kIn,
+                                  .bounds = ElemCount("rows"),
+                                  .pointee = elem_row,
+                              },
+                      },
+                      ScalarArg("rows", "int"),
+                      ScalarArg("cols", "int"),
+                  },
+          },
+  };
+  absl::StatusOr<std::string> src = HostSrc(ir::Function{
+      .name = "invoke_grid_cb",
+      .parameters = {std::move(cb_param)},
+  });
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(*src,
+              AllOf(HasSubstr("sapi::lwbox::CheckedToSizeT(outer_bytes) / "
+                              "sizeof(const char*)"),
+                    HasSubstr("size_t sapi_elem_bytes = "
+                              "sapi::lwbox::CheckedToSizeT(rlen);"),
+                    HasSubstr("sapi::lwbox::CheckedToSizeT(rows)"),
+                    HasSubstr("sandbox->CheckedMultiply(\n"
+                              "                sizeof(**elem_rows), "
+                              "sapi::lwbox::CheckedToSizeT(cols))")));
+}
+
 TEST(EmitHostSrcTest,
      NonCharNullTerminatedInputParamUsesNullTerminatedByteSize) {
   ir::Function func{
@@ -1340,7 +1399,6 @@ TEST(EmitHostSrcTest,
             HasSubstr("calloc(sapi_remote_arr.size(), sizeof(char))"),
             Not(HasSubstr("GetCString"))));
 }
-
 TEST(EmitHostSrcTest,
      StructSyncNonCharNullTerminatedMemberUsesNullTerminatedByteSize) {
   ir::Parameter pkt_param{
@@ -1388,6 +1446,109 @@ TEST(EmitHostSrcTest,
                       "sizeof(*(pkt->utf16_inout)),\n"
                       "             0, sizeof(*(pkt->utf16_inout)));"),
             Not(HasSubstr("strlen"))));
+}
+
+TEST(EmitHostSrcTest,
+     NullTerminatedPointerArrayParamAndCallbackMarshalWithNullTerminatedCount) {
+  auto cstr_pointee = std::make_shared<ir::Parameter>(
+      BufferArg("c_str_in_pointee", ScalarType("const char"), PointerDir::kIn,
+                ir::bounds::NullTerminated{}));
+  ir::Parameter lst_param{
+      .name = "lst",
+      .type = PointerTo(cstr_pointee->type),
+      .payload =
+          ir::BufferParam{
+              .direction = PointerDir::kIn,
+              .bounds = ir::bounds::NullTerminated{},
+              .pointee = cstr_pointee,
+          },
+  };
+
+  auto xml_str_pointee = std::make_shared<ir::Parameter>(
+      BufferArg("xml_str_in_pointee", ScalarType("const unsigned char"),
+                PointerDir::kIn, ir::bounds::NullTerminated{}));
+  ir::Parameter cb_param{
+      .name = "sax_cb",
+      .type = ir::TypeInfo{.kind = ir::TypeKind::kCallback,
+                           .canonical_name = "void (*)(const unsigned char**)"},
+      .payload =
+          ir::CallbackParam{
+              .callback_parameters =
+                  {
+                      ir::Parameter{
+                          .name = "atts",
+                          .type = PointerTo(xml_str_pointee->type),
+                          .payload =
+                              ir::BufferParam{
+                                  .direction = PointerDir::kIn,
+                                  .bounds = ir::bounds::NullTerminated{},
+                                  .pointee = xml_str_pointee,
+                              },
+                      },
+                  },
+          },
+  };
+
+  absl::StatusOr<std::string> src = HostSrc(ir::Function{
+      .name = "check_option_and_sax",
+      .parameters = {std::move(lst_param), std::move(cb_param)},
+  });
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(HasSubstr("size_t sapi_count_lst = "
+                      "sapi::lwbox::NullTerminatedCount(lst);"),
+            HasSubstr("std::vector<const char*> sapi_ptrs_lst(sapi_count_lst + "
+                      "1, nullptr);"),
+            HasSubstr(
+                "sandbox->CheckedMultiply(sizeof(const char*), sapi_count_lst "
+                "+ 1)"),
+            HasSubstr("sapi::lwbox::ReadNullTerminatedArray(\n"
+                      "                *sandbox, "
+                      "reinterpret_cast<uintptr_t>(atts),\n"
+                      "                sizeof(const unsigned char*))"),
+            HasSubstr("sapi_host_ptrs_atts.assign(sapi_count_atts + 1, "
+                      "nullptr);")));
+}
+
+TEST(EmitHostSrcTest,
+     CallbackWithHostOpaquePointerArrayForwardsElementsDirectly) {
+  auto opaque_pointee = std::make_shared<ir::Parameter>(ir::Parameter{
+      .name = "host_ctx_pointee",
+      .type = PointerTo(
+          ir::TypeInfo{.kind = ir::TypeKind::kVoid, .canonical_name = "void"}),
+      .payload = ir::OpaquePointerParam{.direction = PointerDir::kHostOpaque},
+  });
+  ir::Parameter cb_param{
+      .name = "ctx_cb",
+      .type = ir::TypeInfo{.kind = ir::TypeKind::kCallback,
+                           .canonical_name = "void (*)(void**)"},
+      .payload =
+          ir::CallbackParam{
+              .callback_parameters =
+                  {
+                      ir::Parameter{
+                          .name = "ctxs",
+                          .type = PointerTo(opaque_pointee->type),
+                          .payload =
+                              ir::BufferParam{
+                                  .direction = PointerDir::kIn,
+                                  .bounds = ir::bounds::NullTerminated{},
+                                  .pointee = opaque_pointee,
+                              },
+                      },
+                  },
+          },
+  };
+
+  absl::StatusOr<std::string> src = HostSrc(ir::Function{
+      .name = "dispatch_ctxs",
+      .parameters = {std::move(cb_param)},
+  });
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(*src, AllOf(HasSubstr("sapi_host_ptrs_ctxs[sapi_i] = "
+                                    "sapi_remote_ptrs_ctxs[sapi_i];"),
+                          Not(HasSubstr("HostOpaqueRegistry"))));
 }
 }  // namespace
 }  // namespace sapi

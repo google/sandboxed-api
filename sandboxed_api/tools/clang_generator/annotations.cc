@@ -127,7 +127,15 @@ bool HasSandboxAnnotations(const clang::TypedefNameDecl& decl) {
   }
   for (unsigned i = 0; i < ftl->getNumParams(); ++i) {
     const clang::ParmVarDecl* param = ftl->getParam(i);
-    if (param != nullptr && has_sandbox_attr(param)) {
+    if (param == nullptr) {
+      continue;
+    }
+    if (has_sandbox_attr(param)) {
+      return true;
+    }
+    if (const clang::TypedefNameDecl* pt_td =
+            FindPointeeTypedef(param->getType());
+        pt_td != nullptr && has_sandbox_attr(pt_td)) {
       return true;
     }
   }
@@ -658,16 +666,29 @@ absl::StatusOr<Annotations> ParseReturnDeclAnnotations(
   return annotations;
 }
 
+int ReturnCallbackTypedefRank(clang::QualType type) {
+  const clang::TypedefNameDecl* cb_td = FindCallbackTypedef(type);
+  if (cb_td == nullptr) {
+    return 0;
+  }
+  return HasSandboxAnnotations(*cb_td) ? 2 : 1;
+}
+
 }  // namespace
 
 absl::StatusOr<Annotations> ParseAnnotations(
     absl::string_view name, const clang::FunctionDecl* funcDecl) {
   clang::QualType return_type = funcDecl->getReturnType();
-  if (FindCallbackTypedef(return_type) == nullptr) {
+  int best_rank = ReturnCallbackTypedefRank(return_type);
+  if (best_rank < 2) {
     for (const clang::FunctionDecl* redecl : funcDecl->redecls()) {
-      if (FindCallbackTypedef(redecl->getReturnType()) != nullptr) {
+      const int cand_rank = ReturnCallbackTypedefRank(redecl->getReturnType());
+      if (cand_rank > best_rank) {
         return_type = redecl->getReturnType();
-        break;
+        best_rank = cand_rank;
+        if (best_rank == 2) {
+          break;
+        }
       }
     }
   }
@@ -1206,6 +1227,13 @@ absl::StatusOr<CallbackTypedef> ParseCallbackTypedef(
     }
     ABSL_ASSIGN_OR_RETURN(Annotations param_annotations,
                           ParseAnnotations(param_name, param));
+    if (!param_annotations.pointee_contract.has_value()) {
+      if (const clang::TypedefNameDecl* pt_td =
+              FindPointeeTypedef(param->getType());
+          pt_td != nullptr && HasSandboxAnnotations(*pt_td)) {
+        param_annotations.pointee_contract = pt_td->getNameAsString();
+      }
+    }
     ABSL_RETURN_IF_ERROR(CheckCallbackTypedefAnnotationsAreContextIndependent(
         typedef_name, absl::StrCat("parameter ", param_name),
         param_annotations));

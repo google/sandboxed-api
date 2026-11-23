@@ -653,6 +653,15 @@ TEST(SandboxeeCallbackRegistryTest, ForgetSandboxReleasesOnlyItsOwnSlots) {
               IsOkAndHolds(*kept));
 }
 
+TEST(CheckedToSizeTTest, ConvertsNonNegativeAndRejectsNegativeSignedValues) {
+  EXPECT_EQ(CheckedToSizeT(0), 0u);
+  EXPECT_EQ(CheckedToSizeT(42), 42u);
+  EXPECT_EQ(CheckedToSizeT(size_t{0}), 0u);
+  EXPECT_EQ(CheckedToSizeT(size_t{99}), 99u);
+  EXPECT_DEATH(CheckedToSizeT(-1), "Negative buffer size: -1");
+  EXPECT_DEATH(CheckedToSizeT(int64_t{-8}), "Negative buffer size: -8");
+}
+
 // =========================================================================
 // HostCallbackRegistry Tests
 // =========================================================================
@@ -1092,27 +1101,39 @@ enum TestOpCode : int {
   kOpStore = 2,
 };
 
-TEST(NullTerminatedArrayTest, NullTerminatedByteSizeHandlesNullAndScalars) {
+TEST(NullTerminatedArrayTest,
+     NullTerminatedCountAndByteSizeHandleNullAndArrays) {
   const int* null_ints = nullptr;
+  EXPECT_EQ(NullTerminatedCount(null_ints), 0u);
   EXPECT_EQ(NullTerminatedByteSize(null_ints), 0u);
 
   // libxml2 `const xmlChar*` (`const unsigned char*`) UTF-8 sequence.
   const unsigned char kXmlTag[] = {'n', 'o', 'd', 'e', 0};
+  EXPECT_EQ(NullTerminatedCount(kXmlTag), 4u);
   EXPECT_EQ(NullTerminatedByteSize(kXmlTag), 5 * sizeof(unsigned char));
 
   // SQLite `sqlite3_open16` `const char16_t*` UTF-16 sequence.
   const char16_t kUtf16Path[] = {u'm', u'e', u'm', 0};
+  EXPECT_EQ(NullTerminatedCount(kUtf16Path), 3u);
   EXPECT_EQ(NullTerminatedByteSize(kUtf16Path), 4 * sizeof(char16_t));
 
   // Zero-terminated integer and enum sequences.
   const int kEmptyInts[] = {0};
+  EXPECT_EQ(NullTerminatedCount(kEmptyInts), 0u);
   EXPECT_EQ(NullTerminatedByteSize(kEmptyInts), sizeof(int));
 
   const int kInts[] = {10, 20, 30, 0};
+  EXPECT_EQ(NullTerminatedCount(kInts), 3u);
   EXPECT_EQ(NullTerminatedByteSize(kInts), 4 * sizeof(int));
 
   const TestOpCode kOps[] = {kOpLoad, kOpStore, kOpEnd};
+  EXPECT_EQ(NullTerminatedCount(kOps), 2u);
   EXPECT_EQ(NullTerminatedByteSize(kOps), 3 * sizeof(TestOpCode));
+
+  // Lua `luaL_checkoption` `const char* const lst[]` pointer array.
+  const char* const kOptions[] = {"none", "fast", "full", nullptr};
+  EXPECT_EQ(NullTerminatedCount(kOptions), 3u);
+  EXPECT_EQ(NullTerminatedByteSize(kOptions), 4 * sizeof(const char*));
 }
 
 TEST(NullTerminatedArrayTest, ReadNullTerminatedArrayHandlesNullAndByteArrays) {

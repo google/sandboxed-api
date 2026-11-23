@@ -833,6 +833,143 @@ std::string GetCallbackReturnSizeAsBytesExpr(const ir::Parameter& cb_param,
       ret_buf->bounds);
 }
 
+// Emits host-side pre-call marshaling for a multi-level pointer parameter
+// passed from the sandboxee into a host callback (`p_buf.pointee != nullptr`).
+//
+// Security invariant (TOCTOU / double-fetch prevention):
+// Both the outer pointer table (`sapi_outer_arr_<p>`) and every non-null inner
+// element buffer (`sapi_elem_bufs_<p>`) are copied once into host-owned
+// staging vectors before invoking the host callback, and the host callback
+// receives `sapi_host_ptrs_<p>.data()` pointing exclusively into those host
+// vectors. For `NullTerminated` outer pointer arrays, `NullTerminatedCount` is
+// computed on the host-staged copy `sapi_outer_arr_<p>` rather than re-scanning
+// sandboxee memory, so a concurrent thread in a compromised sandboxee cannot
+// race to grow the pointer array past `sapi_host_ptrs_<p>` or swap pointer
+// entries between length calculation and element copy.
+void EmitMultiLevelCallbackParamMarshaling(
+    const ir::Parameter& p, const ir::BufferParam& p_buf,
+    std::vector<std::string>& pre_call_blocks) {
+  std::string p_name = p.name;
+  std::string p_type = p.type.canonical_name;
+  std::string inner_ptr_type = p.type.pointee_value_type_name();
+  const ir::Parameter& inner_param = *p_buf.pointee;
+
+  std::string read_outer;
+  if (std::holds_alternative<ir::bounds::NullTerminated>(p_buf.bounds)) {
+    read_outer = absl::Substitute(
+        R"(        std::vector<char> sapi_outer_arr_$0 =
+            sapi::lwbox::ReadNullTerminatedArray(
+                *sandbox, reinterpret_cast<uintptr_t>($0), sizeof($1));
+        const auto* sapi_remote_ptrs_$0 =
+            reinterpret_cast<$1 const*>(sapi_outer_arr_$0.data());
+        size_t sapi_count_$0 =
+            sapi::lwbox::NullTerminatedCount(sapi_remote_ptrs_$0);
+        sapi_host_ptrs_$0.assign(sapi_count_$0 + 1, nullptr);)",
+        p_name, inner_ptr_type);
+  } else {
+    std::string count_expr = std::visit(
+        absl::Overload{
+            [](const ir::bounds::Singleton&) -> std::string { return "1"; },
+            [](const ir::bounds::ElemCount& e) -> std::string {
+              return absl::Substitute("sapi::lwbox::CheckedToSizeT($0)",
+                                      e.size_expr);
+            },
+            [&](const ir::bounds::ByteCount& b) -> std::string {
+              return absl::Substitute(
+                  "(sapi::lwbox::CheckedToSizeT($0) / sizeof($1))", b.size_expr,
+                  inner_ptr_type);
+            },
+            [](const auto&) -> std::string { return "1"; },
+        },
+        p_buf.bounds);
+    read_outer = absl::Substitute(
+        R"(        size_t sapi_count_$0 = static_cast<size_t>($2);
+        std::vector<char> sapi_outer_arr_$0(
+            sandbox->CheckedMultiply(sizeof($1), sapi_count_$0));
+        sapi::lwbox::SyncFromSandboxToHost(
+            *sandbox, reinterpret_cast<uintptr_t>($0),
+            sapi_outer_arr_$0.data(), sapi_outer_arr_$0.size());
+        const auto* sapi_remote_ptrs_$0 =
+            reinterpret_cast<$1 const*>(sapi_outer_arr_$0.data());
+        sapi_host_ptrs_$0.assign(std::max<size_t>(sapi_count_$0, 1), nullptr);)",
+        p_name, inner_ptr_type, count_expr);
+  }
+
+  std::string elem_bufs_decl;
+  std::string elem_marshal;
+  if (inner_param.Is<ir::OpaquePointerParam>()) {
+    elem_marshal = absl::Substitute(
+        R"(          sapi_host_ptrs_$0[sapi_i] = sapi_remote_ptrs_$0[sapi_i];)",
+        p_name);
+  } else if (const auto* inner_buf = inner_param.As<ir::BufferParam>()) {
+    CHECK(inner_buf->pointee == nullptr)
+        << "Multi-level callback parameters deeper than 2 levels are not "
+           "supported";
+    elem_bufs_decl = absl::Substitute(
+        "      std::vector<std::vector<char>> sapi_elem_bufs_$0;\n", p_name);
+    if (std::holds_alternative<ir::bounds::NullTerminated>(inner_buf->bounds)) {
+      elem_marshal = absl::Substitute(
+          R"(          if (sapi_remote_ptrs_$0[sapi_i] != nullptr) {
+            sapi_elem_bufs_$0.push_back(
+                sapi::lwbox::ReadNullTerminatedArray(
+                    *sandbox,
+                    reinterpret_cast<uintptr_t>(sapi_remote_ptrs_$0[sapi_i]),
+                    sizeof(**$0)));
+            sapi_host_ptrs_$0[sapi_i] =
+                reinterpret_cast<$1>(sapi_elem_bufs_$0.back().data());
+          })",
+          p_name, inner_ptr_type);
+    } else {
+      std::string elem_bytes_expr =
+          std::visit(absl::Overload{
+                         [&](const ir::bounds::Singleton&) -> std::string {
+                           return absl::Substitute("sizeof(**$0)", p_name);
+                         },
+                         [&](const ir::bounds::ElemCount& e) -> std::string {
+                           return absl::Substitute(
+                               "sandbox->CheckedMultiply(sizeof(**$0), "
+                               "sapi::lwbox::CheckedToSizeT($1))",
+                               p_name, e.size_expr);
+                         },
+                         [](const ir::bounds::ByteCount& b) -> std::string {
+                           return absl::Substitute(
+                               "sapi::lwbox::CheckedToSizeT($0)", b.size_expr);
+                         },
+                         [&](const auto&) -> std::string {
+                           return absl::Substitute("sizeof(**$0)", p_name);
+                         },
+                     },
+                     inner_buf->bounds);
+      elem_marshal = absl::Substitute(
+          R"(          if (sapi_remote_ptrs_$0[sapi_i] != nullptr) {
+            size_t sapi_elem_bytes = $2;
+            sapi_elem_bufs_$0.emplace_back(
+                std::max<size_t>(sapi_elem_bytes, 1));
+            sapi::lwbox::SyncFromSandboxToHost(
+                *sandbox,
+                reinterpret_cast<uintptr_t>(sapi_remote_ptrs_$0[sapi_i]),
+                sapi_elem_bufs_$0.back().data(), sapi_elem_bytes);
+            sapi_host_ptrs_$0[sapi_i] =
+                reinterpret_cast<$1>(sapi_elem_bufs_$0.back().data());
+          })",
+          p_name, inner_ptr_type, elem_bytes_expr);
+    }
+  }
+
+  pre_call_blocks.push_back(absl::Substitute(
+      R"($2      std::vector<$1> sapi_host_ptrs_$0;
+      $3 sapi_host_$0 = nullptr;
+      if ($0 != nullptr) {
+$4
+        for (size_t sapi_i = 0; sapi_i < sapi_count_$0; ++sapi_i) {
+$5
+        }
+        sapi_host_$0 = reinterpret_cast<$3>(sapi_host_ptrs_$0.data());
+      })",
+      p_name, inner_ptr_type, elem_bufs_decl, p_type, read_outer,
+      elem_marshal));
+}
+
 // Emits parameter marshaling blocks (pre-call and post-call) for a host-side
 // callback wrapper lambda given the callback's parameter list.
 //
@@ -867,6 +1004,11 @@ void EmitCallbackParamMarshaling(absl::Span<const ir::Parameter> parameters,
         absl::Overload{
             [&](const ir::BufferParam& p_buf) {
               lambda_call_args.push_back(absl::StrCat("sapi_host_", p_name));
+              if (p_buf.pointee != nullptr) {
+                EmitMultiLevelCallbackParamMarshaling(p, p_buf,
+                                                      pre_call_blocks);
+                return;
+              }
               if (UsesCStringEmission(p, p_buf)) {
                 pre_call_blocks.push_back(absl::Substitute(
                     R"(      std::optional<std::string> sapi_str_$0;
@@ -1805,6 +1947,8 @@ void EmitShadowPointerElement(const ir::Parameter& inner_param,
 
   // Nested multi-level pointer (`inner_buf->pointee != nullptr`, e.g., T***).
   std::string child_ptr_type = inner_param.type.pointee_value_type_name();
+  bool is_null_terminated =
+      std::holds_alternative<ir::bounds::NullTerminated>(inner_buf->bounds);
   std::string count_expr = std::visit(
       absl::Overload{
           [](const ir::bounds::Singleton&) -> std::string { return "1"; },
@@ -1814,6 +1958,10 @@ void EmitShadowPointerElement(const ir::Parameter& inner_param,
           [&](const ir::bounds::ByteCount& b) -> std::string {
             return absl::Substitute("(($0) / sizeof($1))", b.size_expr,
                                     child_ptr_type);
+          },
+          [&](const ir::bounds::NullTerminated&) -> std::string {
+            return absl::Substitute("sapi::lwbox::NullTerminatedCount($0)",
+                                    host_expr);
           },
           [](const auto&) -> std::string { return "1"; },
       },
@@ -1826,15 +1974,19 @@ void EmitShadowPointerElement(const ir::Parameter& inner_param,
   std::string idx_var = absl::StrCat("sapi_idx_d", depth);
   std::string cnt_var = absl::StrCat("sapi_cnt_d", depth);
   std::string child_indent = absl::StrCat(indent, "  ");
+  std::string tbl_slots_expr =
+      is_null_terminated ? absl::Substitute("($0 + 1)", cnt_var)
+                         : absl::Substitute("std::max<size_t>($0, 1)", cnt_var);
+  std::string tbl_xfer_count_expr =
+      is_null_terminated ? absl::Substitute("$0 + 1", cnt_var) : cnt_var;
 
   absl::SubstituteAndAppend(
       &pre_call,
       "$0if (($1) != nullptr) {\n"
       "$0  size_t $2 = static_cast<size_t>($3);\n"
       "$0  auto sapi_tbl = std::make_unique<std::vector<char>>(\n"
-      "$0      sandbox->CheckedMultiply(sizeof($4), std::max<size_t>($2, 1)), "
-      "0);\n",
-      indent, host_expr, cnt_var, count_expr, child_ptr_type);
+      "$0      sandbox->CheckedMultiply(sizeof($4), $5), 0);\n",
+      indent, host_expr, cnt_var, count_expr, child_ptr_type, tbl_slots_expr);
 
   if (!child_is_callee_written || inner_param.IsInput()) {
     absl::SubstituteAndAppend(&pre_call,
@@ -1869,7 +2021,7 @@ void EmitShadowPointerElement(const ir::Parameter& inner_param,
       "/*automatic_free=*/true));\n"
       "$0  sandbox->Check(sandbox->TransferToSandboxee(sapi_tbl_arr.get()));\n"
       "$0  $3 = reinterpret_cast<$4>(sapi_tbl_arr->GetRemote());\n",
-      indent, child_ptr_type, cnt_var, remote_lhs, inner_type);
+      indent, child_ptr_type, tbl_xfer_count_expr, remote_lhs, inner_type);
 
   if (child_is_callee_written && inner_param.IsOutput() && depth == 1) {
     absl::SubstituteAndAppend(&pre_call,
@@ -2060,6 +2212,27 @@ void EmitMultiLevelPointerParam(const ir::Parameter& param,
         "  }\n"
         "  sapi::v::Reg<$0> sapi_tmp_$1(sapi_remote_$1);\n",
         inner_ptr_type, param.name);
+    absl::SubstituteAndAppend(
+        &call_args, "$0 == nullptr ? nullptr : sapi_tmp_$0.PtrBefore()",
+        param.name);
+  } else if (std::holds_alternative<ir::bounds::NullTerminated>(buf.bounds)) {
+    absl::SubstituteAndAppend(
+        &pre_call,
+        "  size_t sapi_count_$0 = sapi::lwbox::NullTerminatedCount($0);\n"
+        "  std::vector<$1> sapi_ptrs_$0(sapi_count_$0 + 1, nullptr);\n"
+        "  for (size_t sapi_i = 0; sapi_i < sapi_count_$0; ++sapi_i) {\n",
+        param.name, inner_ptr_type);
+    EmitShadowPointerElement(
+        inner_param, param.name, absl::Substitute("$0[sapi_i]", param.name),
+        absl::Substitute("sapi_ptrs_$0[sapi_i]", param.name),
+        /*depth=*/1, "    ", pre_call, post_call);
+    absl::SubstituteAndAppend(
+        &pre_call,
+        "  }\n"
+        "  sapi::v::Array<char> sapi_tmp_$0(\n"
+        "      reinterpret_cast<char*>(sapi_ptrs_$0.data()),\n"
+        "      sandbox->CheckedMultiply(sizeof($1), sapi_count_$0 + 1));\n",
+        param.name, inner_ptr_type);
     absl::SubstituteAndAppend(
         &call_args, "$0 == nullptr ? nullptr : sapi_tmp_$0.PtrBefore()",
         param.name);
@@ -2682,7 +2855,12 @@ absl::flat_hash_set<std::string> GatherHostIncludes(
           absl::Substitute("\"$0absl/status/statusor.h\"", kIncludePrefix));
       for (size_t i = 1; i < func->parameters.size(); ++i) {
         if (const auto* buf = func->parameters[i].As<ir::BufferParam>()) {
-          if (UsesCStringEmission(func->parameters[i], *buf)) {
+          if (buf->pointee != nullptr) {
+            host_includes.insert("<algorithm>");
+            host_includes.insert("<cstdint>");
+            host_includes.insert("<memory>");
+            host_includes.insert("<vector>");
+          } else if (UsesCStringEmission(func->parameters[i], *buf)) {
             host_includes.insert("<string>");
             host_includes.insert("<cstring>");
           } else if (std::holds_alternative<ir::bounds::NullTerminated>(
@@ -2733,7 +2911,11 @@ absl::flat_hash_set<std::string> GatherHostIncludes(
                     std::visit(
                         absl::Overload{
                             [&](const ir::BufferParam& cb_buf) {
-                              if (UsesCStringEmission(cb_p, cb_buf)) {
+                              if (cb_buf.pointee != nullptr) {
+                                host_includes.insert("<algorithm>");
+                                host_includes.insert("<cstdint>");
+                                host_includes.insert("<vector>");
+                              } else if (UsesCStringEmission(cb_p, cb_buf)) {
                                 host_includes.insert("<string>");
                                 host_includes.insert("<cstring>");
                               } else if (std::holds_alternative<
