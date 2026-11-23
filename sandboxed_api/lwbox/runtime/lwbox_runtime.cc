@@ -206,14 +206,14 @@ void SyncFromSandboxToHost(sapi::SandboxBase& sandbox, uintptr_t remote_ptr,
       << "Failed to copy memory from sandbox at 0x" << absl::Hex(remote_ptr);
 }
 
-std::vector<char> ReadNullTerminatedArray(sapi::SandboxBase& sandbox,
-                                          uintptr_t remote_ptr,
-                                          size_t elem_size) {
+std::vector<char> ReadNullTerminatedArray(
+    sapi::SandboxBase& sandbox, uintptr_t remote_ptr, size_t elem_size,
+    bool (*absl_nullable is_zero_elem)(const void* elem)) {
   if (remote_ptr == 0) {
     return {};
   }
   CHECK_GT(elem_size, 0u) << "ReadNullTerminatedArray called with elem_size 0";
-  if (elem_size == 1) {
+  if (elem_size == 1 && is_zero_elem == nullptr) {
     absl::StatusOr<std::string> str = sandbox.GetCString(
         sapi::v::RemotePtr(reinterpret_cast<const void*>(remote_ptr)));
     CHECK_OK(str.status())
@@ -274,8 +274,10 @@ std::vector<char> ReadNullTerminatedArray(sapi::SandboxBase& sandbox,
 
     for (size_t i = 0; i < elems_read; ++i) {
       const char* elem_ptr = batch_buf.data() + i * elem_size;
-      bool all_zero = std::all_of(elem_ptr, elem_ptr + elem_size,
-                                  [](char b) { return b == 0; });
+      bool all_zero = is_zero_elem != nullptr
+                          ? is_zero_elem(elem_ptr)
+                          : std::all_of(elem_ptr, elem_ptr + elem_size,
+                                        [](char b) { return b == 0; });
       CHECK_LE(result.size() + elem_size, kMaxNullTerminatedBytes)
           << "Null-terminated array at 0x" << absl::Hex(remote_ptr)
           << " exceeds maximum size (" << kMaxNullTerminatedBytes << " bytes)";

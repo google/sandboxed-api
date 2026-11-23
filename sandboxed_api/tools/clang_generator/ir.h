@@ -278,6 +278,7 @@ struct StructSyncParam {
   std::vector<StructMemberSync> members;
   std::vector<StructCallbackField> callbacks;
   bool is_shallow = false;
+  BufferBounds array_bounds = bounds::Singleton{};
   ContextBoundAnnotations context_bound;
 };
 

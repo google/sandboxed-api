@@ -483,23 +483,252 @@ size_t CheckedToSizeT(T value) {
   return static_cast<size_t>(value);
 }
 
+namespace internal {
+
+inline bool AllBytesZero(const void* ptr, size_t size) {
+  const auto* bytes = static_cast<const unsigned char*>(ptr);
+  for (size_t i = 0; i < size; ++i) {
+    if (bytes[i] != 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Probes the direct aggregate initializer arity (up to 16 fields) of a class
+// aggregate `T` using empty `{}` clauses. An empty `{}` initializes a single
+// direct member (including embedded C arrays) without brace elision.
+template <typename T>
+consteval size_t AggregateFieldCount() {
+  if constexpr (!std::is_class_v<T> || !std::is_aggregate_v<T>) {
+    return 0;
+  } else if constexpr (requires {
+                         T{{}, {}, {}, {}, {}, {}, {}, {}, {},
+                           {}, {}, {}, {}, {}, {}, {}, {}};
+                       }) {
+    return 17;  // > 16 direct aggregate elements.
+  } else if constexpr (requires {
+                         T{{}, {}, {}, {}, {}, {}, {}, {},
+                           {}, {}, {}, {}, {}, {}, {}, {}};
+                       }) {
+    return 16;
+  } else if constexpr (requires {
+                         T{{}, {}, {}, {}, {}, {}, {}, {},
+                           {}, {}, {}, {}, {}, {}, {}};
+                       }) {
+    return 15;
+  } else if constexpr (requires {
+                         T{{}, {}, {}, {}, {}, {}, {},
+                           {}, {}, {}, {}, {}, {}, {}};
+                       }) {
+    return 14;
+  } else if constexpr (requires {
+                         T{{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}};
+                       }) {
+    return 13;
+  } else if constexpr (requires {
+                         T{{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}};
+                       }) {
+    return 12;
+  } else if constexpr (requires {
+                         T{{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}};
+                       }) {
+    return 11;
+  } else if constexpr (requires {
+                         T{{}, {}, {}, {}, {}, {}, {}, {}, {}, {}};
+                       }) {
+    return 10;
+  } else if constexpr (requires { T{{}, {}, {}, {}, {}, {}, {}, {}, {}}; }) {
+    return 9;
+  } else if constexpr (requires { T{{}, {}, {}, {}, {}, {}, {}, {}}; }) {
+    return 8;
+  } else if constexpr (requires { T{{}, {}, {}, {}, {}, {}, {}}; }) {
+    return 7;
+  } else if constexpr (requires { T{{}, {}, {}, {}, {}, {}}; }) {
+    return 6;
+  } else if constexpr (requires { T{{}, {}, {}, {}, {}}; }) {
+    return 5;
+  } else if constexpr (requires { T{{}, {}, {}, {}}; }) {
+    return 4;
+  } else if constexpr (requires { T{{}, {}, {}}; }) {
+    return 3;
+  } else if constexpr (requires { T{{}, {}}; }) {
+    return 2;
+  } else if constexpr (requires { T{{}}; }) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+template <typename T>
+bool IsZeroElement(const T& elem);
+
+// Portable C++20 field-by-field zero check for standard-layout C struct
+// aggregates with 1..16 direct fields (used on toolchains such as Clang < 23
+// that do not yet implement `__builtin_clear_padding`).
+template <typename T>
+bool AggregateMemberwiseIsZero(const T& elem) {
+  constexpr size_t kArity = AggregateFieldCount<T>();
+  static_assert(kArity >= 1 && kArity <= 16,
+                "AggregateMemberwiseIsZero requires 1..16 aggregate fields");
+  if constexpr (kArity == 1) {
+    const auto& [f0] = elem;
+    return IsZeroElement(f0);
+  } else if constexpr (kArity == 2) {
+    const auto& [f0, f1] = elem;
+    return IsZeroElement(f0) && IsZeroElement(f1);
+  } else if constexpr (kArity == 3) {
+    const auto& [f0, f1, f2] = elem;
+    return IsZeroElement(f0) && IsZeroElement(f1) && IsZeroElement(f2);
+  } else if constexpr (kArity == 4) {
+    const auto& [f0, f1, f2, f3] = elem;
+    return IsZeroElement(f0) && IsZeroElement(f1) && IsZeroElement(f2) &&
+           IsZeroElement(f3);
+  } else if constexpr (kArity == 5) {
+    const auto& [f0, f1, f2, f3, f4] = elem;
+    return IsZeroElement(f0) && IsZeroElement(f1) && IsZeroElement(f2) &&
+           IsZeroElement(f3) && IsZeroElement(f4);
+  } else if constexpr (kArity == 6) {
+    const auto& [f0, f1, f2, f3, f4, f5] = elem;
+    return IsZeroElement(f0) && IsZeroElement(f1) && IsZeroElement(f2) &&
+           IsZeroElement(f3) && IsZeroElement(f4) && IsZeroElement(f5);
+  } else if constexpr (kArity == 7) {
+    const auto& [f0, f1, f2, f3, f4, f5, f6] = elem;
+    return IsZeroElement(f0) && IsZeroElement(f1) && IsZeroElement(f2) &&
+           IsZeroElement(f3) && IsZeroElement(f4) && IsZeroElement(f5) &&
+           IsZeroElement(f6);
+  } else if constexpr (kArity == 8) {
+    const auto& [f0, f1, f2, f3, f4, f5, f6, f7] = elem;
+    return IsZeroElement(f0) && IsZeroElement(f1) && IsZeroElement(f2) &&
+           IsZeroElement(f3) && IsZeroElement(f4) && IsZeroElement(f5) &&
+           IsZeroElement(f6) && IsZeroElement(f7);
+  } else if constexpr (kArity == 9) {
+    const auto& [f0, f1, f2, f3, f4, f5, f6, f7, f8] = elem;
+    return IsZeroElement(f0) && IsZeroElement(f1) && IsZeroElement(f2) &&
+           IsZeroElement(f3) && IsZeroElement(f4) && IsZeroElement(f5) &&
+           IsZeroElement(f6) && IsZeroElement(f7) && IsZeroElement(f8);
+  } else if constexpr (kArity == 10) {
+    const auto& [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9] = elem;
+    return IsZeroElement(f0) && IsZeroElement(f1) && IsZeroElement(f2) &&
+           IsZeroElement(f3) && IsZeroElement(f4) && IsZeroElement(f5) &&
+           IsZeroElement(f6) && IsZeroElement(f7) && IsZeroElement(f8) &&
+           IsZeroElement(f9);
+  } else if constexpr (kArity == 11) {
+    const auto& [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10] = elem;
+    return IsZeroElement(f0) && IsZeroElement(f1) && IsZeroElement(f2) &&
+           IsZeroElement(f3) && IsZeroElement(f4) && IsZeroElement(f5) &&
+           IsZeroElement(f6) && IsZeroElement(f7) && IsZeroElement(f8) &&
+           IsZeroElement(f9) && IsZeroElement(f10);
+  } else if constexpr (kArity == 12) {
+    const auto& [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11] = elem;
+    return IsZeroElement(f0) && IsZeroElement(f1) && IsZeroElement(f2) &&
+           IsZeroElement(f3) && IsZeroElement(f4) && IsZeroElement(f5) &&
+           IsZeroElement(f6) && IsZeroElement(f7) && IsZeroElement(f8) &&
+           IsZeroElement(f9) && IsZeroElement(f10) && IsZeroElement(f11);
+  } else if constexpr (kArity == 13) {
+    const auto& [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12] = elem;
+    return IsZeroElement(f0) && IsZeroElement(f1) && IsZeroElement(f2) &&
+           IsZeroElement(f3) && IsZeroElement(f4) && IsZeroElement(f5) &&
+           IsZeroElement(f6) && IsZeroElement(f7) && IsZeroElement(f8) &&
+           IsZeroElement(f9) && IsZeroElement(f10) && IsZeroElement(f11) &&
+           IsZeroElement(f12);
+  } else if constexpr (kArity == 14) {
+    const auto& [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13] =
+        elem;
+    return IsZeroElement(f0) && IsZeroElement(f1) && IsZeroElement(f2) &&
+           IsZeroElement(f3) && IsZeroElement(f4) && IsZeroElement(f5) &&
+           IsZeroElement(f6) && IsZeroElement(f7) && IsZeroElement(f8) &&
+           IsZeroElement(f9) && IsZeroElement(f10) && IsZeroElement(f11) &&
+           IsZeroElement(f12) && IsZeroElement(f13);
+  } else if constexpr (kArity == 15) {
+    const auto& [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13,
+                 f14] = elem;
+    return IsZeroElement(f0) && IsZeroElement(f1) && IsZeroElement(f2) &&
+           IsZeroElement(f3) && IsZeroElement(f4) && IsZeroElement(f5) &&
+           IsZeroElement(f6) && IsZeroElement(f7) && IsZeroElement(f8) &&
+           IsZeroElement(f9) && IsZeroElement(f10) && IsZeroElement(f11) &&
+           IsZeroElement(f12) && IsZeroElement(f13) && IsZeroElement(f14);
+  } else {
+    const auto& [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13,
+                 f14, f15] = elem;
+    return IsZeroElement(f0) && IsZeroElement(f1) && IsZeroElement(f2) &&
+           IsZeroElement(f3) && IsZeroElement(f4) && IsZeroElement(f5) &&
+           IsZeroElement(f6) && IsZeroElement(f7) && IsZeroElement(f8) &&
+           IsZeroElement(f9) && IsZeroElement(f10) && IsZeroElement(f11) &&
+           IsZeroElement(f12) && IsZeroElement(f13) && IsZeroElement(f14) &&
+           IsZeroElement(f15);
+  }
+}
+
+// Tests whether `elem` is a terminating zero sentinel while ignoring
+// uninitialized alignment or bit-field padding. Uses `__builtin_clear_padding`
+// when available, and falls back to C++20 structured-binding memberwise
+// recursion (up to 16 fields) on older Clang releases that lack the builtin.
+template <typename T>
+bool IsZeroElement(const T& elem) {
+  using ValueT = std::remove_cv_t<T>;
+  if constexpr (std::is_array_v<ValueT>) {
+    for (const auto& sub : elem) {
+      if (!IsZeroElement(sub)) {
+        return false;
+      }
+    }
+    return true;
+  } else if constexpr (requires(const ValueT& a) {
+                         requires std::is_convertible_v<decltype(a == ValueT{}),
+                                                        bool>;
+                       }) {
+    return elem == ValueT{};
+  } else if constexpr (std::has_unique_object_representations_v<ValueT>) {
+    return AllBytesZero(std::addressof(elem), sizeof(ValueT));
+  } else if constexpr (std::is_empty_v<ValueT>) {
+    return true;
+  } else {
+#if __has_builtin(__builtin_clear_padding)
+    alignas(ValueT) unsigned char raw[sizeof(ValueT)];
+    std::memcpy(raw, std::addressof(elem), sizeof(ValueT));
+    auto* copy_ptr = reinterpret_cast<ValueT*>(raw);
+    __builtin_clear_padding(copy_ptr);
+    return AllBytesZero(copy_ptr, sizeof(ValueT));
+#else
+    constexpr size_t kArity = AggregateFieldCount<ValueT>();
+    if constexpr (std::is_standard_layout_v<ValueT> && kArity >= 1 &&
+                  kArity <= 16) {
+      return AggregateMemberwiseIsZero(elem);
+    } else {
+      static_assert(
+          sizeof(ValueT) == 0,
+          "Zero-sentinel-terminated struct with padding requires either "
+          "__builtin_clear_padding (Clang >= 23 / GCC >= 11) or a "
+          "standard-layout aggregate with at most 16 direct fields.");
+      return false;
+    }
+#endif
+  }
+}
+
+}  // namespace internal
+
 // Returns the number of non-zero elements preceding the terminating zero
-// element in a null-terminated array, or 0 if `ptr` is null.
+// element in a null-terminated array, or 0 if `ptr` is null. Supports scalar,
+// enum, pointer, and aggregate struct element types (where the sentinel element
+// has all fields equal to zero/nullptr).
 template <typename T>
 size_t NullTerminatedCount(const T* absl_nullable ptr) {
   if (ptr == nullptr) {
     return 0;
   }
   size_t count = 0;
-  while (ptr[count] != T{}) {
+  while (!internal::IsZeroElement(ptr[count])) {
     ++count;
   }
   return count;
 }
 
 // Returns the size in bytes (including the terminating zero element) of a
-// null-terminated array of scalar, enum, or pointer elements, or 0 if `ptr`
-// is null.
+// null-terminated array of scalar, enum, pointer, or struct elements, or 0 if
+// `ptr` is null.
 template <typename T>
 size_t NullTerminatedByteSize(const T* absl_nullable ptr) {
   if (ptr == nullptr) {
@@ -510,13 +739,41 @@ size_t NullTerminatedByteSize(const T* absl_nullable ptr) {
 
 // Reads a zero-terminated array of elements of `elem_size` bytes from
 // `remote_ptr` in `sandbox` into a freshly allocated host buffer (including
-// the trailing all-zero element).
+// the trailing zero element). When `is_zero_elem` is non-null, it is used to
+// test whether an element is the terminating zero sentinel (for example,
+// ignoring uninitialized padding bytes in a C struct); otherwise all
+// `elem_size` bytes must be zero.
 // Returns an empty vector if `remote_ptr == 0`.
 // CHECK-fails if `elem_size == 0`, if the sandbox RPCChannel is null, if
 // reading from the sandbox fails, or if the array exceeds 10 MiB.
+std::vector<char> ReadNullTerminatedArray(
+    sapi::SandboxBase& sandbox, uintptr_t remote_ptr, size_t elem_size,
+    bool (*absl_nullable is_zero_elem)(const void* elem) = nullptr);
+
+// Typed overload of `ReadNullTerminatedArray` that uses
+// `internal::IsZeroElement<std::remove_cv_t<T>>` to detect the terminating
+// zero sentinel, ignoring any uninitialized struct or bit-field padding in a
+// `{0, ...}` sentinel element. Single-byte types without padding bits
+// (`std::has_unique_object_representations_v<ValueT>`, such as `char` and
+// `uint8_t`) take the `GetCString` fast path directly, whereas 1-byte structs
+// with unused bit-field padding bits go through `IsZeroElement` (and
+// `__builtin_clear_padding`).
+template <typename T>
 std::vector<char> ReadNullTerminatedArray(sapi::SandboxBase& sandbox,
-                                          uintptr_t remote_ptr,
-                                          size_t elem_size);
+                                          uintptr_t remote_ptr) {
+  using ValueT = std::remove_cv_t<T>;
+  if constexpr (sizeof(ValueT) == 1 &&
+                std::has_unique_object_representations_v<ValueT>) {
+    return ReadNullTerminatedArray(sandbox, remote_ptr, 1);
+  } else {
+    return ReadNullTerminatedArray(
+        sandbox, remote_ptr, sizeof(ValueT), +[](const void* elem) -> bool {
+          alignas(ValueT) unsigned char raw[sizeof(ValueT)];
+          std::memcpy(raw, elem, sizeof(ValueT));
+          return internal::IsZeroElement(*reinterpret_cast<const ValueT*>(raw));
+        });
+  }
+}
 
 }  // namespace lwbox
 }  // namespace sapi

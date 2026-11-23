@@ -2975,7 +2975,8 @@ TEST_F(IrConvertTest, RejectsNullTerminatedNonConstOrVoidInputParameter) {
                                  "bad_mutable_null_terminated"),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("pointer argument p is null-terminated but "
-                                 "not a const integer or enum pointer")));
+                                 "not a const integer, enum, or struct "
+                                 "pointer")));
 
   EXPECT_THAT(ConvertSnippetToIR(R"(
     extern "C" void bad_void_null_terminated(
@@ -2985,7 +2986,8 @@ TEST_F(IrConvertTest, RejectsNullTerminatedNonConstOrVoidInputParameter) {
                                  "bad_void_null_terminated"),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("pointer argument p is null-terminated but "
-                                 "not a const integer or enum pointer")));
+                                 "not a const integer, enum, or struct "
+                                 "pointer")));
 
   EXPECT_THAT(ConvertSnippetToIR(R"(
     extern "C" void bad_float_null_terminated(
@@ -2995,7 +2997,8 @@ TEST_F(IrConvertTest, RejectsNullTerminatedNonConstOrVoidInputParameter) {
                                  "bad_float_null_terminated"),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("pointer argument p is null-terminated but "
-                                 "not a const integer or enum pointer")));
+                                 "not a const integer, enum, or struct "
+                                 "pointer")));
 
   EXPECT_THAT(ConvertSnippetToIR(R"(
     struct Pair { int a; int b; };
@@ -3074,8 +3077,8 @@ TEST_F(IrConvertTest, RejectsNullTerminatedNonConstOrVoidInputParameter) {
                          "bad_float_member", record_annotations),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("struct_sync access path p->bad_float: "
-                         "null_terminated member must point to an integer or "
-                         "enum type")));
+                         "null_terminated member must point to an integer, "
+                         "enum, or const struct type")));
 
   EXPECT_THAT(
       ConvertSnippetToIR(R"(
@@ -3088,8 +3091,8 @@ TEST_F(IrConvertTest, RejectsNullTerminatedNonConstOrVoidInputParameter) {
                          "bad_void_member", record_annotations),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("struct_sync access path p->bad_void: "
-                         "null_terminated member must point to an integer or "
-                         "enum type")));
+                         "null_terminated member must point to an integer, "
+                         "enum, or const struct type")));
 
   EXPECT_THAT(
       ConvertSnippetToIR(R"(
@@ -3260,6 +3263,416 @@ TEST_F(IrConvertTest, RejectsInvalidMultiLevelCallbackParametersAndDepthGt2) {
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("callback cb parameter lists: multi-level pointers "
                          "deeper than two levels are not supported")));
+}
+
+TEST_F(IrConvertTest, ConvertsNullTerminatedPlainStructParametersAndCallbacks) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
+                            ConvertSnippetToIR(R"(
+    struct KeyValueSpec {
+      int key;
+      int value;
+    };
+    extern "C" int sum_specs(
+        const KeyValueSpec* specs
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "null_terminated")]],
+        int (*on_specs)(
+            const KeyValueSpec* cb_specs
+                [[clang::annotate("sandbox", "in_ptr")]]
+                [[clang::annotate("sandbox", "null_terminated")]]));
+  )",
+                                               "sum_specs"));
+  ASSERT_EQ(func.parameters.size(), 2);
+  const auto* specs_buf = func.parameters[0].As<BufferParam>();
+  ASSERT_NE(specs_buf, nullptr);
+  EXPECT_EQ(specs_buf->direction, PointerDir::kIn);
+  EXPECT_TRUE(
+      std::holds_alternative<bounds::NullTerminated>(specs_buf->bounds));
+
+  const auto* cb = func.parameters[1].As<CallbackParam>();
+  ASSERT_NE(cb, nullptr);
+  ASSERT_EQ(cb->callback_parameters.size(), 1);
+  const auto* cb_specs_buf = cb->callback_parameters[0].As<BufferParam>();
+  ASSERT_NE(cb_specs_buf, nullptr);
+  EXPECT_EQ(cb_specs_buf->direction, PointerDir::kIn);
+  EXPECT_TRUE(
+      std::holds_alternative<bounds::NullTerminated>(cb_specs_buf->bounds));
+}
+
+TEST_F(IrConvertTest,
+       ConvertsNullTerminatedStructSyncArrayWithStringAndCallbackFields) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations reg_ann{.name = "LuaRegEntry"};
+  reg_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "name",
+      .size_type = NullTerminated{},
+  });
+  reg_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "func",
+      .callback_typedef = "lua_cfunc_cb",
+  });
+  record_annotations["LuaRegEntry"] = std::move(reg_ann);
+
+  const absl::flat_hash_map<std::string, CallbackTypedef> typedefs = {
+      {"lua_cfunc_cb",
+       CallbackTypedef{
+           .name = "lua_cfunc_cb",
+           .canonical_type = "int (int)",
+           .params = {{.name = "arg"}},
+           .idempotent = true,
+       }},
+  };
+
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
+                            ConvertSnippetToIR(R"(
+    struct LuaRegEntry {
+      const char* name;
+      int (*func)(int);
+    };
+    extern "C" int luaL_setfuncs_and_call(
+        const LuaRegEntry* l
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "null_terminated")]],
+        int arg);
+  )",
+                                               "luaL_setfuncs_and_call",
+                                               record_annotations, typedefs));
+  ASSERT_EQ(func.parameters.size(), 2);
+  const auto* sync = func.parameters[0].As<StructSyncParam>();
+  ASSERT_NE(sync, nullptr);
+  EXPECT_EQ(sync->direction, PointerDir::kIn);
+  EXPECT_TRUE(
+      std::holds_alternative<bounds::NullTerminated>(sync->array_bounds));
+  ASSERT_EQ(sync->members.size(), 1);
+  EXPECT_EQ(sync->members[0].member_name, "name");
+  EXPECT_EQ(sync->members[0].direction, PointerDir::kIn);
+  EXPECT_TRUE(
+      std::holds_alternative<bounds::NullTerminated>(sync->members[0].bounds));
+  ASSERT_EQ(sync->callbacks.size(), 1);
+  EXPECT_EQ(sync->callbacks[0].member_name, "func");
+  EXPECT_EQ(sync->callbacks[0].typedef_name, "lua_cfunc_cb");
+}
+
+TEST_F(IrConvertTest,
+       RejectsNullTerminatedStructWithOutPtrMemberOrNonConstStruct) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations opt_ann{.name = "OptionWithOutFlag"};
+  opt_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "name",
+      .size_type = NullTerminated{},
+  });
+  record_annotations["OptionWithOutFlag"] = std::move(opt_ann);
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    struct OptionWithOutFlag {
+      const char* name;
+      int* flag;
+    };
+    extern "C" int parse_opts(
+        const OptionWithOutFlag* opts
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "null_terminated")]]
+            [[clang::annotate("sandbox", "struct_sync", "binding_1",
+                              "{opts->name", "in_ptr}",
+                              "{opts->flag", "out_ptr}", "$")]]);
+  )",
+                                 "parse_opts", record_annotations),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("null-terminated struct array with "
+                                 "struct_sync only supports in_ptr members")));
+
+  // A null-terminated struct array with `struct_sync` must be const.
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    extern "C" int parse_mutable_opts(
+        OptionWithOutFlag* opts
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "null_terminated")]]
+            [[clang::annotate("sandbox", "struct_sync", "binding_2",
+                              "{opts->name", "in_ptr}", "$")]]);
+  )",
+                                 "parse_mutable_opts", record_annotations),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("opts: array of struct pointers with "
+                                 "struct_sync is not supported")));
+
+  // Without explicit `struct_sync`, auto-inference should fail on the
+  // unannotated `flag` field and name `flag` (not `name`) in the error.
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    extern "C" int parse_opts_auto(
+        const OptionWithOutFlag* opts
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "null_terminated")]]);
+  )",
+                                 "parse_opts_auto", record_annotations),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("field flag of 'const OptionWithOutFlag': "
+                                 "'int *' is a pointer")));
+
+  // The host copies a null-terminated struct array passed to a callback as
+  // raw bytes, so a struct with a pointer field must be rejected.
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    extern "C" void run_cb_with_ptr_struct(
+        void (*cb)(const OptionWithOutFlag* opts
+                       [[clang::annotate("sandbox", "in_ptr")]]
+                       [[clang::annotate("sandbox", "null_terminated")]]));
+  )",
+                                 "run_cb_with_ptr_struct", record_annotations),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("callback cb pointer argument opts has "
+                                 "unsupported pointee type")));
+}
+
+// A buffer reached through a sized pointer member is copied as raw bytes, and
+// callback fields inside it are never translated (only by-value struct fields
+// are). Auto-inferred `struct_sync` must reject such buffers instead of
+// copying host function pointers across the sandbox boundary.
+TEST_F(IrConvertTest,
+       RejectsInferredStructSyncOfPointeeStructWithCallbackField) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations hook_ann{.name = "Hook"};
+  hook_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "cb",
+      .callback_typedef = "adder",
+  });
+  record_annotations["Hook"] = std::move(hook_ann);
+  RecordAnnotations table_ann{.name = "HookTable"};
+  table_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "hooks",
+      .size_type = ElemSizedBy{.expr = "count"},
+  });
+  record_annotations["HookTable"] = std::move(table_ann);
+
+  const absl::flat_hash_map<std::string, CallbackTypedef> typedefs = {
+      {"adder",
+       CallbackTypedef{
+           .name = "adder",
+           .canonical_type = "int (int, int)",
+           .params = {{.name = "a"}, {.name = "b"}},
+       }},
+  };
+
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    struct Hook {
+      int (*cb)(int, int);
+    };
+    struct HookTable {
+      const Hook* hooks;
+      unsigned long count;
+    };
+    extern "C" void register_hook_tables(
+        const HookTable* tables
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "null_terminated")]]);
+  )",
+                         "register_hook_tables", record_annotations, typedefs),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("field hooks of 'const HookTable': field cb "
+                         "of 'const Hook': callback fields inside an "
+                         "array are not supported")));
+
+  // A `const void*` member sized with `ByteSizedBy` is raw byte data and must
+  // be accepted by auto-inference. Each element's buffer must be sized by the
+  // `len` of the same element.
+  absl::flat_hash_map<std::string, RecordAnnotations> blob_annotations;
+  RecordAnnotations blob_ann{.name = "BlobEntry"};
+  blob_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "data",
+      .size_type = ByteSizedBy{.expr = "len"},
+  });
+  blob_annotations["BlobEntry"] = std::move(blob_ann);
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function blob_fn,
+                            ConvertSnippetToIR(R"(
+    struct BlobEntry {
+      const void* data;
+      unsigned long len;
+    };
+    extern "C" int hash_blobs(
+        const BlobEntry* blobs
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "null_terminated")]]);
+  )",
+                                               "hash_blobs", blob_annotations));
+  ASSERT_EQ(blob_fn.parameters.size(), 1);
+  const auto* blob_sync = blob_fn.parameters[0].As<StructSyncParam>();
+  ASSERT_NE(blob_sync, nullptr);
+  ASSERT_EQ(blob_sync->members.size(), 1);
+  EXPECT_EQ(blob_sync->members[0].member_name, "data");
+  const auto* blob_size =
+      std::get_if<bounds::ByteCount>(&blob_sync->members[0].bounds);
+  ASSERT_NE(blob_size, nullptr);
+  EXPECT_THAT(blob_size->size_expr, HasSubstr("blobs[sapi_i].len"));
+}
+
+TEST_F(IrConvertTest,
+       ConvertsExplicitNullTerminatedStructSyncOfTriviallyCopyableConstStruct) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations outer_ann{.name = "PairTable"};
+  outer_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "items",
+      .size_type = NullTerminated{},
+  });
+  record_annotations["PairTable"] = std::move(outer_ann);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      const Function single_fn,
+      ConvertSnippetToIR(R"(
+    struct Pair {
+      int key;
+      int value;
+    };
+    struct PairTable {
+      const Pair* items;
+      int tag;
+    };
+    extern "C" int sum_pair_table(
+        const PairTable* p
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "struct_sync", "b0",
+                              "{p->items", "in_ptr}", "$")]]);
+    extern "C" int sum_pair_tables(
+        const PairTable* tables
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "null_terminated")]]
+            [[clang::annotate("sandbox", "struct_sync", "b1",
+                              "{tables->items", "in_ptr}", "$")]]);
+  )",
+                         "sum_pair_table", record_annotations));
+  ASSERT_EQ(single_fn.parameters.size(), 1);
+  const auto* single_sync = single_fn.parameters[0].As<StructSyncParam>();
+  ASSERT_NE(single_sync, nullptr);
+  ASSERT_EQ(single_sync->members.size(), 1);
+  EXPECT_EQ(single_sync->members[0].member_name, "items");
+  EXPECT_EQ(single_sync->members[0].direction, PointerDir::kIn);
+  EXPECT_TRUE(std::holds_alternative<bounds::NullTerminated>(
+      single_sync->members[0].bounds));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      const Function array_fn,
+      ConvertSnippetToIR("", "sum_pair_tables", record_annotations));
+  ASSERT_EQ(array_fn.parameters.size(), 1);
+  const auto* array_sync = array_fn.parameters[0].As<StructSyncParam>();
+  ASSERT_NE(array_sync, nullptr);
+  EXPECT_TRUE(
+      std::holds_alternative<bounds::NullTerminated>(array_sync->array_bounds));
+  ASSERT_EQ(array_sync->members.size(), 1);
+  EXPECT_TRUE(std::holds_alternative<bounds::NullTerminated>(
+      array_sync->members[0].bounds));
+}
+
+TEST_F(IrConvertTest,
+       RejectsExplicitNullTerminatedStructSyncPointeeWithPointerField) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations outer_ann{.name = "OuterWithPtrInner"};
+  outer_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "items",
+      .size_type = NullTerminated{},
+  });
+  record_annotations["OuterWithPtrInner"] = std::move(outer_ann);
+
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    struct InnerWithPtr {
+      const char* name;
+      int tag;
+    };
+    struct OuterWithPtrInner {
+      const InnerWithPtr* items;
+    };
+    extern "C" void register_items(
+        const OuterWithPtrInner* p
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "struct_sync", "b0",
+                              "{p->items", "in_ptr}", "$")]]);
+  )",
+                         "register_items", record_annotations),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("struct_sync access path p->items has unsupported "
+                         "pointee type: field name of 'const InnerWithPtr': "
+                         "'const char *' is a pointer")));
+}
+
+TEST_F(IrConvertTest,
+       RejectsExplicitNullTerminatedStructSyncPointeeWithCallbackField) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations hook_ann{.name = "Hook"};
+  hook_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "cb",
+      .callback_typedef = "adder",
+  });
+  record_annotations["Hook"] = std::move(hook_ann);
+  RecordAnnotations table_ann{.name = "NullTermHookTable"};
+  table_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "hooks",
+      .size_type = NullTerminated{},
+  });
+  record_annotations["NullTermHookTable"] = std::move(table_ann);
+
+  const absl::flat_hash_map<std::string, CallbackTypedef> typedefs = {
+      {"adder",
+       CallbackTypedef{
+           .name = "adder",
+           .canonical_type = "int (int, int)",
+           .params = {{.name = "a"}, {.name = "b"}},
+       }},
+  };
+
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    struct Hook {
+      int (*cb)(int, int);
+    };
+    struct NullTermHookTable {
+      const Hook* hooks;
+    };
+    extern "C" void register_null_term_hooks(
+        const NullTermHookTable* p
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "null_terminated")]]
+            [[clang::annotate("sandbox", "struct_sync", "b0",
+                              "{p->hooks", "in_ptr}", "$")]]);
+  )",
+                         "register_null_term_hooks", record_annotations,
+                         typedefs),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("struct_sync access path p->hooks has unsupported "
+                         "pointee type: field cb of 'const Hook': callback "
+                         "fields inside an array are not supported")));
+}
+
+TEST_F(IrConvertTest,
+       RejectsExplicitNullTerminatedStructSyncPointeeWithNonTrivialField) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations outer_ann{.name = "OuterWithNonTrivialInner"};
+  outer_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "items",
+      .size_type = NullTerminated{},
+  });
+  record_annotations["OuterWithNonTrivialInner"] = std::move(outer_ann);
+
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    struct NonTrivialField {
+      ~NonTrivialField();
+    };
+    struct NonTrivialInner {
+      NonTrivialField field;
+      int tag;
+    };
+    struct OuterWithNonTrivialInner {
+      const NonTrivialInner* items;
+    };
+    extern "C" void use_non_trivial_items(
+        const OuterWithNonTrivialInner* p
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "struct_sync", "b0",
+                              "{p->items", "in_ptr}", "$")]]);
+  )",
+                         "use_non_trivial_items", record_annotations),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("struct_sync access path p->items has unsupported "
+                         "pointee type: 'const NonTrivialInner' is not "
+                         "trivially copyable")));
 }
 
 }  // namespace

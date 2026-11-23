@@ -23,6 +23,7 @@
 #include <optional>
 #include <string>
 #include <thread>  // NOLINT(build/c++11)
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -1134,6 +1135,21 @@ TEST(NullTerminatedArrayTest,
   const char* const kOptions[] = {"none", "fast", "full", nullptr};
   EXPECT_EQ(NullTerminatedCount(kOptions), 3u);
   EXPECT_EQ(NullTerminatedByteSize(kOptions), 4 * sizeof(const char*));
+
+  // Lua `luaL_Reg`-like struct array: an entry with only some zero fields
+  // (`{"placeholder", nullptr}`) does not end the array; the all-zero
+  // `{nullptr, nullptr}` sentinel does.
+  struct TestLuaReg {
+    const char* name;
+    int (*func)(void*);
+  };
+  const TestLuaReg kRegs[] = {
+      {"add", +[](void*) { return 1; }},
+      {"placeholder", nullptr},
+      {nullptr, nullptr},
+  };
+  EXPECT_EQ(NullTerminatedCount(kRegs), 2u);
+  EXPECT_EQ(NullTerminatedByteSize(kRegs), 3 * sizeof(TestLuaReg));
 }
 
 TEST(NullTerminatedArrayTest, ReadNullTerminatedArrayHandlesNullAndByteArrays) {
@@ -1248,6 +1264,193 @@ TEST(NullTerminatedArrayTest,
   EXPECT_EQ(words[0], 0x0041);
   EXPECT_EQ(words[1], 0x03B1);
   EXPECT_EQ(words[2], 0x0000);
+}
+
+TEST(NullTerminatedArrayTest,
+     ReadNullTerminatedArrayTypedOverloadIgnoresStructSentinelPaddingBytes) {
+  MockRPCChannel mock_channel;
+  MockSandbox sandbox(&mock_channel);
+
+  struct PaddedPair {
+    int key;
+    int value;
+    char tag;  // Followed by 3 bytes of trailing alignment padding.
+  };
+  static_assert(sizeof(PaddedPair) == 12);
+
+  PaddedPair raw_items[3];
+  // Fill all bytes (including the 3 trailing padding bytes in `raw_items[1]`,
+  // the `{0, 0, 0}` sentinel) with non-zero `0xAB` garbage, and put a non-zero
+  // element at `raw_items[2]` to verify sentinel detection stops at index 1.
+  std::memset(raw_items, 0xAB, sizeof(raw_items));
+  raw_items[0].key = 7;
+  raw_items[0].value = 42;
+  raw_items[0].tag = 'x';
+  raw_items[1].key = 0;
+  raw_items[1].value = 0;
+  raw_items[1].tag = 0;
+  raw_items[2].key = 99;
+  raw_items[2].value = 99;
+  raw_items[2].tag = 'z';
+
+  EXPECT_CALL(mock_channel, CopyFromSandbox(0xEE00, _))
+      .WillOnce([&](uintptr_t, absl::Span<char> dst) -> absl::StatusOr<size_t> {
+        size_t to_copy = std::min(dst.size(), sizeof(raw_items));
+        std::memcpy(dst.data(), raw_items, to_copy);
+        return to_copy;
+      });
+
+  std::vector<char> buf = ReadNullTerminatedArray<PaddedPair>(sandbox, 0xEE00);
+  // Must stop at `raw_items[1]` (2 elements = 24 bytes) despite non-zero
+  // padding bytes in `raw_items[1]`.
+  ASSERT_EQ(buf.size(), 2 * sizeof(PaddedPair));
+  const auto* pairs = reinterpret_cast<const PaddedPair*>(buf.data());
+  EXPECT_EQ(pairs[0].key, 7);
+  EXPECT_EQ(pairs[0].value, 42);
+  EXPECT_EQ(pairs[0].tag, 'x');
+  EXPECT_EQ(pairs[1].key, 0);
+  EXPECT_EQ(pairs[1].value, 0);
+  EXPECT_EQ(pairs[1].tag, 0);
+
+  // A 1-byte struct with unused bit-field padding bits lacks unique object
+  // representations (`!std::has_unique_object_representations_v`) and must
+  // still use `IsZeroElement` (`__builtin_clear_padding`) rather than the raw
+  // `GetCString` (`'\0'`) fast path.
+  struct OneByteBitfieldFlags {
+    uint8_t active : 1;
+  };
+  static_assert(sizeof(OneByteBitfieldFlags) == 1);
+  static_assert(
+      !std::has_unique_object_representations_v<OneByteBitfieldFlags>);
+
+  OneByteBitfieldFlags raw_flags[3];
+  std::memset(raw_flags, 0xFF, sizeof(raw_flags));
+  raw_flags[0].active = 1;
+  raw_flags[1].active = 0;  // Sentinel byte is `0xFE` due to 7 padding bits.
+  raw_flags[2].active = 1;
+
+  EXPECT_EQ(NullTerminatedCount(raw_flags), 1u);
+  EXPECT_FALSE(internal::AggregateMemberwiseIsZero(raw_flags[0]));
+  EXPECT_TRUE(internal::AggregateMemberwiseIsZero(raw_flags[1]));
+  EXPECT_CALL(mock_channel, CopyFromSandbox(0xEE80, _))
+      .WillOnce([&](uintptr_t, absl::Span<char> dst) -> absl::StatusOr<size_t> {
+        size_t to_copy = std::min(dst.size(), sizeof(raw_flags));
+        std::memcpy(dst.data(), raw_flags, to_copy);
+        return to_copy;
+      });
+  std::vector<char> flags_buf =
+      ReadNullTerminatedArray<OneByteBitfieldFlags>(sandbox, 0xEE80);
+  ASSERT_EQ(flags_buf.size(), 2 * sizeof(OneByteBitfieldFlags));
+  const auto* flags =
+      reinterpret_cast<const OneByteBitfieldFlags*>(flags_buf.data());
+  EXPECT_EQ(flags[0].active, 1u);
+  EXPECT_EQ(flags[1].active, 0u);
+}
+
+TEST(NullTerminatedArrayTest,
+     SupportsWidePaddedStructsArrayFieldsAndMemberwiseFallback) {
+  MockRPCChannel mock_channel;
+  MockSandbox sandbox(&mock_channel);
+
+  // 10-field C struct with internal and trailing alignment padding.
+  struct TenFieldCodecOption {
+    const char* name;
+    char short_flag;  // +3 bytes padding before `id`.
+    int id;
+    int min_val;
+    int max_val;
+    int default_val;
+    uint64_t flags;
+    const char* help;
+    int group_id;
+    char category;  // +7 bytes trailing padding.
+  };
+
+  TenFieldCodecOption wide_items[3];
+  std::memset(wide_items, 0xCD, sizeof(wide_items));
+  wide_items[0] = {nullptr, 'b', 1, 0, 100, 50, 0x1, nullptr, 2, 'a'};
+  // Zero only the declared fields of the sentinel at index 1 while leaving all
+  // alignment padding bytes filled with `0xCD`.
+  wide_items[1].name = nullptr;
+  wide_items[1].short_flag = 0;
+  wide_items[1].id = 0;
+  wide_items[1].min_val = 0;
+  wide_items[1].max_val = 0;
+  wide_items[1].default_val = 0;
+  wide_items[1].flags = 0;
+  wide_items[1].help = nullptr;
+  wide_items[1].group_id = 0;
+  wide_items[1].category = 0;
+  wide_items[2] = {nullptr, 'z', 9, 0, 1, 0, 0, nullptr, 0, 'z'};
+
+  EXPECT_EQ(NullTerminatedCount(wide_items), 1u);
+  EXPECT_CALL(mock_channel, CopyFromSandbox(0xEF00, _))
+      .WillOnce([&](uintptr_t, absl::Span<char> dst) -> absl::StatusOr<size_t> {
+        size_t to_copy = std::min(dst.size(), sizeof(wide_items));
+        std::memcpy(dst.data(), wide_items, to_copy);
+        return to_copy;
+      });
+  std::vector<char> wide_buf =
+      ReadNullTerminatedArray<TenFieldCodecOption>(sandbox, 0xEF00);
+  EXPECT_EQ(wide_buf.size(), 2 * sizeof(TenFieldCodecOption));
+
+  // Struct with an embedded C array member followed by alignment padding:
+  // verifies `IsZeroElement` inspects array elements while clearing padding.
+  struct ArrayFieldEntry {
+    char short_name[5];  // +3 bytes padding before `code`.
+    int code;
+  };
+  ArrayFieldEntry array_items[3];
+  std::memset(array_items, 0xEE, sizeof(array_items));
+  std::memcpy(array_items[0].short_name, "opus", 5);
+  array_items[0].code = 10;
+  std::memset(array_items[1].short_name, 0, sizeof(array_items[1].short_name));
+  array_items[1].code = 0;
+  std::memcpy(array_items[2].short_name, "tail", 5);
+  array_items[2].code = 20;
+
+  EXPECT_EQ(NullTerminatedCount(array_items), 1u);
+  // Also directly exercise the portable C++20 structured-binding fallback used
+  // on toolchains without `__builtin_clear_padding` (e.g. Clang <= 22).
+  EXPECT_FALSE(internal::AggregateMemberwiseIsZero(wide_items[0]));
+  EXPECT_TRUE(internal::AggregateMemberwiseIsZero(wide_items[1]));
+  EXPECT_FALSE(internal::AggregateMemberwiseIsZero(array_items[0]));
+  EXPECT_TRUE(internal::AggregateMemberwiseIsZero(array_items[1]));
+
+#if __has_builtin(__builtin_clear_padding)
+  // Struct with > 16 fields (19 fields) AND non-zero trailing alignment padding
+  // bytes (`0xCD`) in the sentinel element: `__builtin_clear_padding` handles
+  // arbitrary field counts without a structured-binding arity limit.
+  struct NineteenFieldPaddedEntry {
+    int f0, f1, f2, f3, f4, f5, f6, f7, f8;
+    int f9, f10, f11, f12, f13, f14, f15, f16, f17;
+    char tag;  // +3 bytes trailing padding.
+  };
+  NineteenFieldPaddedEntry large_items[3];
+  std::memset(large_items, 0xCD, sizeof(large_items));
+  large_items[0] = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 'x'};
+  large_items[1].f0 = 0;
+  large_items[1].f1 = 0;
+  large_items[1].f2 = 0;
+  large_items[1].f3 = 0;
+  large_items[1].f4 = 0;
+  large_items[1].f5 = 0;
+  large_items[1].f6 = 0;
+  large_items[1].f7 = 0;
+  large_items[1].f8 = 0;
+  large_items[1].f9 = 0;
+  large_items[1].f10 = 0;
+  large_items[1].f11 = 0;
+  large_items[1].f12 = 0;
+  large_items[1].f13 = 0;
+  large_items[1].f14 = 0;
+  large_items[1].f15 = 0;
+  large_items[1].f16 = 0;
+  large_items[1].f17 = 0;
+  large_items[1].tag = 0;
+  large_items[2] = {9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 'z'};
+  EXPECT_EQ(NullTerminatedCount(large_items), 1u);
+#endif
 }
 
 TEST(NullTerminatedArrayTest, ReadNullTerminatedArrayCheckFailures) {

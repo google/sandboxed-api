@@ -566,4 +566,75 @@ TEST(NullTerminatedNonCharArrays,
   EXPECT_EQ(run_xml_filter_ops(kOps, kRootTag), 32);
   EXPECT_EQ(run_xml_filter_ops(nullptr, kRootTag), -1);
 }
+
+// Exercises zero-sentinel-terminated `const Struct*` arrays:
+// - Lua (`third_party/lua/src/lauxlib.h`): `struct luaL_Reg { const char* name;
+//   lua_CFunction func; }` in `luaL_setfuncs`, terminated by `{nullptr,
+//   nullptr}`, mixing host callbacks, sandboxee-provided callbacks, and
+//   `{"placeholder", nullptr}` entries.
+// - POSIX `getopt_long`: `const struct option*` terminated by `{nullptr, 0,
+//   0}`, whose struct annotation lists only `name` (the scalar fields are
+//   copied as they are).
+// - Plain trivially copyable `{0, 0, 0}`-terminated struct arrays (including
+//   trailing struct padding bytes) in function and callback parameter
+//   positions.
+TEST(NullTerminatedStructArrays,
+     SupportsLuaRegGetoptLongAndPlainZeroSentinelStructArrays) {
+  auto builtin_square = get_builtin_lua_cfunc(1);
+  ASSERT_NE(builtin_square, nullptr);
+
+  const LuaRegEntry kLuaLib[] = {
+      {"triple", [](int x) -> int { return x * 3; }},
+      {"placeholder", nullptr},
+      {"square", builtin_square},
+      {nullptr, nullptr},
+  };
+
+  int total_entries = 0;
+  EXPECT_EQ(lua_setfuncs_and_dispatch(kLuaLib, "triple", 7, &total_entries),
+            21);
+  EXPECT_EQ(total_entries, 3);
+  EXPECT_EQ(
+      lua_setfuncs_and_dispatch(kLuaLib, "placeholder", 7, &total_entries), 0);
+  EXPECT_EQ(total_entries, 3);
+  EXPECT_EQ(lua_setfuncs_and_dispatch(kLuaLib, "square", 9, &total_entries),
+            81);
+  EXPECT_EQ(lua_setfuncs_and_dispatch(kLuaLib, "missing", 9, &total_entries),
+            -1);
+  EXPECT_EQ(lua_setfuncs_and_dispatch(nullptr, "triple", 7, &total_entries),
+            -1);
+
+  const LongOptionSpec kLongOpts[] = {
+      {"verbose", 0, 'v'},
+      {"output", 1, 'o'},
+      {"config", 2, 'c'},
+      {nullptr, 0, 0},
+  };
+  int has_arg = -1;
+  EXPECT_EQ(match_long_option_spec(kLongOpts, "verbose", &has_arg), 'v');
+  EXPECT_EQ(has_arg, 0);
+  EXPECT_EQ(match_long_option_spec(kLongOpts, "output", &has_arg), 'o');
+  EXPECT_EQ(has_arg, 1);
+  EXPECT_EQ(match_long_option_spec(kLongOpts, "unknown", &has_arg), -1);
+  EXPECT_EQ(match_long_option_spec(nullptr, "verbose", &has_arg), -1);
+
+  const KeyValuePair kPairs[] = {
+      {4, 5, 'x'},
+      {6, 7, 'y'},
+      {0, 0, 0},
+  };
+  int kv_total = eval_key_value_pairs(kPairs, [](const KeyValuePair* cb_pairs) {
+    int s = 0;
+    for (size_t i = 0;
+         cb_pairs[i].key != 0 || cb_pairs[i].value != 0 || cb_pairs[i].tag != 0;
+         ++i) {
+      s += cb_pairs[i].key + cb_pairs[i].value;
+    }
+    return s;
+  });
+  // (4*5 + 6*7 = 20 + 42 = 62) + ((2+10) + (3+20) = 12 + 23 = 35) = 97
+  EXPECT_EQ(kv_total, 97);
+  EXPECT_EQ(eval_key_value_pairs(nullptr, nullptr), -1);
+}
+
 }  // namespace

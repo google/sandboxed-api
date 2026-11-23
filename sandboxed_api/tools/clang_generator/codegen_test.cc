@@ -1550,5 +1550,83 @@ TEST(EmitHostSrcTest,
                                     "sapi_remote_ptrs_ctxs[sapi_i];"),
                           Not(HasSubstr("HostOpaqueRegistry"))));
 }
+
+TEST(EmitHostSrcTest,
+     NullTerminatedStructSyncArrayMarshalsStringsAndCallbacksWithZeroSentinel) {
+  ir::Parameter reg_param{
+      .name = "l",
+      .type = PointerTo(ir::TypeInfo{.kind = ir::TypeKind::kStruct,
+                                     .canonical_name = "const LuaRegEntry",
+                                     .is_const = true}),
+      .payload =
+          ir::StructSyncParam{
+              .direction = PointerDir::kIn,
+              .members =
+                  {
+                      ir::StructMemberSync{
+                          .member_name = "name",
+                          .parent_prefix = "l->",
+                          .direction = PointerDir::kIn,
+                          .bounds = ir::bounds::NullTerminated{},
+                      },
+                  },
+              .callbacks =
+                  {
+                      ir::StructCallbackField{
+                          .member_name = "func",
+                          .typedef_name = "lua_cfunc_cb",
+                      },
+                  },
+              .array_bounds = ir::bounds::NullTerminated{},
+          },
+  };
+
+  absl::StatusOr<std::string> src = HostSrc(ir::Function{
+      .name = "luaL_setfuncs_and_call",
+      .parameters = {std::move(reg_param)},
+  });
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(HasSubstr("size_t sapi_count_l = "
+                      "sapi::lwbox::NullTerminatedCount(l);"),
+            HasSubstr("std::vector<LuaRegEntry> sapi_structs_l(sapi_count_l + "
+                      "1);"),
+            HasSubstr("sapi::lwbox::NullTerminatedByteSize(l[sapi_i].name)"),
+            HasSubstr("sapi_register_callback_lua_cfunc_cb(\n"
+                      "                reinterpret_cast<uintptr_t>(l[sapi_i]."
+                      "func))")));
+}
+
+TEST(EmitHostSrcTest,
+     CallbackWithNullTerminatedStructArrayUsesTypedReadNullTerminatedArray) {
+  ir::TypeInfo record_type{
+      .kind = ir::TypeKind::kStruct,
+      .canonical_name = "const KeyValuePair",
+      .is_const = true,
+  };
+  ir::Parameter cb_param{
+      .name = "on_pairs",
+      .type = ir::TypeInfo{.kind = ir::TypeKind::kCallback,
+                           .canonical_name = "int (*)(const KeyValuePair*)"},
+      .payload =
+          ir::CallbackParam{
+              .callback_parameters =
+                  {
+                      BufferArg("pairs", std::move(record_type),
+                                PointerDir::kIn, ir::bounds::NullTerminated{}),
+                  },
+          },
+  };
+  absl::StatusOr<std::string> src = HostSrc(ir::Function{
+      .name = "eval_key_value_pairs",
+      .parameters = {std::move(cb_param)},
+  });
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      HasSubstr("sapi::lwbox::ReadNullTerminatedArray<KeyValuePair>(\n"
+                "            *sandbox, reinterpret_cast<uintptr_t>(pairs))"));
+}
 }  // namespace
 }  // namespace sapi

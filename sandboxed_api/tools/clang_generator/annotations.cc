@@ -332,11 +332,32 @@ absl::Status CheckStructSyncAnnotations(absl::string_view name,
                            name));
     }
 
-    // We don't yet support an array of struct pointers plus struct_sync.
+    // We only support an array of struct pointers plus struct_sync when the
+    // array is a const input array terminated by a zero sentinel
+    // (`SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED`) and all synchronized members
+    // are non-retained inputs (`in_ptr`).
     if (!std::holds_alternative<std::monostate>(annotations.size_type)) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "$0: array of struct pointers with struct_sync is not supported",
-          name));
+      if (!std::holds_alternative<NullTerminated>(annotations.size_type) ||
+          annotations.ptr_dir != PointerDir::kIn ||
+          !type->getPointeeType().isConstQualified()) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "$0: array of struct pointers with struct_sync is not supported",
+            name));
+      }
+      for (const auto& sync : annotations.struct_sync) {
+        if (sync.ptr_dir != PointerDir::kIn) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "$0: null-terminated struct array with struct_sync only supports "
+              "in_ptr members",
+              name));
+        }
+        if (sync.context_bound.retain_and_bind.has_value()) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "$0: null-terminated struct array with struct_sync does not "
+              "support retain_and_bind",
+              name));
+        }
+      }
     }
   }
 

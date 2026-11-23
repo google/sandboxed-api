@@ -179,17 +179,44 @@
                     SANDBOX_INTERNAL_STRINGIFY_NEST(size_outparam),  \
                     SANDBOX_INTERNAL_STRINGIFY_NEST(capacity_expr))]]
 
-// Pointer argument annotation that denotes that the pointee data is a
-// null-terminated C string.
-// - `const char*` parameters are supported
-// - `const char*` return values are also supported, but need a lifetime or
-//   binding annotation (`SANDBOX_OUT_PTR SANDBOX_LIFETIME_GLOBAL` for
-//   static/global strings, or `SANDBOX_COPY_FROM_AND_BIND_OUT_PTR(ctx)` for
-//   strings whose lifetime is tied to a context handle `ctx`) to indicate how
-//   to manage a host copy.
+// Pointer argument, typedef, and struct field annotation that denotes that the
+// pointee data is a null- or zero-sentinel-terminated array:
+// - Null-terminated C strings (`const char*`, `char*`).
+// - Zero/null-terminated scalar and enum input arrays (`const unsigned char*`,
+//   `const uint16_t*`, `const char16_t*`, `const int*`, `const Enum*`), where
+//   the array ends at the first `0` element.
+// - `nullptr`-terminated pointer input arrays (e.g., `const char* const lst[]`,
+//   `const xmlChar**`) when combined with a pointee `typedef` that describes
+//   how each non-null element pointer is marshaled.
+// - Zero-sentinel-terminated struct input arrays (e.g., `const luaL_Reg*`, or
+//   `const struct option*` with null `flag`) where the terminating struct
+//   element has all fields equal to zero/`nullptr` (combine with
+//   `SANDBOX_ANNOTATE_STRUCT` for input pointer, opaque, or callback fields).
+// - `const char*` return values and outparams are also supported, when paired
+//   with a lifetime or binding annotation (`SANDBOX_OUT_PTR
+//   SANDBOX_LIFETIME_GLOBAL` for static/global strings, or
+//   `SANDBOX_COPY_FROM_AND_BIND_OUT_PTR(ctx)` for strings whose lifetime is
+//   tied to a context handle `ctx`) to indicate how to manage a host copy.
 //
-// Input example:
+// Input examples:
+//   // C string or scalar/enum array:
 //   int my_open(const char* path SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
+//   int sum_ids(const int* ids SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
+//
+//   // nullptr-terminated array of C strings:
+//   SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED
+//   typedef const char* cstring_elem_t;
+//   int check_opt(const cstring_elem_t* lst
+//                     SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
+//
+//   // Zero-sentinel-terminated array of structs:
+//   SANDBOX_ANNOTATE_STRUCT(struct luaL_Reg {
+//     const char* name SANDBOX_NULL_TERMINATED;
+//     lua_CFunction func;
+//   };)
+//   void set_funcs(const struct luaL_Reg* l
+//                      SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
+//
 // Output examples:
 // as a return value with global lifetime:
 //   SANDBOX_OUT_PTR SANDBOX_NULL_TERMINATED SANDBOX_LIFETIME_GLOBAL

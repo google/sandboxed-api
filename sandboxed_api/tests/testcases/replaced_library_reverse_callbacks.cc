@@ -16,10 +16,12 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #include <atomic>
 
 #include "absl/base/attributes.h"
+
 namespace {
 
 int AddInts(int a, int b) { return a + b; }
@@ -55,6 +57,17 @@ void PrivDefaultUnusedCallback(const char* cstr) {
     g_sandbox_processed_acc += static_cast<unsigned char>(*p);
   }
 }
+
+void DefaultXmlElementCallback(void* /*ctx*/, const xml_char_t* name) {
+  if (name == nullptr) return;
+  for (const xml_char_t* p = name; *p != 0; ++p) {
+    g_sandbox_processed_acc += static_cast<int>(*p);
+  }
+}
+
+int BuiltinLuaNegate(int arg) { return -arg; }
+
+int BuiltinLuaSquare(int arg) { return arg * arg; }
 
 }  // namespace
 
@@ -236,17 +249,6 @@ unary_b_cb swap_callback_typedef_trampoline(unary_a_cb cb) {
   return reinterpret_cast<unary_b_cb>(cb);
 }
 
-namespace {
-
-void DefaultXmlElementCallback(void* /*ctx*/, const xml_char_t* name) {
-  if (name == nullptr) return;
-  for (const xml_char_t* p = name; *p != 0; ++p) {
-    g_sandbox_processed_acc += static_cast<int>(*p);
-  }
-}
-
-}  // namespace
-
 int xml_utf8_byte_sum(const xml_char_t* str) {
   if (str == nullptr) {
     return -1;
@@ -374,6 +376,92 @@ int run_xml_filter_ops(const enum XmlFilterOp* ops, const xml_char_t* str) {
     }
   }
   return acc;
+}
+
+int (*get_builtin_lua_cfunc(int which))(int arg) {
+  switch (which) {
+    case 0:
+      return &BuiltinLuaNegate;
+    case 1:
+      return &BuiltinLuaSquare;
+    default:
+      return nullptr;
+  }
+}
+
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI int lua_setfuncs_and_dispatch(
+    const struct LuaRegEntry* l, const char* target_name, int arg,
+    int* out_total_entries) {
+  if (l == nullptr) {
+    return -1;
+  }
+  int count = 0;
+  int result = -1;
+  for (size_t i = 0; l[i].name != nullptr || l[i].func != nullptr; ++i) {
+    ++count;
+    if (target_name != nullptr && l[i].name != nullptr &&
+        strcmp(l[i].name, target_name) == 0) {
+      result = l[i].func != nullptr ? l[i].func(arg) : 0;
+    }
+  }
+  if (out_total_entries != nullptr) {
+    *out_total_entries = count;
+  }
+  return result;
+}
+
+int match_long_option_spec(const struct LongOptionSpec* longopts,
+                           const char* arg_name, int* out_has_arg) {
+  if (longopts == nullptr || arg_name == nullptr) {
+    return -1;
+  }
+  for (size_t i = 0; longopts[i].name != nullptr || longopts[i].has_arg != 0 ||
+                     longopts[i].val != 0;
+       ++i) {
+    if (longopts[i].name != nullptr &&
+        strcmp(longopts[i].name, arg_name) == 0) {
+      if (out_has_arg != nullptr) {
+        *out_has_arg = longopts[i].has_arg;
+      }
+      return longopts[i].val;
+    }
+  }
+  return -1;
+}
+
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI int eval_key_value_pairs(
+    const struct KeyValuePair* pairs,
+    int (*on_pairs)(const struct KeyValuePair* pairs)) {
+  if (pairs == nullptr) {
+    return -1;
+  }
+  int sum = 0;
+  for (size_t i = 0;
+       pairs[i].key != 0 || pairs[i].value != 0 || pairs[i].tag != 0; ++i) {
+    sum += pairs[i].key * pairs[i].value;
+  }
+  if (on_pairs != nullptr) {
+    struct KeyValuePair internal_pairs[4];
+    // Fill the backing storage with `0xAB` so that the 3 trailing padding
+    // bytes of the `{0, 0, 0}` sentinel (`internal_pairs[2]`) are not zero, as
+    // can happen in real callers. `lwbox_runtime_test.cc` checks that sentinel
+    // detection ignores these bytes.
+    memset(internal_pairs, 0xAB, sizeof(internal_pairs));
+    internal_pairs[0].key = 2;
+    internal_pairs[0].value = 10;
+    internal_pairs[0].tag = 'a';
+    internal_pairs[1].key = 3;
+    internal_pairs[1].value = 20;
+    internal_pairs[1].tag = 'b';
+    internal_pairs[2].key = 0;
+    internal_pairs[2].value = 0;
+    internal_pairs[2].tag = 0;
+    internal_pairs[3].key = 999;
+    internal_pairs[3].value = 999;
+    internal_pairs[3].tag = 'z';
+    sum += on_pairs(internal_pairs);
+  }
+  return sum;
 }
 
 }  // extern "C"

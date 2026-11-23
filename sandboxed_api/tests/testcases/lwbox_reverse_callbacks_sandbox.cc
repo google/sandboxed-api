@@ -162,4 +162,35 @@ int run_xml_filter_ops(
     const enum XmlFilterOp* ops SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED,
     const xml_char_t* str SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
 
+SANDBOX_CALLBACK_IDEMPOTENT typedef int (*lua_cfunc_cb)(int arg);
+
+SANDBOX_ANNOTATE_STRUCT(struct LuaRegEntry {
+  const char* name SANDBOX_NULL_TERMINATED;
+  lua_cfunc_cb func;
+};)
+
+SANDBOX_ANNOTATE_STRUCT(struct LongOptionSpec {
+  const char* name SANDBOX_NULL_TERMINATED;
+};)
+
+typedef int (*kv_pairs_cb)(
+    const struct KeyValuePair* pairs SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED);
+
+lua_cfunc_cb get_builtin_lua_cfunc(int which);
+
+int lua_setfuncs_and_dispatch(
+    const struct LuaRegEntry* l SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED,
+    const char* target_name SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED, int arg,
+    int* out_total_entries SANDBOX_OUT_PTR);
+
+int match_long_option_spec(const struct LongOptionSpec* longopts SANDBOX_IN_PTR
+                               SANDBOX_NULL_TERMINATED,
+                           const char* arg_name SANDBOX_IN_PTR
+                               SANDBOX_NULL_TERMINATED,
+                           int* out_has_arg SANDBOX_OUT_PTR);
+
+int eval_key_value_pairs(const struct KeyValuePair* pairs SANDBOX_IN_PTR
+                             SANDBOX_NULL_TERMINATED,
+                         kv_pairs_cb on_pairs);
+
 }  // extern "C"

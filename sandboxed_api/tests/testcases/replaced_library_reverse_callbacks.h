@@ -184,6 +184,46 @@ const uint16_t* get_xml_filter_ctx_errmsg16(struct XmlFilterCtx* ctx);
 void destroy_xml_filter_ctx(struct XmlFilterCtx* ctx);
 
 int run_xml_filter_ops(const enum XmlFilterOp* ops, const xml_char_t* str);
+
+// Zero-sentinel-terminated struct arrays modeled on:
+// - Lua (`third_party/lua/src/lauxlib.h`): `struct luaL_Reg { const char* name;
+//   lua_CFunction func; }` passed to `luaL_setfuncs(lua_State*, const
+//   luaL_Reg* l, int nup)`, terminated by `{nullptr, nullptr}` (where entries
+//   with `name != nullptr && func == nullptr` create `false` placeholder fields
+//   in the library table).
+// - POSIX `getopt_long`: `const struct option* longopts` (`{const char* name;
+//   int has_arg; int* flag; int val;}`) terminated by `{nullptr, 0, nullptr,
+//   0}`.
+// - Plain trivially copyable `{0, 0, 0}`-terminated key/value tables.
+struct LuaRegEntry {
+  const char* name;
+  int (*func)(int arg);
+};
+
+struct LongOptionSpec {
+  const char* name;
+  int has_arg;
+  int val;
+};
+
+struct KeyValuePair {
+  int key;
+  int value;
+  char tag;
+};
+
+int (*get_builtin_lua_cfunc(int which))(int arg);
+
+int lua_setfuncs_and_dispatch(const struct LuaRegEntry* l,
+                              const char* target_name, int arg,
+                              int* out_total_entries);
+
+int match_long_option_spec(const struct LongOptionSpec* longopts,
+                           const char* arg_name, int* out_has_arg);
+
+int eval_key_value_pairs(const struct KeyValuePair* pairs,
+                         int (*on_pairs)(const struct KeyValuePair* pairs));
+
 }  // extern "C"
 
 #endif  // SANDBOXED_API_TESTS_TESTCASES_REPLACED_LIBRARY_REVERSE_CALLBACKS_H_

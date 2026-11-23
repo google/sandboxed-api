@@ -200,15 +200,16 @@ bool IsIntegerOrEnumType(clang::QualType type) {
 }
 
 // Returns true if the type is a supported NullTerminated input pointer type
-// (`const` integer or enum pointee, e.g., `const char*`,
+// (`const` integer, enum, or struct pointee, e.g., `const char*`,
 // `const unsigned char*`, `const char16_t*`, `const wchar_t*`, `const int*`,
-// `const Enum*`).
+// `const Enum*`, `const Struct*`).
 bool IsSupportedNullTerminatedInputType(clang::QualType type) {
   if (!type->isPointerType()) {
     return false;
   }
   clang::QualType pointee = type->getPointeeType();
-  return pointee.isConstQualified() && IsIntegerOrEnumType(pointee);
+  return pointee.isConstQualified() &&
+         (IsIntegerOrEnumType(pointee) || pointee->isRecordType());
 }
 
 // Returns true if the type is a supported NullTerminated outparam type.
@@ -438,8 +439,9 @@ absl::Status CheckCallbackParamAnnotations(const clang::ASTContext& context,
                     "pointers are supported for callbacks",
                     cb_name, cb_param_name));
               }
-              if (!annotations.pointee_contract.has_value() &&
-                  !IsSupportedNullTerminatedInputType(cb_param_type))
+              if (!is_copyable_pointee ||
+                  (!annotations.pointee_contract.has_value() &&
+                   !IsSupportedNullTerminatedInputType(cb_param_type)))
                 return error_status;
               return absl::OkStatus();
             },
@@ -851,8 +853,8 @@ absl::Status ValidateParamAnnotations(absl::string_view name,
         if (!ann.pointee_contract.has_value() &&
             !IsSupportedNullTerminatedInputType(type)) {
           return absl::InvalidArgumentError(absl::Substitute(
-              "pointer argument $0 is null-terminated but not a const integer "
-              "or enum pointer",
+              "pointer argument $0 is null-terminated but not a const integer, "
+              "enum, or struct pointer",
               name));
         }
       } else if (ann.ptr_dir != PointerDir::kIn) {
@@ -1130,12 +1132,92 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
          is_pointee_contract) &&
         ast_ctx != nullptr) {
       const clang::ASTContext& context = *ast_ctx;
+      std::string copyability_reason;
+      if (!is_callback_param && ann.ptr_dir == PointerDir::kIn &&
+          std::holds_alternative<NullTerminated>(ann.size_type) &&
+          ann.struct_sync.empty() && !ann.shallow_struct_sync) {
+        if (const auto* record_decl = type->getPointeeType()->getAsRecordDecl();
+            record_decl != nullptr &&
+            type->getPointeeType().isTriviallyCopyableType(context) &&
+            !record_decl->hasFlexibleArrayMember()) {
+          auto rec_it =
+              conv_ctx.record_annotations.find(record_decl->getName());
+          if (rec_it != conv_ctx.record_annotations.end()) {
+            const RecordAnnotations& rec_ann = rec_it->second;
+            std::vector<StructSync> inferred_syncs;
+            bool all_fields_ok = true;
+            for (const clang::FieldDecl* field : record_decl->fields()) {
+              llvm::StringRef field_name = field->getName();
+              const DataMemberAnnotations* matched_member = nullptr;
+              for (const auto& member_ann : rec_ann.member_annotations) {
+                if (member_ann.name == field_name) {
+                  matched_member = &member_ann;
+                  break;
+                }
+              }
+              if (matched_member != nullptr) {
+                if (matched_member->ptr_dir == PointerDir::kSandboxOpaque ||
+                    matched_member->callback_typedef.has_value()) {
+                  continue;
+                }
+                if (!std::holds_alternative<std::monostate>(
+                        matched_member->size_type) &&
+                    field->getType()->isPointerType() &&
+                    !field->getType()->isFunctionPointerType() &&
+                    field->getType()->getPointeeType().isConstQualified()) {
+                  const bool is_void_byte_sized =
+                      (std::holds_alternative<ByteSizedBy>(
+                           matched_member->size_type) ||
+                       std::holds_alternative<SizedByBinding>(
+                           matched_member->size_type)) &&
+                      IsSupportedArgByteSizedByType(field->getType());
+                  // The pointed-to buffer is copied as raw bytes, and callback
+                  // fields inside it are never translated (`collect_callbacks`
+                  // only follows by-value struct fields). Check it as an array
+                  // so such callback fields are rejected instead of copying
+                  // host function pointers across the sandbox boundary.
+                  std::string pointee_reason;
+                  if (!is_void_byte_sized &&
+                      !IsDeeplyTriviallyCopyableType(
+                          context, field->getType()->getPointeeType(), conv_ctx,
+                          &pointee_reason, /*in_array=*/true)) {
+                    copyability_reason = absl::Substitute(
+                        "field $0 of '$1': $2", std::string(field_name),
+                        type->getPointeeType().getAsString(), pointee_reason);
+                    all_fields_ok = false;
+                    break;
+                  }
+                  inferred_syncs.push_back(StructSync{
+                      .access_path =
+                          absl::StrCat(name, "->", field->getNameAsString()),
+                      .ptr_dir = PointerDir::kIn,
+                  });
+                  continue;
+                }
+              }
+              std::string field_reason;
+              if (!IsDeeplyTriviallyCopyableType(context, field->getType(),
+                                                 conv_ctx, &field_reason)) {
+                copyability_reason = absl::Substitute(
+                    "field $0 of '$1': $2", std::string(field_name),
+                    type->getPointeeType().getAsString(), field_reason);
+                all_fields_ok = false;
+                break;
+              }
+            }
+            if (all_fields_ok && !inferred_syncs.empty()) {
+              ann.struct_sync = std::move(inferred_syncs);
+            }
+          }
+        }
+      }
       // Set only when the check below runs and fails, which is exactly when
       // the chain can reach the error return.
-      std::string copyability_reason;
       if (!ann.shallow_struct_sync && ann.struct_sync.empty() &&
-          !IsDeeplyTriviallyCopyableType(context, type->getPointeeType(),
-                                         conv_ctx, &copyability_reason) &&
+          !IsDeeplyTriviallyCopyableType(
+              context, type->getPointeeType(), conv_ctx,
+              copyability_reason.empty() ? &copyability_reason : nullptr,
+              /*in_array=*/false, /*in_callback=*/is_callback_param) &&
           !((std::holds_alternative<ByteSizedBy>(ann.size_type) ||
              std::holds_alternative<SizedByBinding>(ann.size_type)) &&
             IsSupportedArgByteSizedByType(type)) &&
@@ -1510,7 +1592,10 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
   }
 
   if (!struct_callbacks.empty() &&
-      !std::holds_alternative<std::monostate>(ann.size_type)) {
+      !std::holds_alternative<std::monostate>(ann.size_type) &&
+      !(std::holds_alternative<NullTerminated>(ann.size_type) &&
+        ann.ptr_dir == PointerDir::kIn &&
+        type->getPointeeType().isConstQualified())) {
     return absl::InvalidArgumentError(absl::Substitute(
         "$0: array of structs with callback fields is not supported", name));
   }
@@ -1532,6 +1617,7 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
         .direction = *ann.ptr_dir,
         .callbacks = std::move(struct_callbacks),
         .is_shallow = ann.shallow_struct_sync,
+        .array_bounds = AnnotationsToBufferBounds(ann),
         .context_bound = std::move(ann.context_bound),
     };
     // The pointee's record declaration and annotations are the same for every
@@ -1575,14 +1661,21 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
             member_a.size_type = member_ann.size_type;
             ir_sync.bounds = AnnotationsToBufferBounds(member_a);
             if (record_decl != nullptr) {
+              std::string size_expr_prefix = ir_sync.parent_prefix;
+              if (!std::holds_alternative<std::monostate>(ann.size_type)) {
+                absl::string_view nested_prefix = ir_sync.parent_prefix;
+                absl::ConsumePrefix(&nested_prefix, absl::StrCat(name, "->"));
+                size_expr_prefix =
+                    absl::Substitute("$0[sapi_i].$1", name, nested_prefix);
+              }
               if (auto* elem =
                       std::get_if<ir::bounds::ElemCount>(&ir_sync.bounds)) {
                 elem->size_expr = ast::PrefixStructMemberSizeExpr(
-                    *record_decl, ir_sync.parent_prefix, elem->size_expr);
+                    *record_decl, size_expr_prefix, elem->size_expr);
               } else if (auto* byte = std::get_if<ir::bounds::ByteCount>(
                              &ir_sync.bounds)) {
                 byte->size_expr = ast::PrefixStructMemberSizeExpr(
-                    *record_decl, ir_sync.parent_prefix, byte->size_expr);
+                    *record_decl, size_expr_prefix, byte->size_expr);
               } else if (std::holds_alternative<ir::bounds::NullTerminated>(
                              ir_sync.bounds)) {
                 const clang::FieldDecl* synced_field = nullptr;
@@ -1596,11 +1689,17 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                 }
                 if (synced_field != nullptr) {
                   clang::QualType ftype = synced_field->getType();
+                  const bool is_const_struct_in =
+                      ir_sync.direction == PointerDir::kIn &&
+                      ftype->isPointerType() &&
+                      ftype->getPointeeType()->isRecordType() &&
+                      ftype->getPointeeType().isConstQualified();
                   if (!ftype->isPointerType() ||
-                      !IsIntegerOrEnumType(ftype->getPointeeType())) {
+                      !(IsIntegerOrEnumType(ftype->getPointeeType()) ||
+                        is_const_struct_in)) {
                     return absl::InvalidArgumentError(absl::Substitute(
                         "struct_sync access path $0: null_terminated member "
-                        "must point to an integer or enum type",
+                        "must point to an integer, enum, or const struct type",
                         sync.access_path));
                   }
                   if (ir_sync.direction == PointerDir::kInOut &&
@@ -1609,6 +1708,21 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                         "struct_sync access path $0: inout_ptr null_terminated "
                         "member cannot have a const pointee",
                         sync.access_path));
+                  }
+                  if (is_const_struct_in) {
+                    // The pointed-to null-terminated struct array is copied as
+                    // raw bytes, without translating nested pointers or
+                    // registering callback trampolines.
+                    std::string pointee_reason;
+                    if (!IsDeeplyTriviallyCopyableType(
+                            synced_field->getASTContext(),
+                            ftype->getPointeeType(), conv_ctx, &pointee_reason,
+                            /*in_array=*/true)) {
+                      return absl::InvalidArgumentError(absl::Substitute(
+                          "struct_sync access path $0 has unsupported pointee "
+                          "type: $1",
+                          sync.access_path, pointee_reason));
+                    }
                   }
                 }
               }
