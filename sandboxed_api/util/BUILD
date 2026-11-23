@@ -156,6 +156,16 @@ cc_library(
 )
 
 cc_library(
+    name = "recursive_mutex",
+    hdrs = ["recursive_mutex.h"],
+    copts = sapi_platform_copts(),
+    deps = [
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/synchronization",
+    ],
+)
+
+cc_library(
     name = "runfiles",
     srcs = ["runfiles_bazel.cc"],
     hdrs = ["runfiles.h"],

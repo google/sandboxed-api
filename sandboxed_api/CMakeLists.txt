@@ -183,6 +183,7 @@ target_link_libraries(sapi_sandbox2_backend
           sandbox2::sandbox2
           sandbox2::util
   PUBLIC absl::check
+         sapi::recursive_mutex
 )
 
 # sandboxed_api:sapi

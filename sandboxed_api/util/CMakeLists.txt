@@ -102,6 +102,17 @@ target_link_libraries(sapi_util_raw_logging
   INTERFACE absl::core_headers
 )
 
+# sandboxed_api/util:recursive_mutex
+add_library(sapi_util_recursive_mutex ${SAPI_LIB_TYPE}
+  recursive_mutex.h
+)
+add_library(sapi::recursive_mutex ALIAS sapi_util_recursive_mutex)
+target_link_libraries(sapi_util_recursive_mutex
+  PUBLIC absl::core_headers
+         absl::synchronization
+         sapi::base
+)
+
 # sandboxed_api/util:runfiles
 add_library(sapi_util_runfiles ${SAPI_LIB_TYPE}
   runfiles.h
