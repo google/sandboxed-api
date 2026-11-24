@@ -20,6 +20,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <memory>
@@ -517,6 +518,130 @@ TEST(VarsTest, ArraySizeOverflow) {
   v::Array<uint64_t> arr(1);
   EXPECT_THAT(arr.Resize(/*rpc_channel=*/nullptr, kOverflowNelem),
               StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(VarsTest, ArrayZeroInitializesOwnedStorage) {
+  // Dirty a similarly sized heap chunk first so an unzeroed allocator reuse
+  // would expose non-zero bytes.
+  void* dirty = malloc(64);
+  ASSERT_THAT(dirty, NotNull());
+  std::memset(dirty, 0xAB, 64);
+  free(dirty);
+
+  v::Array<uint8_t> arr(64);
+  for (size_t i = 0; i < arr.GetNElem(); ++i) {
+    EXPECT_EQ(arr[i], 0) << "at index " << i;
+  }
+
+  // Growing an owned buffer zero-fills the new tail and keeps the old bytes.
+  Sandbox<PassthroughBackend> sandbox(PassthroughBackend(
+      SandboxConfig{}, [](const FuncCall&, FuncRet*) {},
+      [](const char*, FuncRet*) {}));
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  v::Array<uint8_t> grow_arr(4);
+  for (size_t i = 0; i < 4; ++i) {
+    grow_arr[i] = 0x5A;
+  }
+  ASSERT_THAT(sandbox.Allocate(&grow_arr, /*automatic_free=*/true), IsOk());
+  ASSERT_THAT(grow_arr.Resize(sandbox.rpc_channel(), 32), IsOk());
+  for (size_t i = 0; i < 4; ++i) {
+    EXPECT_EQ(grow_arr[i], 0x5A) << "at index " << i;
+  }
+  for (size_t i = 4; i < 32; ++i) {
+    EXPECT_EQ(grow_arr[i], 0) << "at index " << i;
+  }
+}
+
+TEST(VarsTest, StructZeroInitializesStorageAndPadding) {
+  struct Padded {
+    uint8_t a;
+    uint64_t b;
+  };
+  v::Struct<Padded> default_s;
+  const auto* raw_default =
+      reinterpret_cast<const unsigned char*>(&default_s.data());
+  for (size_t i = 0; i < sizeof(Padded); ++i) {
+    EXPECT_EQ(raw_default[i], 0) << "at byte " << i;
+  }
+
+  alignas(Padded) unsigned char dirty_bytes[sizeof(Padded)];
+  std::memset(dirty_bytes, 0xFF, sizeof(dirty_bytes));
+  Padded src;
+  std::memcpy(&src, dirty_bytes, sizeof(src));
+  src.a = 0x12;
+  src.b = 0x3456789ABCDEF012ULL;
+  v::Struct<Padded> copied_s(src);
+  EXPECT_EQ(copied_s.data().a, 0x12);
+  EXPECT_EQ(copied_s.data().b, 0x3456789ABCDEF012ULL);
+#if defined(__has_builtin)
+#if __has_builtin(__builtin_clear_padding)
+  // Padding bytes copied from `src` are cleared only when the compiler
+  // provides `__builtin_clear_padding`.
+  const auto* raw_copied =
+      reinterpret_cast<const unsigned char*>(&copied_s.data());
+  for (size_t i = 1; i < offsetof(Padded, b); ++i) {
+    EXPECT_EQ(raw_copied[i], 0) << "padding byte " << i;
+  }
+#endif
+#endif
+
+  // Move-assignment keeps both target and moved-from `local_` pointers bound
+  // to their own inline storage rather than cross-pointing into each other.
+  v::Struct<Padded> assigned_s;
+  assigned_s = std::move(copied_s);
+  EXPECT_EQ(assigned_s.GetLocal(), assigned_s.mutable_data());
+  // NOLINTNEXTLINE(bugprone-use-after-move)
+  EXPECT_EQ(copied_s.GetLocal(), copied_s.mutable_data());
+}
+
+TEST(VarsTest, BoolNormalizesNonCanonicalBytes) {
+  v::Bool b(false);
+  EXPECT_FALSE(b.GetValue());
+  EXPECT_EQ(b.ToString(), "0");
+  // A sandboxee can return any byte value (`0x02..0xff`) for a `bool`.
+  const uint8_t non_canonical = 0x7F;
+  std::memcpy(b.GetLocal(), &non_canonical, sizeof(non_canonical));
+  EXPECT_TRUE(b.GetValue());
+  EXPECT_EQ(b.ToString(), "1");
+
+  v::Bool moved_b(false);
+  moved_b = std::move(b);
+  EXPECT_TRUE(moved_b.GetValue());
+  // After the move, each `local_` points at its own storage, so a write
+  // through the moved-from object does not change the target.
+  const uint8_t zero = 0;
+  // NOLINTNEXTLINE(bugprone-use-after-move)
+  std::memcpy(b.GetLocal(), &zero, sizeof(zero));
+  EXPECT_FALSE(b.GetValue());
+  EXPECT_TRUE(moved_b.GetValue());
+}
+
+TEST(VarsTest, LongDoublePaddingIsZeroed) {
+  // The x87 80-bit format uses 10 value bytes. The remaining bytes of the
+  // 16-byte `long double` are padding and must not carry host data.
+  auto expect_zero_padding = [](const v::Reg<long double>& reg) {
+    if constexpr (std::numeric_limits<long double>::digits == 64 &&
+                  sizeof(long double) == 16) {
+      const auto* bytes = static_cast<const unsigned char*>(reg.GetLocal());
+      for (size_t i = 10; i < sizeof(long double); ++i) {
+        EXPECT_EQ(bytes[i], 0) << "padding byte " << i;
+      }
+    }
+  };
+
+  v::Reg<long double> ld(1.5L);
+  expect_zero_padding(ld);
+
+  std::memset(ld.GetLocal(), 0xAB, sizeof(long double));
+  ld.SetValue(2.5L);
+  expect_zero_padding(ld);
+  EXPECT_DOUBLE_EQ(static_cast<double>(ld.GetValue()), 2.5);
+
+  v::Reg<long double> target;
+  std::memset(target.GetLocal(), 0xCD, sizeof(long double));
+  target = std::move(ld);
+  expect_zero_padding(target);
+  EXPECT_DOUBLE_EQ(static_cast<double>(target.GetValue()), 2.5);
 }
 
 TEST(VarsTest, ZeroSizedBuffersAndPassthroughResize) {

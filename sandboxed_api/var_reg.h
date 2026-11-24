@@ -16,6 +16,7 @@
 #define SANDBOXED_API_VAR_REG_H_
 
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <string>
 #include <type_traits>
@@ -38,24 +39,39 @@ class Reg : public Callable {
                     std::is_pointer_v<T> || std::is_enum_v<T>,
                 "Only register-sized types are allowed as template argument "
                 "for class Reg.");
+  // Store `bool` as `uint8_t` so raw byte writes from untrusted sandboxee
+  // returns (`0x02..0xff`) do not produce non-canonical C++ `bool` UB.
+  using StorageType =
+      std::conditional_t<std::is_same_v<std::remove_cv_t<T>, bool>, uint8_t,
+                         std::remove_cv_t<T>>;
+  static_assert(sizeof(StorageType) == sizeof(T));
 
   explicit Reg(const T value = {}) {
-    value_ = value;
+    StoreValue(value);
     SetLocal(&value_);
   }
 
   Reg(Reg<T>&& other) { *this = std::move(other); }
 
   Reg& operator=(Reg<T>&& other) {
-    Var::operator=(std::move(other));
-    value_ = std::move(other.value_);
-    SetLocal(&value_);
+    if (this != &other) {
+      Var::operator=(std::move(other));
+      std::memcpy(&value_, &other.value_, sizeof(value_));
+      SetLocal(&value_);
+      other.SetLocal(&other.value_);
+    }
     return *this;
   }
 
   // Getter/Setter for the stored value.
-  virtual T GetValue() const { return value_; }
-  virtual void SetValue(T value) { value_ = value; }
+  virtual T GetValue() const {
+    if constexpr (std::is_same_v<std::remove_cv_t<T>, bool>) {
+      return value_ != 0;
+    } else {
+      return value_;
+    }
+  }
+  virtual void SetValue(T value) { StoreValue(value); }
 
   size_t GetSize() const override { return sizeof(T); }
 
@@ -67,7 +83,22 @@ class Reg : public Callable {
 
  protected:
   // The stored value.
-  T value_;
+  StorageType value_{};
+
+ private:
+  void StoreValue(T value) {
+    if constexpr (std::is_same_v<std::remove_cv_t<T>, bool>) {
+      value_ = value ? 1 : 0;
+    } else if constexpr (std::is_floating_point_v<T>) {
+      // Zero trailing padding bytes (e.g. 6-byte padding on x87 `long double`)
+      // before storing the value, because the value store writes only the
+      // value bytes and `FuncCall` copies the full `sizeof(T)` bytes.
+      std::memset(&value_, 0, sizeof(value_));
+      value_ = value;
+    } else {
+      value_ = value;
+    }
+  }
 };
 
 template <typename T>
@@ -100,7 +131,9 @@ std::string Reg<T>::GetTypeString() const {
 
 template <typename T>
 std::string Reg<T>::ToString() const {
-  if constexpr (std::is_integral_v<T>) {
+  if constexpr (std::is_same_v<std::remove_cv_t<T>, bool>) {
+    return value_ != 0 ? "1" : "0";
+  } else if constexpr (std::is_integral_v<T>) {
     return std::to_string(value_);
   }
   if constexpr (std::is_enum_v<T>) {

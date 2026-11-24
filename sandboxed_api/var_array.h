@@ -53,7 +53,9 @@ class Array : public Var {
       : nelem_(nelem),
         total_size_(CheckedMultiply(nelem_, sizeof(T))),
         buffer_owned_(true) {
-    void* storage = malloc(std::max<size_t>(total_size_, 1));
+    // Zero-initialize host-owned storage so newly allocated buffers do not leak
+    // uninitialized host heap data when synchronized to the sandboxee.
+    void* storage = calloc(1, std::max<size_t>(total_size_, 1));
     CHECK(storage != nullptr);
     SetLocal(storage);
     arr_ = static_cast<T*>(storage);
@@ -136,12 +138,16 @@ class Array : public Var {
     void* new_addr = nullptr;
     if (buffer_owned_) {
       new_addr = realloc(const_cast<std::remove_const_t<T>*>(arr_), alloc_size);
+      if (new_addr != nullptr && alloc_size > total_size_) {
+        std::memset(static_cast<char*>(new_addr) + total_size_, 0,
+                    alloc_size - total_size_);
+      }
     } else {
       if (arr_ == nullptr && total_size_ > 0) {
         return absl::FailedPreconditionError(
             "Object: Array has no local storage set");
       }
-      new_addr = malloc(alloc_size);
+      new_addr = calloc(1, alloc_size);
       if (new_addr != nullptr) {
         // Guard 0-byte copies because `arr_` can be nullptr when `total_size_`
         // is 0, and passing nullptr to memcpy() is undefined behavior.
