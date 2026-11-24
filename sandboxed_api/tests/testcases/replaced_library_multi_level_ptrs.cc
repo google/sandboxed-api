@@ -18,10 +18,22 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
+#include <unistd.h>
 
 #include <algorithm>
 
 #include "absl/base/attributes.h"
+
+#if defined(__has_feature)
+#define SAPI_TEST_HAS_SANITIZER                                           \
+  (__has_feature(address_sanitizer) || __has_feature(memory_sanitizer) || \
+   __has_feature(thread_sanitizer) || __has_feature(hwaddress_sanitizer))
+#elif defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
+#define SAPI_TEST_HAS_SANITIZER 1
+#else
+#define SAPI_TEST_HAS_SANITIZER 0
+#endif
 
 extern "C" {
 
@@ -484,6 +496,142 @@ int finalize_memio_buffer(size_t size, unsigned char fill_byte, int flags,
   }
   out_memio->memory = mem;
   return 0;
+}
+
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI int evaluate_callbacks_at_guarded_stack_boundary(
+    int (*cb6)(int p1, int p2, int p3, int p4, int p5, int p6),
+    int (*cb8)(int p1, int p2, int p3, int p4, int p5, int p6, int p7,
+               int p8)) {
+  if (cb6 == nullptr || cb8 == nullptr) {
+    return -1;
+  }
+#if !SAPI_TEST_HAS_SANITIZER && (defined(__x86_64__) || defined(__aarch64__))
+  const int64_t raw_page = sysconf(_SC_PAGESIZE);
+  const size_t page_size =
+      raw_page > 0 ? static_cast<size_t>(raw_page) : size_t{4096};
+  const size_t stack_bytes = 16 * page_size;
+  void* mapping = mmap(nullptr, stack_bytes + page_size, PROT_NONE,
+                       MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (mapping == MAP_FAILED) {
+    return -2;
+  }
+  if (mprotect(mapping, stack_bytes, PROT_READ | PROT_WRITE) != 0) {
+    munmap(mapping, stack_bytes + page_size);
+    return -3;
+  }
+  uint8_t* stack_top = static_cast<uint8_t*>(mapping) + stack_bytes;
+#if defined(__x86_64__)
+  // Each asm block calls a callback, which can change any caller-saved
+  // register (x86_64 SysV ABI). So `r10` is an in/out operand and the other
+  // caller-saved registers are clobbers. `r12` and `r13` are callee-saved.
+  int64_t r6 = 0;
+  register uintptr_t top_reg asm("r10") =
+      reinterpret_cast<uintptr_t>(stack_top);
+  register auto fn6_reg asm("r12") = cb6;
+  asm volatile(
+      "movq %%rsp, %%r13\n\t"
+      "movq %%r10, %%rsp\n\t"
+      "movl $10, %%edi\n\t"
+      "movl $20, %%esi\n\t"
+      "movl $30, %%edx\n\t"
+      "movl $40, %%ecx\n\t"
+      "movl $50, %%r8d\n\t"
+      "movl $60, %%r9d\n\t"
+      "call *%%r12\n\t"
+      "movq %%r13, %%rsp\n\t"
+      : "=a"(r6), "+r"(top_reg)
+      : "r"(fn6_reg)
+      : "r13", "rdi", "rsi", "rdx", "rcx", "r8", "r9", "r11", "xmm0", "xmm1",
+        "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9", "xmm10",
+        "xmm11", "xmm12", "xmm13", "xmm14", "xmm15", "cc", "memory");
+
+  // Place exactly two 8-byte stack arguments immediately below the `PROT_NONE`
+  // guard page (`[rbp + 16]` and `[rbp + 24]`); reading `[rbp + 32]` faults.
+  uint64_t* sp8 = reinterpret_cast<uint64_t*>(stack_top - 16);
+  sp8[0] = 70;
+  sp8[1] = 80;
+  int64_t r8 = 0;
+  register uintptr_t sp8_reg asm("r10") = reinterpret_cast<uintptr_t>(sp8);
+  register auto fn8_reg asm("r12") = cb8;
+  asm volatile(
+      "movq %%rsp, %%r13\n\t"
+      "movq %%r10, %%rsp\n\t"
+      "movl $1, %%edi\n\t"
+      "movl $2, %%esi\n\t"
+      "movl $3, %%edx\n\t"
+      "movl $4, %%ecx\n\t"
+      "movl $5, %%r8d\n\t"
+      "movl $6, %%r9d\n\t"
+      "call *%%r12\n\t"
+      "movq %%r13, %%rsp\n\t"
+      : "=a"(r8), "+r"(sp8_reg)
+      : "r"(fn8_reg)
+      : "r13", "rdi", "rsi", "rdx", "rcx", "r8", "r9", "r11", "xmm0", "xmm1",
+        "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9", "xmm10",
+        "xmm11", "xmm12", "xmm13", "xmm14", "xmm15", "cc", "memory");
+#elif defined(__aarch64__)
+  // The callback can change any caller-saved register (AAPCS64), so `x10` and
+  // `x11` are in/out operands and the other caller-saved registers are
+  // clobbers. `x18` is not listed: it is the platform register, and some
+  // configurations reserve it (`-ffixed-x18`).
+  register uintptr_t top_reg asm("x10") =
+      reinterpret_cast<uintptr_t>(stack_top);
+  register auto fn6_reg asm("x11") = cb6;
+  register int64_t r6_reg asm("x0");
+  asm volatile(
+      "mov x19, sp\n\t"
+      "mov sp, x10\n\t"
+      "mov x0, #10\n\t"
+      "mov x1, #20\n\t"
+      "mov x2, #30\n\t"
+      "mov x3, #40\n\t"
+      "mov x4, #50\n\t"
+      "mov x5, #60\n\t"
+      "blr x11\n\t"
+      "mov sp, x19\n\t"
+      : "=r"(r6_reg), "+r"(top_reg), "+r"(fn6_reg)
+      :
+      : "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x12", "x13",
+        "x14", "x15", "x16", "x17", "x19", "x30", "v0", "v1", "v2", "v3", "v4",
+        "v5", "v6", "v7", "v16", "v17", "v18", "v19", "v20", "v21", "v22",
+        "v23", "v24", "v25", "v26", "v27", "v28", "v29", "v30", "v31", "cc",
+        "memory");
+  const int64_t r6 = r6_reg;
+  const int64_t r8 = cb8(1, 2, 3, 4, 5, 6, 70, 80);
+#endif
+  munmap(mapping, stack_bytes + page_size);
+  return static_cast<int>(r6 + r8);
+#else
+  return cb6(10, 20, 30, 40, 50, 60) + cb8(1, 2, 3, 4, 5, 6, 70, 80);
+#endif
+}
+
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI int evaluate_ten_int_callback(
+    int base, int (*cb)(int p1, int p2, int p3, int p4, int p5, int p6, int p7,
+                        int p8, int p9, int p10)) {
+  return cb(base + 1, base + 2, base + 3, base + 4, base + 5, base + 6,
+            base + 7, base + 8, base + 9, base + 10);
+}
+
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI double evaluate_ten_arg_float_callback(
+    int a, int b, int c, float weight, double bias,
+    double (*cb)(int p1, int p2, int p3, int p4, int p5, int p6, int p7, int p8,
+                 float f1, double d1)) {
+  if (cb == nullptr) {
+    return -1.0;
+  }
+  return cb(a, b, c, a + 1, b + 1, c + 1, a + 2, b + 2, weight, bias);
+}
+
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI float evaluate_nine_float_callback(
+    float base,
+    float (*cb)(float f1, float f2, float f3, float f4, float f5, float f6,
+                float f7, float f8, float f9, int scale)) {
+  if (cb == nullptr) {
+    return -1.0f;
+  }
+  return cb(base + 1.0f, base + 2.0f, base + 3.0f, base + 4.0f, base + 5.0f,
+            base + 6.0f, base + 7.0f, base + 8.0f, base + 9.0f, 2);
 }
 
 }  // extern "C"

@@ -95,21 +95,29 @@ class Sandbox2RPCChannel : public RPCChannel {
   absl::StatusOr<uintptr_t> RegisterCallback(
       absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> cb) override;
 
+  absl::StatusOr<uintptr_t> RegisterCallbackWithStackArgs(
+      absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> cb,
+      size_t stack_arg_count) override;
+
   absl::Status UnregisterCallback(uintptr_t remote_ptr) override;
 
   sandbox2::Comms* comms() const { return comms_; }
 
  private:
   static constexpr size_t kMaxCallbacks = 64;
+  static constexpr size_t kMaxCallbackStackArgs = 4;
+  static constexpr size_t kTrampolineGroups = kMaxCallbackStackArgs + 1;
   static constexpr size_t kTrampolineSize = 16;
 
   // Per-slot synchronization so concurrent invocations of distinct callbacks
   // execute in parallel without holding the table lock, while concurrent or
   // re-entrant invocations of the same callback serialize safely.
   struct CallbackSlot {
-    explicit CallbackSlot(
-        absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> handler)
-        : cb(std::move(handler)) {}
+    CallbackSlot(
+        absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> handler,
+        size_t stack_args)
+        : stack_arg_count(stack_args), cb(std::move(handler)) {}
+    const size_t stack_arg_count;
     RecursiveMutex mu;
     absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> cb
         ABSL_GUARDED_BY(mu);

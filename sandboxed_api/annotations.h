@@ -69,8 +69,8 @@
 // - The sandbox retains the callback to invoke after the outer call returns
 //   (persistent callbacks, such as error or log handlers).
 // - The function pointer is a struct member.
-// - The callback takes floating-point, by-value struct, or variadic (`...`)
-//   arguments, or more than 6 arguments, or returns a function pointer.
+// - The callback takes `long double`, `__int128`, by-value struct, or variadic
+//   (`...`) arguments, more than 10 arguments, or returns a function pointer.
 //
 // Placement and type support rules:
 // - Parameter annotations are placed after the parameter name (for example,

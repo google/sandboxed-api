@@ -671,4 +671,54 @@ TEST(MultiLevelPointersTest,
   }
 }
 
+TEST(MultiLevelPointersTest,
+     CallbackTrampolineDoesNotReadPastOwnedStackArguments) {
+  auto cb6 = +[](int p1, int p2, int p3, int p4, int p5, int p6) -> int {
+    return p1 + p2 + p3 + p4 + p5 + p6;
+  };
+  auto cb8 =
+      +[](int p1, int p2, int p3, int p4, int p5, int p6, int p7,
+          int p8) -> int { return p1 + p2 + p3 + p4 + p5 + p6 + p7 + p8; };
+  // cb6(10..60) = 210; cb8(1..6, 70, 80) = 171 -> total = 381.
+  EXPECT_EQ(evaluate_callbacks_at_guarded_stack_boundary(cb6, cb8), 381);
+}
+
+TEST(MultiLevelPointersTest, TenIntCallbackReceivesStackArgumentsInOrder) {
+  auto cb = +[](int p1, int p2, int p3, int p4, int p5, int p6, int p7, int p8,
+                int p9, int p10) -> int {
+    return p1 + 2 * p2 + 3 * p3 + 4 * p4 + 5 * p5 + 6 * p6 + 7 * p7 + 8 * p8 +
+           9 * p9 + 10 * p10;
+  };
+  // Each `p_i` is `100 + i` and has weight `i`, so a missing or swapped
+  // argument changes the result: 100 * 55 + (1^2 + ... + 10^2) = 5885.
+  EXPECT_EQ(evaluate_ten_int_callback(100, cb), 5885);
+}
+
+TEST(MultiLevelPointersTest, TenArgFloatAndDoubleCallback) {
+  auto ten_arg_cb = +[](int p1, int p2, int p3, int p4, int p5, int p6, int p7,
+                        int p8, float f1, double d1) -> double {
+    int int_sum = p1 + p2 + p3 + p4 + p5 + p6 + p7 + p8;
+    return static_cast<double>(int_sum) * static_cast<double>(f1) + d1;
+  };
+  double cb_result =
+      evaluate_ten_arg_float_callback(10, 20, 30, 1.5f, 0.25, ten_arg_cb);
+  // p1..p8 = 10, 20, 30, 11, 21, 31, 12, 22 -> sum = 157
+  // 157 * 1.5 + 0.25 = 235.75
+  EXPECT_DOUBLE_EQ(cb_result, 235.75);
+}
+
+TEST(MultiLevelPointersTest, NineFloatStackSpillCallbackReturnsFloat) {
+  auto nine_float_cb =
+      +[](float f1, float f2, float f3, float f4, float f5, float f6, float f7,
+          float f8, float f9, int scale) -> float {
+    return (f1 + 2 * f2 + 3 * f3 + 4 * f4 + 5 * f5 + 6 * f6 + 7 * f7 + 8 * f8 +
+            9 * f9) *
+           static_cast<float>(scale);
+  };
+  // base = 0.5 -> f_i = i + 0.5 with weight i, so a swapped argument changes
+  // the result: (1^2 + ... + 9^2) + 0.5 * (1 + ... + 9) = 307.5; * 2 = 615.0f.
+  EXPECT_FLOAT_EQ(evaluate_nine_float_callback(0.5f, nine_float_cb), 615.0f);
+  EXPECT_FLOAT_EQ(evaluate_nine_float_callback(0.5f, nullptr), -1.0f);
+}
+
 }  // namespace

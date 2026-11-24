@@ -450,6 +450,13 @@ absl::StatusOr<uintptr_t> SharedMemoryRPCChannel::RegisterCallback(
   return rpcchannel_->RegisterCallback(std::move(cb));
 }
 
+absl::StatusOr<uintptr_t> SharedMemoryRPCChannel::RegisterCallbackWithStackArgs(
+    absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> cb,
+    size_t stack_arg_count) {
+  return rpcchannel_->RegisterCallbackWithStackArgs(std::move(cb),
+                                                    stack_arg_count);
+}
+
 absl::Status SharedMemoryRPCChannel::UnregisterCallback(uintptr_t remote_ptr) {
   return rpcchannel_->UnregisterCallback(remote_ptr);
 }

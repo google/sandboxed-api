@@ -23,6 +23,7 @@
 #include <optional>
 #include <string>
 #include <thread>  // NOLINT(build/c++11)
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -39,6 +40,7 @@
 #include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/sandbox.h"
 #include "sandboxed_api/var_callback.h"
+#include "sandboxed_api/var_ptr.h"
 #include "sandboxed_api/var_type.h"
 
 // `ContextBindingRegistry` annotates its pointer parameters `absl_nonnull` to
@@ -1092,6 +1094,95 @@ TEST(HostCallbackRegistryTest, SupportsNoexceptFunctionPointersAndLambdas) {
   EXPECT_EQ(var_cb.GetSize(), sizeof(void*));
 }
 
+// A channel that passes fewer slots than `CallbackRequest::args` (for example
+// one that passes only the 6 integer argument registers) uses the flat layout.
+TEST(HostCallbackRegistryTest, FlatLayoutForwardsIntegerArgumentsInOrder) {
+  ScopedSandbox scoped;
+  auto* reg = HostCallbackRegistry::Instance();
+  ASSERT_THAT(reg->TrampolineFor(scoped.sandbox(), "flat_six", 0x6666,
+                                 [](int a, int b, int c, int d, int e, int f) {
+                                   return a + 2 * b + 3 * c + 4 * d + 5 * e +
+                                          6 * f;
+                                 }),
+              IsOk());
+  const uint64_t kArgs[6] = {1, 2, 3, 4, 5, 6};
+  EXPECT_EQ(scoped.InvokeLastHandler(kArgs), 91u);
+}
+
+TEST(HostCallbackRegistryTest, FlatLayoutRejectsCallbacksThatDoNotFit) {
+  const uint64_t kArgs[6] = {1, 2, 3, 4, 5, 6};
+  {
+    ScopedSandbox scoped;
+    ASSERT_THAT(HostCallbackRegistry::Instance()->TrampolineFor(
+                    scoped.sandbox(), "flat_seven", 0x7777,
+                    [](int, int, int, int, int, int, int) { return 0; }),
+                IsOk());
+    EXPECT_DEATH(scoped.InvokeLastHandler(kArgs),
+                 "Callback takes 7 arguments, but the RPC channel passes only "
+                 "6");
+  }
+  {
+    ScopedSandbox scoped;
+    ASSERT_THAT(HostCallbackRegistry::Instance()->TrampolineFor(
+                    scoped.sandbox(), "flat_double_arg", 0x8888,
+                    [](int a, double b) { return a + static_cast<int>(b); }),
+                IsOk());
+    EXPECT_DEATH(scoped.InvokeLastHandler(kArgs),
+                 "float or double arguments or return values");
+  }
+  {
+    ScopedSandbox scoped;
+    ASSERT_THAT(HostCallbackRegistry::Instance()->TrampolineFor(
+                    scoped.sandbox(), "flat_float_ret", 0x9999,
+                    [](int a) { return static_cast<float>(a); }),
+                IsOk());
+    EXPECT_DEATH(scoped.InvokeLastHandler(kArgs),
+                 "float or double arguments or return values");
+  }
+}
+
+TEST(HostCallbackRegistryTest, StackArgCountMatchesTargetAbi) {
+  using sapi::v::callback_internal::StackArgCount;
+  EXPECT_EQ(StackArgCount<std::tuple<>>(), 0u);
+  EXPECT_EQ((StackArgCount<std::tuple<int, int, int, int, int, int>>()), 0u);
+  EXPECT_EQ((StackArgCount<std::tuple<double, double, double, double, double,
+                                      double, double, double>>()),
+            0u);
+#if defined(__riscv) && defined(__riscv_float_abi_double)
+  // When all 8 floating-point argument registers are in use, RISC-V passes the
+  // next `float` in an integer register, not on the stack.
+  EXPECT_EQ((StackArgCount<std::tuple<float, float, float, float, float, float,
+                                      float, float, float, int>>()),
+            0u);
+#elif !defined(__riscv)
+  EXPECT_EQ((StackArgCount<std::tuple<float, float, float, float, float, float,
+                                      float, float, float, int>>()),
+            1u);
+#endif
+#if defined(__aarch64__) || defined(__riscv)
+  EXPECT_EQ(
+      (StackArgCount<std::tuple<int, int, int, int, int, int, int, int>>()),
+      0u);
+  EXPECT_EQ(
+      (StackArgCount<
+          std::tuple<int, int, int, int, int, int, int, int, int, int>>()),
+      2u);
+#else
+  EXPECT_EQ((StackArgCount<std::tuple<int, int, int, int, int, int, int>>()),
+            1u);
+  EXPECT_EQ(
+      (StackArgCount<std::tuple<int, int, int, int, int, int, int, int>>()),
+      2u);
+  EXPECT_EQ((StackArgCount<
+                std::tuple<int, int, int, int, int, int, int, int, int>>()),
+            3u);
+  EXPECT_EQ(
+      (StackArgCount<
+          std::tuple<int, int, int, int, int, int, int, int, int, int>>()),
+      4u);
+#endif
+}
+
 // =========================================================================
 // NullTerminatedByteSize & ReadNullTerminatedArray Tests
 // =========================================================================
@@ -1504,6 +1595,89 @@ TEST(NullTerminatedArrayTest, ReadNullTerminatedArrayCheckFailures) {
         ReadNullTerminatedArray(sb, 0x1000, sizeof(uint32_t));
       },
       "exceeds maximum size");
+}
+
+TEST(LwboxRuntimeTest, CallbackBoolArgIgnoresUpper56GarbageBits) {
+  using ArgsTuple =
+      std::tuple<int, int, int, int, int, int, int, int, bool, bool>;
+  auto fn = [](int, int, int, int, int, int, int, int, bool b0,
+               bool b1) -> uint64_t {
+    return (b0 ? 1ULL : 0ULL) | (b1 ? 2ULL : 0ULL);
+  };
+  uint64_t raw_args[20] = {};
+  // Overflow stack slots (`[16..19]` on x86_64/AArch64/RISC-V once the integer
+  // argument registers are used up) may have arbitrary upper 56 bits from an
+  // 8-byte stack load; `CastArg<bool>` must inspect only the low byte.
+#if defined(__aarch64__) || defined(__riscv)
+  raw_args[16] = 0xdeadbeefcafebabeULL & ~0xffULL;  // low byte == 0 -> false
+  raw_args[17] = 0xdeadbeefcafeba01ULL;             // low byte == 1 -> true
+#else
+  raw_args[18] = 0xdeadbeefcafebabeULL & ~0xffULL;  // low byte == 0 -> false
+  raw_args[19] = 0xdeadbeefcafeba01ULL;             // low byte == 1 -> true
+#endif
+  EXPECT_EQ(sapi::v::callback_internal::CallHelper<ArgsTuple>(
+                fn, absl::MakeConstSpan(raw_args)),
+            2ULL);
+}
+
+TEST(LwboxRuntimeTest,
+     CallbackEnumTruncationRemotePtrReturnAndEmptyFunctorGuard) {
+  enum CMode : int32_t {
+    kModeNeg = -2,
+    kModeZero = 0,
+    kModePos = 3,
+  };
+  enum class ByteOp : uint8_t {
+    kNop = 0,
+    kStep = 5,
+  };
+  enum class BoolFlag : bool {
+    kOff = false,
+    kOn = true,
+  };
+
+  using EnumArgsTuple = std::tuple<CMode, CMode, ByteOp, BoolFlag>;
+  auto cb_fn = [](CMode m0, CMode m1, ByteOp op,
+                  BoolFlag flag) -> sapi::v::RemotePtr {
+    EXPECT_EQ(m0, kModePos);
+    EXPECT_EQ(m1, kModeNeg);
+    EXPECT_EQ(op, ByteOp::kStep);
+    EXPECT_EQ(flag, BoolFlag::kOn);
+    const uintptr_t addr = (m0 == kModePos && m1 == kModeNeg &&
+                            op == ByteOp::kStep && flag == BoolFlag::kOn)
+                               ? uintptr_t{0x123456789abcULL}
+                               : uintptr_t{0};
+    return sapi::v::RemotePtr(addr);
+  };
+
+  // Populate upper 32/56 bits with garbage to verify narrow enum underlying
+  // truncation and `RemotePtr` return marshaling.
+  const uint64_t kDirtyEnumArgs[] = {
+      0xdeadbeef00000003ULL,  // low 32 bits == 3 (kModePos)
+      0xfeedfacefffffffeULL,  // low 32 bits == -2 (kModeNeg)
+      0xcafebabe12345605ULL,  // low 8 bits == 5 (ByteOp::kStep)
+      0xdeadbeefcafeba01ULL,  // low 8 bits == 1 (BoolFlag::kOn)
+  };
+  EXPECT_EQ(sapi::v::callback_internal::CallHelper<EnumArgsTuple>(
+                cb_fn, absl::MakeConstSpan(kDirtyEnumArgs)),
+            0x123456789abcULL);
+
+  // Empty function pointer and moved-out callback functors fail `Allocate`
+  // with `FailedPreconditionError("Callback functor is empty")`.
+  ScopedSandbox scoped;
+  int (*null_fn)(int) = nullptr;
+  sapi::v::Callback null_cb(null_fn);
+  EXPECT_THAT(scoped.sandbox().Allocate(&null_cb, /*automatic_free=*/false),
+              StatusIs(absl::StatusCode::kFailedPrecondition,
+                       HasSubstr("Callback functor is empty")));
+
+  sapi::v::Callback reusable_cb([](int x) { return x + 1; });
+  ASSERT_THAT(scoped.sandbox().Allocate(&reusable_cb, /*automatic_free=*/false),
+              IsOk());
+  ASSERT_THAT(scoped.sandbox().Free(&reusable_cb), IsOk());
+  EXPECT_THAT(scoped.sandbox().Allocate(&reusable_cb, /*automatic_free=*/false),
+              StatusIs(absl::StatusCode::kFailedPrecondition,
+                       HasSubstr("Callback functor is empty")));
 }
 
 }  // namespace

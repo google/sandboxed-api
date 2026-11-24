@@ -135,6 +135,10 @@ class SharedMemoryRPCChannel : public RPCChannel {
   absl::StatusOr<uintptr_t> RegisterCallback(
       absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> cb) override;
 
+  absl::StatusOr<uintptr_t> RegisterCallbackWithStackArgs(
+      absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> cb,
+      size_t stack_arg_count) override;
+
   absl::Status UnregisterCallback(uintptr_t remote_ptr) override;
 
   ~SharedMemoryRPCChannel() override = default;

@@ -359,10 +359,13 @@ class HostCallbackRegistry {
                                           uintptr_t fn, F&& handler,
                                           bool idempotent = false) {
     using Traits = sapi::v::callback_internal::FunctionTraits<std::decay_t<F>>;
-    static_assert(Traits::kArgsCount <= 6,
-                  "SAPI callbacks support a maximum of 6 arguments");
+    static_assert(Traits::kArgsCount <= 10,
+                  "SAPI callbacks support a maximum of 10 arguments");
+    using ArgsTuple = typename Traits::ArgsTuple;
+    constexpr size_t kStackArgCount =
+        sapi::v::callback_internal::StackArgCount<ArgsTuple>();
     return TrampolineForFactory(
-        sandbox, typedef_name, fn, idempotent,
+        sandbox, typedef_name, fn, idempotent, kStackArgCount,
         [f = std::forward<F>(handler),
          typedef_name](std::shared_ptr<CallState> state) mutable -> RawHandler {
           return [f = std::move(f), cb_typedef = std::string(typedef_name),
@@ -374,7 +377,6 @@ class HostCallbackRegistry {
                   << "' was invoked more than once without "
                      "SANDBOX_CALLBACK_IDEMPOTENT";
             }
-            using ArgsTuple = typename Traits::ArgsTuple;
             return sapi::v::callback_internal::CallHelper<ArgsTuple>(f, span);
           };
         });
@@ -448,6 +450,7 @@ class HostCallbackRegistry {
   absl::StatusOr<uintptr_t> TrampolineForFactory(sapi::SandboxBase& sandbox,
                                                  absl::string_view typedef_name,
                                                  uintptr_t fn, bool idempotent,
+                                                 size_t stack_arg_count,
                                                  HandlerFactory make_handler);
 
   void PurgeStaleSessionLocked(const sapi::SandboxBase& sandbox,

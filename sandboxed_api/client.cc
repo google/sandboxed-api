@@ -291,8 +291,8 @@ __attribute__((disable_sanitizer_instrumentation))
 #endif
 extern "C" uint64_t sapi_client_HandleCallback(uint64_t index, uint64_t* args) {
   CHECK(sapi::client::g_comms != nullptr) << "g_comms not initialized";
-  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(args, 6 * sizeof(uint64_t));
   sapi::CallbackRequest req;
+  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(args, sizeof(req.args));
   req.index = index;
   memcpy(req.args, args, sizeof(req.args));
 

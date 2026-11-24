@@ -2203,13 +2203,13 @@ TEST_F(IrConvertTest, RejectsArrayOfStructsWithCallbackFields) {
 TEST_F(IrConvertTest, RejectsUncallableReturnedCallbackSignature) {
   EXPECT_THAT(ConvertSnippetToIR(
                   R"(
-    typedef double (*float_cb)(double x);
+    typedef long double (*float_cb)(long double x);
     extern "C" float_cb get_handler();
   )",
                   "get_handler"),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("callback sapi_ret_arg parameter 1 has type "
-                                 "'double'")));
+                                 "'long double'")));
 }
 
 TEST_F(IrConvertTest,
@@ -4169,6 +4169,25 @@ TEST_F(IrConvertTest, RejectsInvalidLifetimeMallocCombinations) {
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("malloc_cb: lifetime_malloc is not supported "
                                  "on a callback typedef")));
+}
+
+TEST_F(IrConvertTest, ConvertsFloatAndTenArgCallbacks) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function cb_fn,
+                            ConvertSnippetToIR(R"(
+    extern "C" int eval_cb(
+        double (*score_cb)(int a, int b, int c, int d, int e, int f, int g,
+                           int h, float weight, double bias));
+  )",
+                                               "eval_cb"));
+  ASSERT_EQ(cb_fn.parameters.size(), 1u);
+  const auto* cb = cb_fn.parameters[0].As<CallbackParam>();
+  ASSERT_NE(cb, nullptr);
+  EXPECT_EQ(cb->callback_parameters.size(), 10u);
+  ASSERT_NE(cb->return_value, nullptr);
+  EXPECT_EQ(cb->return_value->type.canonical_name, "double");
+
+  Library lib{.name = "MyLib", .functions = {cb_fn}};
+  EXPECT_THAT(ValidateAndLinkLibraryIR(lib), IsOk());
 }
 
 }  // namespace

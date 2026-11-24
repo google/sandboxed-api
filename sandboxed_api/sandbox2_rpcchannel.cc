@@ -41,6 +41,7 @@
 #include "sandboxed_api/sandbox2/comms.h"
 #include "sandboxed_api/sandbox2/util.h"
 #include "sandboxed_api/util/fileops.h"
+#include "sandboxed_api/util/recursive_mutex.h"
 #include "sandboxed_api/var_type.h"
 
 namespace sapi {
@@ -348,6 +349,17 @@ absl::StatusOr<uintptr_t> Sandbox2RPCChannel::GetTrampolineTableAddr() {
 
 absl::StatusOr<uintptr_t> Sandbox2RPCChannel::RegisterCallback(
     absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> cb) {
+  return RegisterCallbackWithStackArgs(std::move(cb), /*stack_arg_count=*/0);
+}
+
+absl::StatusOr<uintptr_t> Sandbox2RPCChannel::RegisterCallbackWithStackArgs(
+    absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> cb,
+    size_t stack_arg_count) {
+  if (stack_arg_count > kMaxCallbackStackArgs) {
+    return absl::InvalidArgumentError(absl::StrCat(
+        "Callback requires ", stack_arg_count,
+        " stack arguments, exceeding maximum ", kMaxCallbackStackArgs));
+  }
   uintptr_t trampoline_table_addr = 0;
   {
     absl::MutexLock table_lock(callback_table_->mu);
@@ -365,9 +377,10 @@ absl::StatusOr<uintptr_t> Sandbox2RPCChannel::RegisterCallback(
     return absl::ResourceExhaustedError(absl::StrCat(
         "All ", kMaxCallbacks, " callback slots are already registered"));
   }
-  *it = std::make_shared<CallbackSlot>(std::move(cb));
+  *it = std::make_shared<CallbackSlot>(std::move(cb), stack_arg_count);
   size_t slot = std::distance(callback_table_->slots.begin(), it);
-  return trampoline_table_addr + slot * kTrampolineSize;
+  size_t entry = stack_arg_count * kMaxCallbacks + slot;
+  return trampoline_table_addr + entry * kTrampolineSize;
 }
 
 absl::Status Sandbox2RPCChannel::UnregisterCallback(uintptr_t remote_ptr) {
@@ -387,12 +400,18 @@ absl::Status Sandbox2RPCChannel::UnregisterCallback(uintptr_t remote_ptr) {
   if (offset % kTrampolineSize != 0) {
     return absl::InvalidArgumentError("Invalid remote_ptr alignment");
   }
-  size_t slot = offset / kTrampolineSize;
+  size_t entry = offset / kTrampolineSize;
+  if (entry >= kTrampolineGroups * kMaxCallbacks) {
+    return absl::InvalidArgumentError("Invalid remote_ptr slot");
+  }
+  size_t group = entry / kMaxCallbacks;
+  size_t slot = entry % kMaxCallbacks;
   std::shared_ptr<CallbackSlot> removed_slot;
   {
     absl::MutexLock table_lock(callback_table_->mu);
-    if (slot >= callback_table_->slots.size()) {
-      return absl::InvalidArgumentError("Invalid remote_ptr slot");
+    if (callback_table_->slots[slot] != nullptr &&
+        callback_table_->slots[slot]->stack_arg_count != group) {
+      return absl::InvalidArgumentError("Invalid remote_ptr stack-arg group");
     }
     removed_slot = std::move(callback_table_->slots[slot]);
   }

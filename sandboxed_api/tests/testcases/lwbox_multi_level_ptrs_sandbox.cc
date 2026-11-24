@@ -236,4 +236,22 @@ SANDBOX_ANNOTATE_STRUCT(struct MemIoBuffer {
 int finalize_memio_buffer(size_t size, unsigned char fill_byte, int flags,
                           struct MemIoBuffer* out_memio SANDBOX_OUT_PTR);
 
+int evaluate_callbacks_at_guarded_stack_boundary(
+    int (*cb6)(int p1, int p2, int p3, int p4, int p5, int p6),
+    int (*cb8)(int p1, int p2, int p3, int p4, int p5, int p6, int p7, int p8));
+
+int evaluate_ten_int_callback(int base,
+                              int (*cb)(int p1, int p2, int p3, int p4, int p5,
+                                        int p6, int p7, int p8, int p9,
+                                        int p10));
+
+double evaluate_ten_arg_float_callback(
+    int a, int b, int c, float weight, double bias,
+    double (*cb)(int p1, int p2, int p3, int p4, int p5, int p6, int p7, int p8,
+                 float f1, double d1));
+
+float evaluate_nine_float_callback(
+    float base, float (*cb)(float f1, float f2, float f3, float f4, float f5,
+                            float f6, float f7, float f8, float f9, int scale));
+
 }  // extern "C"

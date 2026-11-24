@@ -134,7 +134,10 @@ struct FuncRet {
 
 struct CallbackRequest {
   uint64_t index;
-  uint64_t args[6];
+  // Argument slots that `trampolines.S` saves: [0..7] integer argument
+  // registers, [8..15] floating-point argument registers, and [16..19] stack
+  // arguments that the caller passed (zero if not passed).
+  uint64_t args[20];
 };
 
 struct CallbackResponse {

@@ -199,6 +199,36 @@ struct MemIoBuffer {
 int finalize_memio_buffer(size_t size, unsigned char fill_byte, int flags,
                           struct MemIoBuffer* out_memio);
 
+// Invokes a 0-stack-arg callback (`cb6`) and a 2-stack-arg callback on x86_64
+// (`cb8`, 0 stack args on AArch64) with the caller stack pointer positioned
+// immediately below an unmapped `PROT_NONE` guard page, verifying that
+// callback trampolines never read unowned caller stack memory.
+int evaluate_callbacks_at_guarded_stack_boundary(
+    int (*cb6)(int p1, int p2, int p3, int p4, int p5, int p6),
+    int (*cb8)(int p1, int p2, int p3, int p4, int p5, int p6, int p7, int p8));
+
+// Calls `cb(base + 1, ..., base + 10)`. The caller passes `p7`..`p10` on the
+// stack on x86_64 (4 stack slots) and `p9`..`p10` on AArch64.
+int evaluate_ten_int_callback(int base,
+                              int (*cb)(int p1, int p2, int p3, int p4, int p5,
+                                        int p6, int p7, int p8, int p9,
+                                        int p10));
+
+// Calls `cb` with 8 `int`, 1 `float`, and 1 `double` arguments and returns its
+// `double` result. On x86_64, the caller passes `p7` and `p8` on the stack. On
+// AArch64, all 10 arguments are passed in registers.
+double evaluate_ten_arg_float_callback(
+    int a, int b, int c, float weight, double bias,
+    double (*cb)(int p1, int p2, int p3, int p4, int p5, int p6, int p7, int p8,
+                 float f1, double d1));
+
+// Callback with 9 `float` parameters + 1 `int` parameter returning `float`,
+// exercising `CastRet<float>` and floating-point stack-slot overflow
+// (`float_idx >= 8`) on both x86_64 SysV and AArch64 AAPCS64.
+float evaluate_nine_float_callback(
+    float base, float (*cb)(float f1, float f2, float f3, float f4, float f5,
+                            float f6, float f7, float f8, float f9, int scale));
+
 }  // extern "C"
 
 #endif  // SANDBOXED_API_TESTS_TESTCASES_REPLACED_LIBRARY_MULTI_LEVEL_PTRS_H_

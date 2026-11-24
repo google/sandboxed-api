@@ -449,7 +449,7 @@ void HostCallbackRegistry::PurgeStaleSessionLocked(
 
 absl::StatusOr<uintptr_t> HostCallbackRegistry::TrampolineForFactory(
     sapi::SandboxBase& sandbox, absl::string_view typedef_name, uintptr_t fn,
-    bool idempotent, HandlerFactory make_handler) {
+    bool idempotent, size_t stack_arg_count, HandlerFactory make_handler) {
   // Null is not a callback: keep it null and consume no trampoline slot.
   if (fn == 0) {
     return 0;
@@ -479,8 +479,11 @@ absl::StatusOr<uintptr_t> HostCallbackRegistry::TrampolineForFactory(
 
   auto state = std::make_shared<CallState>();
   state->idempotent.store(idempotent, std::memory_order_relaxed);
+  RawHandler handler = std::move(make_handler)(state);
   absl::StatusOr<uintptr_t> trampoline =
-      channel->RegisterCallback(std::move(make_handler)(state));
+      stack_arg_count == 0 ? channel->RegisterCallback(std::move(handler))
+                           : channel->RegisterCallbackWithStackArgs(
+                                 std::move(handler), stack_arg_count);
   if (!trampoline.ok()) {
     return trampoline.status();
   }

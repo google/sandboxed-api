@@ -48,6 +48,7 @@
 #include "sandboxed_api/examples/sum/sum-sapi.sapi.h"
 #include "sandboxed_api/lenval_core.h"
 #include "sandboxed_api/passthrough_backend.h"
+#include "sandboxed_api/rpcchannel.h"
 #include "sandboxed_api/sandbox.h"
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox_config.h"
@@ -856,6 +857,28 @@ TEST_P(SandboxTest, CallbackSlotReuseTest) {
     EXPECT_THAT(sandbox.Allocate(&extra_cb, /*automatic_free=*/true),
                 StatusIs(absl::StatusCode::kResourceExhausted));
   }
+}
+
+TEST_P(SandboxTest, CallbackRegistrationValidatesStackArgGroup) {
+  SandboxConfig config = GetDefaultConfig();
+  SapiTestSandbox sandbox(std::move(config));
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  RPCChannel* channel = sandbox.rpc_channel();
+  auto handler = [](absl::Span<const uint64_t>) -> uint64_t { return 0; };
+
+  EXPECT_THAT(channel->RegisterCallbackWithStackArgs(handler, 5),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("exceeding maximum 4")));
+
+  SAPI_ASSERT_OK_AND_ASSIGN(uintptr_t trampoline,
+                            channel->RegisterCallbackWithStackArgs(handler, 2));
+  // Each stack-argument group has 64 trampolines of 16 bytes (see
+  // `trampolines.S`), so this address is the same slot in group 0.
+  constexpr uintptr_t kGroupBytes = 64 * 16;
+  EXPECT_THAT(channel->UnregisterCallback(trampoline - 2 * kGroupBytes),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("stack-arg group")));
+  EXPECT_THAT(channel->UnregisterCallback(trampoline), IsOk());
 }
 
 TEST_P(SandboxTest, CallbackSignPreservationTest) {

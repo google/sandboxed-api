@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <utility>
 
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
@@ -91,15 +92,32 @@ class RPCChannel {
   // Returns the remote pointer to the trampoline that triggers this callback.
   //
   // Limitations:
-  // - Supports a maximum of 6 arguments (enforced by CallbackRequest).
-  // - Floating-point arguments and return values are NOT supported because the
-  //   assembly trampolines only save general-purpose registers and do not
-  //   capture floating-point registers (XMM/VFP) used by the ABI for floats.
-  // - Supported types are limited to integral, enum, pointer, and
-  //   sapi::v::RemotePtr.
+  // - Supports a maximum of 10 arguments (a `static_assert` in
+  //   `sapi::v::Callback` enforces this limit).
+  // - Supports integral (up to 64 bits), enum, pointer, sapi::v::RemotePtr,
+  //   float, and double arguments and return values. Extended-precision floats
+  //   (long double), 128-bit integers, variadic signatures, and by-value
+  //   aggregates are not supported.
+  // - A channel that passes fewer argument slots than `CallbackRequest::args`
+  //   (for example a channel that forwards only the 6 integer argument
+  //   registers) supports only integral, enum, pointer, and
+  //   sapi::v::RemotePtr arguments and return values, up to that slot count.
+  //   Other callbacks CHECK-fail when the sandboxee calls them.
   virtual absl::StatusOr<uintptr_t> RegisterCallback(
       absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> cb) {
     return absl::UnimplementedError("Callbacks not supported by this channel");
+  }
+
+  // Registers a host-side callback whose ABI signature passes `stack_arg_count`
+  // 8-byte arguments on the caller stack (0..4). Channels whose trampolines
+  // read stack arguments (such as `Sandbox2RPCChannel`) override this to load
+  // only caller-owned stack slots; other channels delegate to
+  // `RegisterCallback(cb)`.
+  virtual absl::StatusOr<uintptr_t> RegisterCallbackWithStackArgs(
+      absl::AnyInvocable<uint64_t(absl::Span<const uint64_t>)> cb,
+      size_t stack_arg_count) {
+    (void)stack_arg_count;
+    return RegisterCallback(std::move(cb));
   }
 
   virtual absl::Status UnregisterCallback(uintptr_t remote_ptr) {

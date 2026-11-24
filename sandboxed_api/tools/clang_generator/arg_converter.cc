@@ -294,9 +294,11 @@ absl::Status CheckCallbackParamAnnotations(const clang::ASTContext& context,
                                            Annotations& annotations,
                                            clang::QualType cb_param_type,
                                            const ConversionContext& conv_ctx) {
-  // For now, the callback trampolines only support integral, enumeration,
-  // or pointer types as arguments (no floating point / vector types).
-  if (cb_param_type->isIntegralOrEnumerationType()) {
+  // The callback trampolines support integral, enumeration, float/double,
+  // or pointer types as arguments.
+  if (cb_param_type->isIntegralOrEnumerationType() ||
+      (cb_param_type->isRealFloatingType() &&
+       context.getTypeSize(cb_param_type) <= 64)) {
     if (!std::holds_alternative<std::monostate>(annotations.size_type)) {
       return absl::InvalidArgumentError(absl::Substitute(
           "callback $0 parameter $1: non-pointer types $2 don't support size "
@@ -1021,30 +1023,35 @@ const clang::ASTContext* GetASTContext(const ParamSource& source) {
       source);
 }
 
-// Maximum number of parameters a callback trampoline saves. x86-64 passes six
-// arguments in integer registers (`rdi`, `rsi`, `rdx`, `rcx`, `r8`, `r9`) and
-// AArch64 passes eight, so generated headers must satisfy both ABIs.
-constexpr size_t kMaxCallbackParams = 6;
+// Maximum number of parameters a callback trampoline saves (up to 6 integer
+// registers on x86-64 / 8 on AArch64, 8 floating-point registers, and 4 caller
+// stack slots).
+constexpr size_t kMaxCallbackParams = 10;
 
 // Returns true if both supported ABIs pass a value of `type` in a single
-// 64-bit general-purpose argument register.
+// 64-bit general-purpose or floating-point argument register (or stack slot).
 bool FitsInOneArgumentRegister(const clang::ASTContext& ast_ctx,
                                clang::QualType type) {
+  if (type->isSpecificBuiltinType(clang::BuiltinType::Float) ||
+      type->isSpecificBuiltinType(clang::BuiltinType::Double)) {
+    return true;
+  }
   if (!type->isIntegralOrEnumerationType() && !type->isPointerType()) {
     return false;
   }
-  // Excludes 128-bit integer types (`__int128`), which occupy a register pair.
+  // Excludes 128-bit integer (`__int128`) types.
   return ast_ctx.getTypeSize(type) <= 64;
 }
 
 // Verifies that `proto` can be invoked through the fixed callback trampolines
 // in `trampolines.S`.
 //
-// Each trampoline saves only the general-purpose integer argument registers,
-// passes them to the handler as an array of `uint64_t`, and returns the handler
-// result in a single integer return register. Arguments or return values passed
-// in floating-point registers, across multiple registers, or on the stack are
-// not saved by the trampoline and must be rejected at code generation time.
+// Each trampoline saves the general-purpose integer and 64-bit floating-point
+// argument registers (plus stack overflow slots up to `kMaxCallbackParams`) and
+// returns a single 64-bit integer or floating-point result register. Extended-
+// precision floating-point (`long double`), 128-bit integer (`__int128`), and
+// by-value aggregate types are not supported and must be rejected at code
+// generation time.
 absl::Status CheckCallbackSignatureIsCallable(
     absl::string_view name, const clang::ASTContext& ast_ctx,
     const clang::FunctionProtoType& proto) {
@@ -1067,9 +1074,9 @@ absl::Status CheckCallbackSignatureIsCallable(
     if (!FitsInOneArgumentRegister(ast_ctx, param_type)) {
       return absl::InvalidArgumentError(absl::Substitute(
           "callback $0 parameter $1 has type '$2'. The trampoline the "
-          "sandboxee reaches it through passes each argument in one integer "
-          "register, so a floating point, by-value struct or 128-bit "
-          "parameter never arrives",
+          "sandboxee reaches it through passes each argument in one 64-bit "
+          "integer or floating-point slot, so an extended-precision "
+          "floating-point, by-value struct or 128-bit parameter never arrives",
           name, i + 1, param_type.getAsString()));
     }
   }
@@ -1078,8 +1085,9 @@ absl::Status CheckCallbackSignatureIsCallable(
       !FitsInOneArgumentRegister(ast_ctx, return_type)) {
     return absl::InvalidArgumentError(absl::Substitute(
         "callback $0 returns '$1'. The trampoline the sandboxee reaches it "
-        "through returns one integer register, so a floating point, by-value "
-        "struct or 128-bit result never arrives",
+        "through returns one 64-bit integer or floating-point register, so an "
+        "extended-precision floating-point, by-value struct or 128-bit result "
+        "never arrives",
         name, return_type.getAsString()));
   }
   return absl::OkStatus();
