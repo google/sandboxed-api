@@ -31,7 +31,9 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/base/attributes.h"
 #include "absl/base/no_destructor.h"
+#include "absl/base/optimization.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/flags/flag.h"
@@ -105,6 +107,14 @@ void DisableCompressStackDepotImpl(C& envs, AddFn&& add_env) {
   }
 }
 
+// Keep error logging out-of-line so LaunchForkserver() keeps a small stack
+// frame and has no post-execveat basic-block split in coverage builds (which
+// would move the gcov counter increment past execveat).
+[[noreturn]] ABSL_ATTRIBUTE_NOINLINE void FatalPlog(
+    const char* message) noexcept {
+  SAPI_RAW_PLOG(FATAL, "%s", message);
+}
+
 int LaunchForkserver(void* vargs) {
   auto* args = static_cast<ForkserverArgs*>(vargs);
   // Move the comms FD to the proper, expected FD number and ensure FD_CLOEXEC
@@ -114,18 +124,30 @@ int LaunchForkserver(void* vargs) {
   // So first move exec_fd to another fd number.
   if (args->exec_fd == Comms::kSandbox2ClientCommsFD) {
     args->exec_fd = dup(args->exec_fd);
-    SAPI_RAW_PCHECK(args->exec_fd != -1, "duping exec fd failed");
+    if (ABSL_PREDICT_FALSE(args->exec_fd == -1)) {
+      FatalPlog("duping exec fd failed");
+    }
     fcntl(args->exec_fd, F_SETFD, FD_CLOEXEC);
   }
-  SAPI_RAW_PCHECK(dup2(args->comms_fd, Comms::kSandbox2ClientCommsFD) != -1,
-                  "duping comms fd failed");
-  SAPI_RAW_PCHECK(fcntl(Comms::kSandbox2ClientCommsFD, F_SETFD, 0) != -1,
-                  "clearing FD_CLOEXEC on comms fd failed");
+  if (ABSL_PREDICT_FALSE(dup2(args->comms_fd, Comms::kSandbox2ClientCommsFD) ==
+                         -1)) {
+    FatalPlog("duping comms fd failed");
+  }
+  if (ABSL_PREDICT_FALSE(fcntl(Comms::kSandbox2ClientCommsFD, F_SETFD, 0) ==
+                         -1)) {
+    FatalPlog("clearing FD_CLOEXEC on comms fd failed");
+  }
 
   char proc_name[] = "S2-FORK-SERV";
   char* const argv[] = {proc_name, nullptr};
-  util::Execveat(args->exec_fd, "", argv, args->envp, AT_EMPTY_PATH);
-  SAPI_RAW_PLOG(FATAL, "Could not launch forkserver binary");
+  // Pass a non-zero extra_arg so util::Execveat skips DumpCoverageData():
+  // __gcov_dump() allocates and does file I/O, which corrupts the parent's heap
+  // under CLONE_VM and can deadlock on inherited locks without CLONE_VM in
+  // multi-threaded processes. Under CLONE_VM | CLONE_VFORK the coverage
+  // counters are shared with the parent and flushed on parent exit.
+  util::Execveat(args->exec_fd, "", argv, args->envp, AT_EMPTY_PATH,
+                 /*extra_arg=*/1);
+  FatalPlog("Could not launch forkserver binary");
 }
 
 absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
@@ -161,12 +183,8 @@ absl::StatusOr<std::unique_ptr<GlobalForkClient>> StartGlobalForkServer() {
   // Fork the fork-server, and clean-up the resources (close remote sockets).
   constexpr size_t kStackSize = util::kPthreadStackMin;
   int clone_flags = CLONE_VM | CLONE_VFORK | SIGCHLD;
-  // CLONE_VM does not play well with TSan. It also breaks coverage builds:
-  // LaunchForkserver() flushes coverage data before exec (see
-  // util::Execveat()), which allocates and does file I/O. In a CLONE_VM child
-  // that runs in the parent's address space while the parent's other threads
-  // keep running, and corrupts the parent's heap.
-  if (sapi::sanitizers::IsTSan() || sapi::IsCoverageRun()) {
+  // CLONE_VM does not play well with TSan.
+  if constexpr (sapi::sanitizers::IsTSan()) {
     clone_flags &= ~CLONE_VM & ~CLONE_VFORK;
   }
   char* stack =
