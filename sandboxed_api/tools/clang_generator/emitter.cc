@@ -260,7 +260,6 @@ inline constexpr std::string_view kMergedSandboxeeIncludes = R"(
 #include "absl/base/optimization.h"
 #include "absl/log/log.h"
 #include "sandboxed_api/call.h"
-#include "sandboxed_api/function_call_helper.h"
 #include "sandboxed_api/lwbox/runtime/sandboxee_registry.h"
 )";
 
@@ -307,8 +306,12 @@ namespace {
 }  // namespace sapi::client
 )";
 
+// Text template arguments:
+//   1. Function name
+//   2. Number of arguments
+//   3. Type of the `call` parameter
 inline constexpr std::string_view kFuncHandlerHeaderTemplate = R"(
-FuncRet HandleCall_%1$s(const FunctionCallPreparer& call) {
+FuncRet HandleCall_%1$s(const %3$s& call) {
   if (ABSL_PREDICT_FALSE(call.arg_count() != %2$d)) {
     LOG(ERROR) << "Function '%1$s' called with "
                << call.arg_count() << " arguments, expected " << %2$d;
@@ -406,8 +409,8 @@ absl::StatusOr<std::string> Emitter::DoEmitSandboxeeStub(
                                     absl::StatusCode::kCancelled,
                                     "Variadic functions are not supported.");
   }
-  // Process the function parameter list and generate code for the call to
-  // `FunctionCallPreparer::GetArg`.
+  // Process the function parameter list and generate code for the calls to
+  // `GetArg` on the handler's `call` parameter.
   // Resulting strings will look like: "call.GetArg<T>(n)"
   for (int i = 0; i < decl->getNumParams(); ++i) {
     const clang::ParmVarDecl* param = decl->getParamDecl(i);
@@ -417,8 +420,11 @@ absl::StatusOr<std::string> Emitter::DoEmitSandboxeeStub(
         absl::StrFormat(kHandleFuncHasCompatibleArgTemplate, param_type, i));
   }
 
-  absl::StrAppendFormat(&out, kFuncHandlerHeaderTemplate, function_name,
-                        arg_count);
+  // Merged sandboxees use the lwbox registry's protobuf-free argument type.
+  absl::StrAppendFormat(
+      &out, kFuncHandlerHeaderTemplate, function_name, arg_count,
+      options_.merged_sandboxee ? "::sapi::lwbox::SandboxeeCallArgs"
+                                : "FunctionCallPreparer");
 
   absl::StrAppend(&out, absl::StrJoin(has_compatible_args, "\n"));
 

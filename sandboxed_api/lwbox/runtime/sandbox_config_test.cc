@@ -28,6 +28,7 @@
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "sandboxed_api/embed_toc.h"
+#include "sandboxed_api/sandbox.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox_config.h"
@@ -36,6 +37,54 @@ namespace sapi::lwbox {
 namespace {
 
 using ::absl_testing::IsOk;
+using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
+
+class FakeSandbox : public ::sapi::SandboxBase {
+ public:
+  explicit FakeSandbox(absl::Status init_status)
+      : ::sapi::SandboxBase("fake_sandbox"), init_status_(init_status) {}
+
+  absl::Status Init() override {
+    active_ = init_status_.ok();
+    return init_status_;
+  }
+  bool is_active() const override { return active_; }
+  void Terminate(bool /*attempt_graceful_exit*/) override { active_ = false; }
+  // `rpcchannel.h` isn't visible to this package; `sandbox.h` declares
+  // `RPCChannel`.
+  // NOLINTNEXTLINE(misc-include-cleaner)
+  ::sapi::RPCChannel* rpc_channel() const override { return nullptr; }
+  absl::Status AwaitExitStatus() override { return absl::OkStatus(); }
+  absl::Status SetWallTimeLimit(absl::Duration /*limit*/) const override {
+    return absl::UnimplementedError("fake");
+  }
+  absl::StatusOr<int> GetPid() const override { return 42; }
+
+ private:
+  absl::Status init_status_;
+  bool active_ = false;
+};
+
+TEST(MergedSandboxTest, InitializesAndForwardsToSandbox) {
+  MergedSandbox sandbox(std::make_unique<FakeSandbox>(absl::OkStatus()));
+  EXPECT_EQ(sandbox.name(), "fake_sandbox");
+  EXPECT_TRUE(sandbox.is_active());
+  EXPECT_THAT(sandbox.GetPid(), IsOkAndHolds(42));
+  EXPECT_THAT(sandbox.SetWallTimeLimit(absl::Seconds(1)),
+              StatusIs(absl::StatusCode::kUnimplemented));
+  sandbox.Terminate();
+  EXPECT_FALSE(sandbox.is_active());
+}
+
+TEST(MergedSandboxDeathTest, DiesIfSandboxFailsToInitialize) {
+  EXPECT_DEATH(
+      {
+        MergedSandbox sandbox(std::make_unique<FakeSandbox>(
+            absl::InternalError("no sandbox for you")));
+      },
+      "no sandbox for you");
+}
 
 TEST(SandboxConfigTest, DefaultPolicyBuilderBuildsValidPolicy) {
   sandbox2::PolicyBuilder builder = DefaultPolicyBuilder();

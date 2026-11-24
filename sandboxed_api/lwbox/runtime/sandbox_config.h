@@ -19,11 +19,12 @@
 #include <memory>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/time/time.h"
 #include "sandboxed_api/embed_toc.h"
 #include "sandboxed_api/sandbox.h"
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
-#include "sandboxed_api/sandbox2_backend.h"
 #include "sandboxed_api/sandbox_config.h"
 
 namespace sapi::lwbox {
@@ -37,19 +38,45 @@ sandbox2::PolicyBuilder DefaultPolicyBuilder();
     std::unique_ptr<sandbox2::Policy> policy,
     const ::sapi::EmbedToc* embed_toc);
 
-// Concrete sandbox class shared across all merged lightweight sandboxed
-// libraries in a binary.
-class MergedSandbox : public ::sapi::Sandbox<::sapi::Sandbox2Backend> {
+// Sandbox shared across all merged lightweight sandboxed libraries in a binary.
+//
+// Generated code only uses the `SandboxBase` interface, so this class forwards
+// to a sandbox with whichever backend the binary uses. Initializes `sandbox` on
+// construction and crashes if that fails.
+class MergedSandbox final : public ::sapi::SandboxBase {
  public:
-  explicit MergedSandbox(::sapi::SandboxConfig config);
+  explicit MergedSandbox(std::unique_ptr<::sapi::SandboxBase> sandbox);
+
+  absl::Status Init() override { return sandbox_->Init(); }
+  bool is_active() const override { return sandbox_->is_active(); }
+  void Terminate(bool attempt_graceful_exit = true) override {
+    sandbox_->Terminate(attempt_graceful_exit);
+  }
+  // NOLINTNEXTLINE(misc-include-cleaner)
+  ::sapi::RPCChannel* rpc_channel() const override {
+    return sandbox_->rpc_channel();
+  }
+  absl::Status AwaitExitStatus() override {
+    return sandbox_->AwaitExitStatus();
+  }
+  absl::Status SetWallTimeLimit(absl::Duration limit) const override {
+    return sandbox_->SetWallTimeLimit(limit);
+  }
+  absl::StatusOr<int> GetPid() const override { return sandbox_->GetPid(); }
 
   static void Check(const absl::Status& status);
 
   static size_t CheckedMultiply(size_t x, size_t y);
+
+ private:
+  std::unique_ptr<::sapi::SandboxBase> sandbox_;
 };
 
-// Returns the process-wide shared MergedSandbox instance, initializing it via
-// `create_config` on first call.
+// Returns the process-wide shared MergedSandbox instance, creating it on the
+// first call. The Sandbox2 backend configures it with `create_config`.
+//
+// The merged sandbox build rule links the definition for the backend the
+// binary uses, e.g. `:sandbox2_merged_sandbox_host`.
 MergedSandbox& SharedSandboxInstance(::sapi::SandboxConfig (*create_config)());
 
 }  // namespace sapi::lwbox

@@ -20,8 +20,8 @@ add_library(sapi::lwbox_sandbox_config ALIAS sapi_lwbox_sandbox_config)
 target_link_libraries(sapi_lwbox_sandbox_config
   PUBLIC
     absl::check
-    absl::no_destructor
     absl::status
+    absl::statusor
     absl::time
     sandbox2::allowlists_seccomp_speculation
     sandbox2::limits
@@ -31,12 +31,29 @@ target_link_libraries(sapi_lwbox_sandbox_config
     sapi::base
     sapi::checked_math
     sapi::embed_toc
+    sapi::sandbox_config
+    sapi::sapi
+)
+
+# Object library, like `alwayslink` in Bazel, so binaries link its definitions
+# even when referenced through forward declarations.
+add_library(sapi_lwbox_sandbox2_merged_sandbox_host OBJECT
+  sandbox2_merged_sandbox_host.cc
+)
+add_library(sapi::lwbox_sandbox2_merged_sandbox_host ALIAS
+  sapi_lwbox_sandbox2_merged_sandbox_host
+)
+target_link_libraries(sapi_lwbox_sandbox2_merged_sandbox_host
+  PUBLIC
+    absl::no_destructor
+    sapi::base
+    sapi::lwbox_sandbox_config
     sapi::sandbox2_backend
     sapi::sandbox_config
     sapi::sapi
 )
 
-add_library(sapi_lwbox_sandboxee_registry ${SAPI_LIB_TYPE}
+add_library(sapi_lwbox_sandboxee_registry STATIC
   sandboxee_registry.cc
   sandboxee_registry.h
 )
@@ -51,9 +68,22 @@ target_link_libraries(sapi_lwbox_sandboxee_registry
     absl::strings
     sapi::base
     sapi::call
-    sapi::client
-    sapi::function_call_helper
     sapi::var_type
+)
+
+# Object library, so that binaries always link its static initializer, like
+# `alwayslink` does in Bazel.
+add_library(sapi_lwbox_sandbox2_merged_sandboxee OBJECT
+  sandbox2_merged_sandboxee.cc
+)
+add_library(sapi::lwbox_sandbox2_merged_sandboxee ALIAS
+  sapi_lwbox_sandbox2_merged_sandboxee
+)
+target_link_libraries(sapi_lwbox_sandbox2_merged_sandboxee
+  PUBLIC
+    sapi::base
+    sapi::lwbox_sandboxee_registry
+    sapi::client
 )
 
 add_library(sapi_lwbox_runtime ${SAPI_LIB_TYPE}
@@ -106,6 +136,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     sapi::lwbox_sandbox_config
     sapi::embed_toc
     sapi::sandbox_config
+    sapi::sapi
     sandbox2::policy
     sandbox2::policybuilder
     absl::status
@@ -121,9 +152,9 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
   )
   target_link_libraries(sapi_lwbox_sandboxee_registry_test PRIVATE
     sapi::test_main
+    sapi::lwbox_sandbox2_merged_sandboxee
     sapi::lwbox_sandboxee_registry
     sapi::call
-    sapi::function_call_helper
     sapi::var_type
   )
   gtest_discover_tests_xcompile(sapi_lwbox_sandboxee_registry_test)

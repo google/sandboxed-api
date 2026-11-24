@@ -19,7 +19,6 @@
 
 #include "gtest/gtest.h"
 #include "sandboxed_api/call.h"
-#include "sandboxed_api/function_call_helper.h"
 #include "sandboxed_api/var_type.h"
 
 namespace sapi::client {
@@ -33,13 +32,13 @@ namespace {
 int g_dummy_symbol = 42;
 int g_second_symbol = 99;
 
-FuncRet HandleTestAdd(const FunctionCallPreparer& call) {
+FuncRet HandleTestAdd(const SandboxeeCallArgs& call) {
   int a = call.GetArg<int>(0);
   int b = call.GetArg<int>(1);
   return FuncRet::FromValue(a + b);
 }
 
-FuncRet HandleTestMul(const FunctionCallPreparer& call) {
+FuncRet HandleTestMul(const SandboxeeCallArgs& call) {
   int a = call.GetArg<int>(0);
   int b = call.GetArg<int>(1);
   return FuncRet::FromValue(a * b);
@@ -92,6 +91,7 @@ TEST(SandboxeeRegistryTest, ResolvesSymbolsAndUnknownNames) {
   EXPECT_EQ(ret.int_val, reinterpret_cast<uintptr_t>(&g_second_symbol));
 
 #if defined(__x86_64__) || defined(__aarch64__) || defined(__riscv)
+  // Registered by `:sandbox2_merged_sandboxee`.
   sapi::client::HandleSymbolMsg("sapi_callback_trampolines", &ret);
   EXPECT_TRUE(ret.success);
   EXPECT_EQ(ret.ret_type, v::Type::kPointer);
@@ -114,6 +114,67 @@ TEST(SandboxeeRegistryTest, RejectsDuplicateRegistration) {
   EXPECT_DEATH(
       RegisterSandboxeeFunctions({}, {{"g_dummy_symbol", &g_dummy_symbol}}),
       "Duplicate sandboxee symbol registered: g_dummy_symbol");
+}
+
+TEST(SandboxeeCallArgsTest, ReadsArguments) {
+  FuncCall call{};
+  call.argc = 3;
+  call.arg_type[0] = v::Type::kInt;
+  call.args[0].arg_int = 7;
+  // Like `SandboxBase::Call()`, store the raw bytes of the `double`.
+  const double d = 2.5;
+  call.arg_type[1] = v::Type::kFloat;
+  std::memcpy(&call.args[1].arg_float, &d, sizeof(d));
+  call.arg_type[2] = v::Type::kPointer;
+  call.aux_type[2] = v::Type::kInt;
+  call.args[2].arg_int = reinterpret_cast<uintptr_t>(&g_dummy_symbol);
+
+  const SandboxeeCallArgs args(call);
+  EXPECT_EQ(args.arg_count(), 3u);
+  EXPECT_TRUE(args.HasCompatibleArg<int>(0));
+  EXPECT_EQ(args.GetArg<int>(0), 7);
+  EXPECT_TRUE(args.HasCompatibleArg<double>(1));
+  EXPECT_FALSE(args.HasCompatibleArg<int>(1));
+  EXPECT_DOUBLE_EQ(args.GetArg<double>(1), 2.5);
+  EXPECT_TRUE(args.HasCompatibleArg<int*>(2));
+  EXPECT_EQ(args.GetArg<int*>(2), &g_dummy_symbol);
+}
+
+TEST(SandboxeeCallArgsTest, DecodesBoolArguments) {
+  FuncCall call{};
+  call.argc = 3;
+  call.arg_type[0] = v::Type::kInt;
+  call.args[0].arg_int = 0;
+  call.arg_type[1] = v::Type::kInt;
+  call.args[1].arg_int = 1;
+  call.arg_type[2] = v::Type::kInt;
+  call.args[2].arg_int = 2;
+
+  const SandboxeeCallArgs args(call);
+  EXPECT_TRUE(args.HasCompatibleArg<bool>(0));
+  EXPECT_FALSE(args.GetArg<bool>(0));
+  EXPECT_TRUE(args.GetArg<bool>(1));
+  EXPECT_TRUE(args.GetArg<bool>(2));
+}
+
+TEST(SandboxeeCallArgsTest, RejectsProtobufArguments) {
+  FuncCall call{};
+  call.argc = 1;
+  call.arg_type[0] = v::Type::kPointer;
+  call.aux_type[0] = v::Type::kProto;
+  EXPECT_FALSE(SandboxeeCallArgs(call).HasCompatibleArg<void*>(0));
+}
+
+TEST(SandboxeeCallArgsDeathTest, ChecksArgumentCountAndIndex) {
+  FuncCall call{};
+  call.argc = FuncCall::kArgsMax + 1;
+  EXPECT_DEATH(SandboxeeCallArgs{call}, "exceeds limits");
+
+  call.argc = 1;
+  call.arg_type[0] = v::Type::kInt;
+  const SandboxeeCallArgs args(call);
+  EXPECT_DEATH(args.GetArg<int>(1), "idx < call_.argc");
+  EXPECT_DEATH(args.HasCompatibleArg<int>(1), "idx < call_.argc");
 }
 
 }  // namespace

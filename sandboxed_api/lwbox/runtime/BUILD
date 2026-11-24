@@ -27,7 +27,6 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         "//sandboxed_api:embed_toc",
-        "//sandboxed_api:sandbox2_backend",
         "//sandboxed_api:sandbox_config",
         "//sandboxed_api:sapi",
         "//sandboxed_api/sandbox2:limits",
@@ -36,11 +35,27 @@ cc_library(
         "//sandboxed_api/sandbox2:sandbox_config",
         "//sandboxed_api/sandbox2/allowlists:seccomp_speculation",
         "//sandboxed_api/util:checked_math",
-        "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/time",
     ],
+)
+
+# Host side of the merged sandbox with Sandbox2. Linked into binaries that use
+# the Sandbox2 merged sandbox.
+cc_library(
+    name = "sandbox2_merged_sandbox_host",
+    srcs = ["sandbox2_merged_sandbox_host.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":sandbox_config",
+        "//sandboxed_api:sandbox2_backend",
+        "//sandboxed_api:sandbox_config",
+        "//sandboxed_api:sapi",
+        "@abseil-cpp//absl/base:no_destructor",
+    ],
+    alwayslink = True,
 )
 
 cc_test(
@@ -51,6 +66,7 @@ cc_test(
         ":sandbox_config",
         "//sandboxed_api:embed_toc",
         "//sandboxed_api:sandbox_config",
+        "//sandboxed_api:sapi",
         "//sandboxed_api/sandbox2:policy",
         "//sandboxed_api/sandbox2:policybuilder",
         "@abseil-cpp//absl/status",
@@ -68,8 +84,6 @@ cc_library(
     copts = sapi_platform_copts(),
     deps = [
         "//sandboxed_api:call",
-        "//sandboxed_api:client",
-        "//sandboxed_api:function_call_helper",
         "//sandboxed_api:var_type",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:no_destructor",
@@ -81,14 +95,30 @@ cc_library(
     alwayslink = True,
 )
 
+# Sandbox2 parts of the merged sandboxee. Linked into Sandbox2 merged
+# sandboxees.
+cc_library(
+    name = "sandbox2_merged_sandboxee",
+    srcs = ["sandbox2_merged_sandboxee.cc"],
+    copts = sapi_platform_copts(),
+    deps = [
+        ":sandboxee_registry",
+        "//sandboxed_api:client",
+    ],
+    alwayslink = True,
+)
+
 cc_test(
     name = "sandboxee_registry_test",
     srcs = ["sandboxee_registry_test.cc"],
     copts = sapi_platform_copts(),
+    # Link statically, like merged sandboxees, so that the registry's hooks take
+    # precedence over the weak defaults in `//sandboxed_api:client`.
+    linkstatic = True,
     deps = [
+        ":sandbox2_merged_sandboxee",
         ":sandboxee_registry",
         "//sandboxed_api:call",
-        "//sandboxed_api:function_call_helper",
         "//sandboxed_api:var_type",
         "@googletest//:gtest_main",
     ],

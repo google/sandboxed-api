@@ -20,7 +20,6 @@
 #include <memory>
 #include <utility>
 
-#include "absl/base/no_destructor.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/time/time.h"
@@ -31,7 +30,6 @@
 #include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/sandbox_config.h"
-#include "sandboxed_api/sandbox2_backend.h"
 #include "sandboxed_api/sandbox_config.h"
 #include "sandboxed_api/util/checked_math.h"
 
@@ -77,11 +75,8 @@ sandbox2::PolicyBuilder DefaultPolicyBuilder() {
   };
 }
 
-MergedSandbox::MergedSandbox(::sapi::SandboxConfig config)
-    : ::sapi::Sandbox<::sapi::Sandbox2Backend>(
-          std::move((config.name.empty() || config.name == "unknown")
-                        ? config.set_name("SapiMergedSandbox")
-                        : config)) {
+MergedSandbox::MergedSandbox(std::unique_ptr<::sapi::SandboxBase> sandbox)
+    : ::sapi::SandboxBase(sandbox->name()), sandbox_(std::move(sandbox)) {
   Check(Init());
 }
 
@@ -91,11 +86,6 @@ void MergedSandbox::Check(const absl::Status& status) {
 
 size_t MergedSandbox::CheckedMultiply(size_t x, size_t y) {
   return ::sapi::CheckedMultiply(x, y);
-}
-
-MergedSandbox& SharedSandboxInstance(::sapi::SandboxConfig (*create_config)()) {
-  static absl::NoDestructor<MergedSandbox> instance(create_config());
-  return *instance;
 }
 
 }  // namespace sapi::lwbox

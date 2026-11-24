@@ -24,12 +24,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "sandboxed_api/call.h"
-#include "sandboxed_api/function_call_helper.h"
 #include "sandboxed_api/var_type.h"
-
-#if defined(__x86_64__) || defined(__aarch64__) || defined(__riscv)
-extern "C" char sapi_callback_trampolines[];
-#endif
 
 namespace sapi::lwbox {
 namespace {
@@ -44,14 +39,7 @@ SandboxeeFunctionMap& GetSandboxeeFunctions() {
 }
 
 SandboxeeSymbolMap& GetSandboxeeSymbols() {
-  static absl::NoDestructor<SandboxeeSymbolMap> symbols([] {
-    SandboxeeSymbolMap map;
-#if defined(__x86_64__) || defined(__aarch64__) || defined(__riscv)
-    map.emplace("sapi_callback_trampolines",
-                reinterpret_cast<void*>(sapi_callback_trampolines));
-#endif
-    return map;
-  }());
+  static absl::NoDestructor<SandboxeeSymbolMap> symbols;
   return *symbols;
 }
 
@@ -92,8 +80,7 @@ void HandleCallMsg(const ::sapi::FuncCall& call, ::sapi::FuncRet* ret) {
     return;
   }
 
-  ::sapi::FunctionCallPreparer preparer(call);
-  *ret = it->second(preparer);
+  *ret = it->second(::sapi::lwbox::SandboxeeCallArgs(call));
 }
 
 void HandleSymbolMsg(const char* symname, ::sapi::FuncRet* ret) {

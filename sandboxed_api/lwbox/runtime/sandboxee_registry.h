@@ -15,16 +15,83 @@
 #ifndef SANDBOXED_API_LWBOX_RUNTIME_SANDBOXEE_REGISTRY_H_
 #define SANDBOXED_API_LWBOX_RUNTIME_SANDBOXEE_REGISTRY_H_
 
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <initializer_list>
+#include <type_traits>
 
+#include "absl/log/check.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/call.h"
-#include "sandboxed_api/function_call_helper.h"
+#include "sandboxed_api/var_type.h"
 
 namespace sapi::lwbox {
 
+// Arguments of a call to a sandboxee function.
+//
+// Like `::sapi::FunctionCallPreparer`, but rejects protobuf arguments, which
+// lightweight sandboxes never pass. This keeps protobuf out of merged
+// sandboxees.
+class SandboxeeCallArgs {
+ public:
+  explicit SandboxeeCallArgs(const ::sapi::FuncCall& call) : call_(call) {
+    CHECK(call.argc <= ::sapi::FuncCall::kArgsMax)
+        << "Number of arguments of a sandbox call exceeds limits.";
+  }
+
+  size_t arg_count() const { return call_.argc; }
+
+  template <typename T>
+  T GetArg(size_t idx) const {
+    CHECK_LT(idx, call_.argc);
+    if constexpr (std::is_same_v<T, bool>) {
+      uint8_t raw;
+      std::memcpy(&raw, &call_.args[idx].arg_int, sizeof(raw));
+      return raw != 0;
+    } else if constexpr (std::is_floating_point_v<T>) {
+      static_assert(sizeof(T) <= sizeof(call_.args[0].arg_float));
+      T ret;
+      std::memcpy(&ret, &call_.args[idx].arg_float, sizeof(T));
+      return ret;
+    } else if constexpr (std::is_pointer_v<T> || std::is_integral_v<T> ||
+                         std::is_enum_v<T>) {
+      static_assert(sizeof(T) <= sizeof(call_.args[0].arg_int));
+      T ret;
+      std::memcpy(&ret, &call_.args[idx].arg_int, sizeof(T));
+      return ret;
+    } else {
+      static_assert(std::is_pointer_v<T> || std::is_integral_v<T> ||
+                        std::is_enum_v<T> || std::is_floating_point_v<T>,
+                    "Unsupported argument type");
+    }
+  }
+
+  template <typename T>
+  bool HasCompatibleArg(size_t idx) const {
+    CHECK_LT(idx, call_.argc);
+    const ::sapi::v::Type type = call_.arg_type[idx];
+    if constexpr (std::is_pointer_v<T>) {
+      // A protobuf argument points to a `LenValStruct`, not to a `T`.
+      return type == ::sapi::v::Type::kPointer &&
+             call_.aux_type[idx] != ::sapi::v::Type::kProto;
+    } else if constexpr (std::is_integral_v<T> || std::is_enum_v<T>) {
+      return type == ::sapi::v::Type::kInt || type == ::sapi::v::Type::kFd;
+    } else if constexpr (std::is_floating_point_v<T>) {
+      return type == ::sapi::v::Type::kFloat;
+    } else {
+      static_assert(std::is_pointer_v<T> || std::is_integral_v<T> ||
+                        std::is_enum_v<T> || std::is_floating_point_v<T>,
+                    "Unsupported argument type");
+    }
+  }
+
+ private:
+  const ::sapi::FuncCall& call_;
+};
+
 using SandboxeeFunctionHandler =
-    ::sapi::FuncRet (*)(const ::sapi::FunctionCallPreparer& call);
+    ::sapi::FuncRet (*)(const SandboxeeCallArgs& call);
 
 struct SandboxeeFunctionEntry {
   absl::string_view name;
