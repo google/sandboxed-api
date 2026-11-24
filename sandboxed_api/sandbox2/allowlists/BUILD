@@ -100,6 +100,21 @@ cc_library(
 )
 
 cc_library(
+    name = "speculative_store_bypass",
+    hdrs = ["speculative_store_bypass.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "testonly_speculative_store_bypass",
+    testonly = True,
+    hdrs = ["speculative_store_bypass.h"],
+    copts = sapi_platform_copts(),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "unrestricted_networking",
     hdrs = ["unrestricted_networking.h"],
     copts = sapi_platform_copts(),

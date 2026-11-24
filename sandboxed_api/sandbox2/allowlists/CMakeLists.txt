@@ -84,6 +84,16 @@ target_link_libraries(sandbox2_allowlists_seccomp_speculation PRIVATE
   sapi::base
 )
 
+# sandboxed_api/sandbox2/allowlists:speculative_store_bypass
+add_library(sandbox2_allowlists_speculative_store_bypass ${SAPI_LIB_TYPE}
+  speculative_store_bypass.h
+)
+add_library(sandbox2::allowlists_speculative_store_bypass ALIAS
+  sandbox2_allowlists_speculative_store_bypass)
+target_link_libraries(sandbox2_allowlists_speculative_store_bypass PRIVATE
+  sapi::base
+)
+
 # sandboxed_api/sandbox2/allowlists:unrestricted_networking
 add_library(sandbox2_allowlists_unrestricted_networking ${SAPI_LIB_TYPE}
   unrestricted_networking.h

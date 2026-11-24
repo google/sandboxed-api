@@ -113,6 +113,7 @@ class Policy final {
   bool allow_map_exec_ = false;
   bool allow_safe_bpf_ = false;
   bool allow_speculation_ = false;
+  bool allow_speculative_store_bypass_ = false;
 
   // The policy set by the user.
   std::vector<sock_filter> user_policy_;

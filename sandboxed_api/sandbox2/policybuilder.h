@@ -57,6 +57,7 @@ class SharedIpcNamespace;
 class UnrestrictedNetworking;
 class UnsafeCoreDumpPtrace;
 class SeccompSpeculation;
+class SpeculativeStoreBypass;
 class TraceAllSyscalls;
 class WriteExecutable;
 
@@ -247,6 +248,23 @@ class PolicyBuilder final {
   // This is an advanced API, so users should make sure they understand the
   // risks. Do not use in environments with untrusted code and/or data.
   PolicyBuilder& Allow(SeccompSpeculation);
+
+  // Allows the sandboxee to use speculative store bypass (Spectre v4) while
+  // keeping indirect branch speculation mitigations (Spectre v2: STIBP and
+  // IBPB) enabled.
+  //
+  // By default, Sandbox2 force-disables speculative store bypass via
+  // `prctl(PR_SET_SPECULATION_CTRL, PR_SPEC_STORE_BYPASS,
+  // PR_SPEC_FORCE_DISABLE)`. Because speculative store bypass is an
+  // intra-address-space side channel, single-tenant sandboxed processes that
+  // rely on process isolation rather than in-process memory isolation can opt
+  // out of SSBD to avoid its CPU overhead while preserving cross-process and
+  // cross-SMT Spectre v2 mitigations.
+  //
+  // This is an advanced API, so users should make sure they understand the
+  // risks. Do not use when the sandboxed process holds secrets from multiple
+  // trust domains in the same address space.
+  PolicyBuilder& Allow(SpeculativeStoreBypass);
 
   // Allows unrestricted access to the network by *not* creating a network
   // namespace.
@@ -1148,6 +1166,7 @@ class PolicyBuilder final {
   bool allow_map_exec_ = true;
   bool allow_safe_bpf_ = false;
   bool allow_speculation_ = false;
+  bool allow_speculative_store_bypass_ = false;
   std::string hostname_ = std::string(kDefaultHostname);
 
   // Stack trace collection

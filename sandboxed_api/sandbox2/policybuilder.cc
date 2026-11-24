@@ -65,6 +65,7 @@
 #include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/allowlists/seccomp_speculation.h"
 #include "sandboxed_api/sandbox2/allowlists/shared_ipc_namespace.h"
+#include "sandboxed_api/sandbox2/allowlists/speculative_store_bypass.h"
 #include "sandboxed_api/sandbox2/allowlists/trace_all_syscalls.h"
 #include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/allowlists/write_executable.h"
@@ -307,6 +308,11 @@ PolicyBuilder& PolicyBuilder::Allow(MapExec) {
 
 PolicyBuilder& PolicyBuilder::Allow(SeccompSpeculation) {
   allow_speculation_ = true;
+  return *this;
+}
+
+PolicyBuilder& PolicyBuilder::Allow(SpeculativeStoreBypass) {
+  allow_speculative_store_bypass_ = true;
   return *this;
 }
 
@@ -1744,6 +1750,7 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild(
   policy->allow_map_exec_ = allow_map_exec_;
   policy->allow_safe_bpf_ = allow_safe_bpf_;
   policy->allow_speculation_ = allow_speculation_;
+  policy->allow_speculative_store_bypass_ = allow_speculative_store_bypass_;
   policy->collect_stacktrace_on_signal_ = collect_stacktrace_on_signal_;
   policy->collect_stacktrace_on_violation_ = collect_stacktrace_on_violation_;
   policy->collect_stacktrace_on_timeout_ = collect_stacktrace_on_timeout_;

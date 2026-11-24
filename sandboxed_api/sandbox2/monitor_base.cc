@@ -321,6 +321,9 @@ bool MonitorBase::SendMonitorReadyMessageAndFlags(uint32_t monitor_type) {
   if (policy_->allow_speculation_) {
     message |= Client::kAllowSpeculationBit;
   }
+  if (policy_->allow_speculative_store_bypass_) {
+    message |= Client::kAllowSpeculativeStoreBypassBit;
+  }
   return comms_->SendUint32(message);
 }
 

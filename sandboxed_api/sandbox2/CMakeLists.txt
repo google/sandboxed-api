@@ -569,6 +569,7 @@ target_link_libraries(sandbox2_policybuilder
           sandbox2::allowlists_namespaces
           sandbox2::allowlists_seccomp_speculation
           sandbox2::allowlists_shared_ipc_namespace
+          sandbox2::allowlists_speculative_store_bypass
           sandbox2::allowlists_trace_all_syscalls
           sandbox2::allowlists_unrestricted_networking
           sandbox2::allowlists_write_executable
@@ -1249,6 +1250,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::strings
     sandbox2::allowlists_all_syscalls
     sandbox2::allowlists_seccomp_speculation
+    sandbox2::allowlists_speculative_store_bypass
     sandbox2::bpf_helper
     sapi::config
     sandbox2::sandbox2

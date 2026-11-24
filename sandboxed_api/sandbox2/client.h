@@ -56,6 +56,10 @@ class Client {
   // Allow speculation in the seccomp policy.
   static constexpr uint32_t kAllowSpeculationBit = 0x10000000;
 
+  // Allow speculative store bypass in the sandboxee while keeping indirect
+  // branch mitigations enabled.
+  static constexpr uint32_t kAllowSpeculativeStoreBypassBit = 0x20000000;
+
   // Mask for the monitor type in the message.
   static constexpr uint32_t kMonitorTypeMask = 0x0FFFFFFF;
 

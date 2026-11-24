@@ -185,6 +185,36 @@ void TestSpeculationBlocked() {
     exit(EXIT_FAILURE);
   }
 }
+
+void TestSpeculativeStoreBypassAllowed() {
+  int res = prctl(PR_GET_SPECULATION_CTRL, PR_SPEC_STORE_BYPASS, 0, 0, 0);
+  if (res == -1) {
+    printf("prctl(PR_GET_SPECULATION_CTRL, PR_SPEC_STORE_BYPASS) failed: %d\n",
+           errno);
+  } else if (res == PR_SPEC_NOT_AFFECTED) {
+    printf("CPU not affected for PR_SPEC_STORE_BYPASS");
+  } else if ((res & ~(PR_SPEC_PRCTL)) != PR_SPEC_ENABLE) {
+    printf(
+        "PR_SPEC_STORE_BYPASS speculation disabled when it should not have "
+        "been: %d\n",
+        res);
+    exit(EXIT_FAILURE);
+  }
+  res = prctl(PR_GET_SPECULATION_CTRL, PR_SPEC_INDIRECT_BRANCH, 0, 0, 0);
+  if (res == -1) {
+    printf(
+        "prctl(PR_GET_SPECULATION_CTRL, PR_SPEC_INDIRECT_BRANCH) failed: %d\n",
+        errno);
+  } else if (res == PR_SPEC_NOT_AFFECTED) {
+    printf("CPU not affected for PR_SPEC_INDIRECT_BRANCH");
+  } else if ((res & ~(PR_SPEC_PRCTL)) != PR_SPEC_FORCE_DISABLE) {
+    printf(
+        "PR_SPEC_INDIRECT_BRANCH speculation enabled when it should not have "
+        "been: %d\n",
+        res);
+    exit(EXIT_FAILURE);
+  }
+}
 #endif  // SAPI_X86_64
 
 int main(int argc, char* argv[]) {
@@ -240,6 +270,11 @@ int main(int argc, char* argv[]) {
     case 13:
       TestSyscall(atoi(argv[2]), atoi(argv[3]), atoi(argv[4]));  // NOLINT
       break;
+#ifdef SAPI_X86_64
+    case 15:
+      TestSpeculativeStoreBypassAllowed();
+      break;
+#endif  // SAPI_X86_64
     default:
       printf("Unknown test: %d\n", testno);
       return EXIT_FAILURE;

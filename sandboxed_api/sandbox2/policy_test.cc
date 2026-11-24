@@ -37,6 +37,7 @@
 #include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
 #include "sandboxed_api/sandbox2/allowlists/map_exec.h"
 #include "sandboxed_api/sandbox2/allowlists/seccomp_speculation.h"
+#include "sandboxed_api/sandbox2/allowlists/speculative_store_bypass.h"
 #include "sandboxed_api/sandbox2/executor.h"
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox2/result.h"
@@ -593,6 +594,17 @@ TEST_P(PolicyTest, SpeculationBlockedByDefault) {
   std::unique_ptr<Sandbox2> s2 =
       CreateTestSandbox({"policy", "12"},  // Calls TestSpeculationBlocked()
                         CreateDefaultPermissiveTestPolicy(path));
+  Result result = s2->Run();
+
+  ASSERT_THAT(result.final_status(), Eq(Result::OK));
+  EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
+TEST_P(PolicyTest, SpeculativeStoreBypassAllowed) {
+  const std::string path = GetTestSourcePath("sandbox2/testcases/policy");
+  std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
+      {"policy", "15"},  // Calls TestSpeculativeStoreBypassAllowed()
+      CreateDefaultPermissiveTestPolicy(path).Allow(SpeculativeStoreBypass()));
   Result result = s2->Run();
 
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
