@@ -164,12 +164,32 @@ TEST(SanitizerTest, TestCloseFDs) {
   ASSERT_THAT(null_fd, Ne(-1));
 
   const std::string path = GetTestSourcePath("sandbox2/testcases/close_fds");
-  std::vector<std::string> args;
+  std::vector<std::string> args = {"close_fds"};
   std::vector<int> exceptions = {STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO,
                                  null_fd};
   for (auto fd : exceptions) {
     args.push_back(absl::StrCat(fd));
   }
+  EXPECT_THAT(RunTestcase(path, args), Eq(0));
+}
+
+TEST(SanitizerTest, TestCloseFDsNegativeExceptionsOnly) {
+  // Open a few file descriptors in non-close-on-exec mode.
+  int sock_fd[2];
+  ASSERT_THAT(socketpair(AF_UNIX, SOCK_STREAM, 0, sock_fd), Ne(-1));
+  ASSERT_THAT(open("/dev/full", O_RDONLY), Ne(-1));
+  const std::string path = GetTestSourcePath("sandbox2/testcases/close_fds");
+  std::vector<std::string> args = {"close_fds", "-1"};
+  EXPECT_THAT(RunTestcase(path, args), Eq(0));
+}
+
+TEST(SanitizerTest, TestCloseFDsWithoutExceptions) {
+  // Open a few file descriptors in non-close-on-exec mode.
+  int sock_fd[2];
+  ASSERT_THAT(socketpair(AF_UNIX, SOCK_STREAM, 0, sock_fd), Ne(-1));
+  ASSERT_THAT(open("/dev/full", O_RDONLY), Ne(-1));
+  const std::string path = GetTestSourcePath("sandbox2/testcases/close_fds");
+  std::vector<std::string> args = {"close_fds"};
   EXPECT_THAT(RunTestcase(path, args), Eq(0));
 }
 

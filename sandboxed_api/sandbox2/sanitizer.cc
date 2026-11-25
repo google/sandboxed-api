@@ -109,9 +109,7 @@ void CloseAllFDsExceptWithFlags(absl::Span<const int> fd_exceptions,
     }
     last_fd = static_cast<unsigned int>(fd) + 1;
   }
-  if (last_fd) {
-    CloseRange(last_fd, ~0U, flags);
-  }
+  CloseRange(last_fd, ~0U, flags);
 }
 
 }  // namespace

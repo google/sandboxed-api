@@ -20,7 +20,7 @@ bool IsFdOpen(int fd) {
 
 int main(int argc, char* argv[]) {
   absl::flat_hash_set<int> exceptions;
-  for (int i = 0; i < argc; ++i) {
+  for (int i = 1; i < argc; ++i) {
     int fd;
     CHECK(absl::SimpleAtoi(argv[i], &fd));
     exceptions.insert(fd);
