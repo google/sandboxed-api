@@ -245,7 +245,8 @@ absl::StatusOr<std::deque<sock_filter>> CreatePolicyOnSyscalls(
     return absl::InvalidArgumentError("syscall policy is too long");
   }
   // Create jumps for each syscall.
-  size_t do_policy_loc = out.size();
+  const size_t policy_start_loc = out.size();
+  size_t do_policy_loc = policy_start_loc;
   // Iterate in reverse order and prepend instruction, so that jumps can be
   // calculated easily.
   constexpr size_t kMaxShortJump = 255;
@@ -271,8 +272,9 @@ absl::StatusOr<std::deque<sock_filter>> CreatePolicyOnSyscalls(
     // Add a helper absolute jump if needed - the policy/last helper jump is
     // out of reach of a short jump.
     if ((out.size() - do_policy_loc) > kMaxShortJump) {
-      out.push_front(BPF_STMT(
-          BPF_JMP + BPF_JA, static_cast<uint32_t>(out.size() - policy.size())));
+      out.push_front(
+          BPF_STMT(BPF_JMP + BPF_JA,
+                   static_cast<uint32_t>(out.size() - policy_start_loc)));
       do_policy_loc = out.size();
       ++jf;
     }

@@ -1443,11 +1443,13 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
             absl::log
             absl::status
             absl::statusor
+            sandbox2::allowlists_all_syscalls
             sandbox2::allowlists_enable_landlock
             sandbox2::allowlists_mount_propagation
             sandbox2::allowlists_namespaces
             sandbox2::allowlists_unrestricted_networking
             sandbox2::allowlists_write_executable
+            sandbox2::bpf_evaluator
             sandbox2::bpf_helper
             sandbox2::forkserver_proto
             sandbox2::mounts
@@ -1455,6 +1457,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
             sandbox2::namespace
             sandbox2::policy
             sandbox2::policybuilder
+            sandbox2::syscall
             sapi::file_base
             sapi::fileops
             sapi::testing

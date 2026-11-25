@@ -14,13 +14,17 @@
 
 #include "sandboxed_api/sandbox2/policybuilder.h"
 
+#include <linux/filter.h>
+#include <linux/seccomp.h>
 #include <sched.h>
 #include <syscall.h>
 #include <unistd.h>
 
 #include <cerrno>
+#include <cstdint>
 #include <initializer_list>
 #include <memory>
+#include <numeric>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -31,17 +35,20 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/string_view.h"
+#include "sandboxed_api/sandbox2/allowlists/all_syscalls.h"
 #include "sandboxed_api/sandbox2/allowlists/enable_landlock.h"
 #include "sandboxed_api/sandbox2/allowlists/mount_propagation.h"
 #include "sandboxed_api/sandbox2/allowlists/namespaces.h"
 #include "sandboxed_api/sandbox2/allowlists/unrestricted_networking.h"
 #include "sandboxed_api/sandbox2/allowlists/write_executable.h"
+#include "sandboxed_api/sandbox2/bpf_evaluator.h"
 #include "sandboxed_api/sandbox2/forkserver.pb.h"
 #include "sandboxed_api/sandbox2/landlock.h"
 #include "sandboxed_api/sandbox2/mount_tree.pb.h"
 #include "sandboxed_api/sandbox2/mounts.h"
 #include "sandboxed_api/sandbox2/namespace.h"
 #include "sandboxed_api/sandbox2/policy.h"
+#include "sandboxed_api/sandbox2/syscall.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
 #include "sandboxed_api/util/fileops.h"
 #include "sandboxed_api/util/path.h"
@@ -67,6 +74,7 @@ namespace {
 namespace fileops = ::sapi::file_util::fileops;
 
 using ::absl_testing::IsOk;
+using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::Eq;
 using ::testing::HasSubstr;
@@ -335,6 +343,38 @@ TEST(PolicyBuilderTest, AddPolicyOnSyscallsNoEmptyList) {
   PolicyBuilder builder;
   builder.AddPolicyOnSyscalls({}, {ALLOW});
   EXPECT_THAT(builder.TryBuild(), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(PolicyBuilderTest, AddPolicyOnSyscallsLongJumpSingleInstruction) {
+  std::vector<uint32_t> nums(600);
+  std::iota(nums.begin(), nums.end(), 1000);
+
+  PolicyBuilder builder;
+  builder.AddPolicyOnSyscalls(nums, {ERRNO(EPERM)})
+      .DefaultAction(AllowAllSyscalls());
+  auto policy_result = builder.TryBuild();
+  ASSERT_THAT(policy_result, IsOk());
+  std::vector<sock_filter> prog =
+      (*policy_result)
+          ->GetPolicy(/*user_notif=*/false,
+                      /*enable_sandboxing_pre_execve=*/false);
+
+  for (uint32_t nr : nums) {
+    struct seccomp_data data = {};
+    data.arch = Syscall::GetHostAuditArch();
+    data.nr = static_cast<int>(nr);
+    EXPECT_THAT(bpf::Evaluate(prog, data),
+                IsOkAndHolds(Eq(SECCOMP_RET_ERRNO | EPERM)))
+        << "for syscall " << nr;
+  }
+
+  for (uint32_t nr : {999U, 1600U}) {
+    struct seccomp_data data = {};
+    data.arch = Syscall::GetHostAuditArch();
+    data.nr = static_cast<int>(nr);
+    EXPECT_THAT(bpf::Evaluate(prog, data), IsOkAndHolds(Eq(SECCOMP_RET_ALLOW)))
+        << "for non-matching syscall " << nr;
+  }
 }
 
 TEST(PolicyBuilderTest, AddPolicyOnSyscallJumpOutOfBounds) {
