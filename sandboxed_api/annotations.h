@@ -115,9 +115,9 @@
 // The expression for `elem_size_arg` can be:
 // - a constant
 // - a reference to another parameter by name
-// - simple, side-effect-free arithmetic expressions.
-//   NOTE: at the moment, the user is responsible for making sure there is
-//   no overflow in such calculations.
+// - side-effect-free `+`, `-`, `*`, `/`, and `c ? a : b` (no math in `c`),
+//   checked for overflow, division by zero, and negative values at runtime
+//   (`CHECK`-fail). Other operators, such as `%`, `&`, or `<<`, do not compile.
 // This is similar to "__counted_by" in Clang's proposed `-fbounds-safety`
 // annotations.
 //

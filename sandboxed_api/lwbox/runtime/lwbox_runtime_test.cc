@@ -664,6 +664,17 @@ TEST(CheckedToSizeTTest, ConvertsNonNegativeAndRejectsNegativeSignedValues) {
   EXPECT_EQ(CheckedToSizeT(size_t{99}), 99u);
   EXPECT_DEATH(CheckedToSizeT(-1), "Negative buffer size: -1");
   EXPECT_DEATH(CheckedToSizeT(int64_t{-8}), "Negative buffer size: -8");
+
+  EXPECT_EQ(CheckedAdd(12, 30), 42u);
+  EXPECT_EQ(CheckedSub(42, 12), 30u);
+  EXPECT_EQ(CheckedMultiply(6, 7), 42u);
+  EXPECT_EQ(CheckedDivide(42, 5), 8u);
+  EXPECT_DEATH(CheckedAdd(std::numeric_limits<size_t>::max(), 1),
+               "Size addition overflow");
+  EXPECT_DEATH(CheckedSub(5, 6), "Size subtraction underflow");
+  EXPECT_DEATH(CheckedMultiply(std::numeric_limits<size_t>::max() / 2 + 2, 2),
+               "");
+  EXPECT_DEATH(CheckedDivide(42, 0), "Size division by zero");
 }
 
 // =========================================================================
@@ -1553,6 +1564,22 @@ TEST(NullTerminatedArrayTest, ReadNullTerminatedArrayCheckFailures) {
       ReadNullTerminatedArray(sandbox_no_channel, 0x1000, sizeof(int)),
       "Sandbox RPCChannel is null while reading null-terminated array");
 
+  // Typed `char` overload exercises the `sizeof(ValueT) == 1` path.
+  MockRPCChannel char_channel;
+  MockSandbox char_sandbox(&char_channel);
+  const std::string kTag = "hdr";
+  EXPECT_CALL(char_channel, Strlen(reinterpret_cast<void*>(0x1200)))
+      .WillOnce(Return(kTag.size()));
+  EXPECT_CALL(char_channel, CopyFromSandbox(0x1200, _))
+      .WillOnce([&](uintptr_t, absl::Span<char> dst) {
+        std::memcpy(dst.data(), kTag.data(), kTag.size());
+        return kTag.size();
+      });
+  std::vector<char> char_buf =
+      ReadNullTerminatedArray<const char>(char_sandbox, 0x1200);
+  ASSERT_EQ(char_buf.size(), 4u);
+  EXPECT_STREQ(char_buf.data(), "hdr");
+
   // Single-byte `GetCString` failure, multi-byte `CopyFromSandbox` failure,
   // short read (`< elem_size`), and 10 MiB DoS cap enforcement.
   EXPECT_DEATH(
@@ -1760,6 +1787,20 @@ TEST(LwboxRuntimeTest,
                        HasSubstr("Callback functor is empty")));
 }
 
+TEST(LwboxRuntimeTest, RemoteAddressWrapAroundCheckFails) {
+  MockRPCChannel ch;
+  MockSandbox sb(&ch);
+  char buf[16];
+  const uintptr_t near_max = std::numeric_limits<uintptr_t>::max() - 4;
+
+  EXPECT_DEATH(SyncFromSandboxToHost(sb, near_max, buf, sizeof(buf)),
+               "overflows uintptr_t");
+  EXPECT_DEATH(
+      ReadNullTerminatedArray(sb, std::numeric_limits<uintptr_t>::max(), 1),
+      "overflows uintptr_t");
+  EXPECT_DEATH(ReadNullTerminatedArray(sb, near_max, sizeof(uint64_t)),
+               "overflows uintptr_t");
+}
 }  // namespace
 }  // namespace lwbox
 }  // namespace sapi

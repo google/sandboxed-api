@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -199,6 +200,9 @@ void SyncFromSandboxToHost(sapi::SandboxBase& sandbox, uintptr_t remote_ptr,
   if (remote_ptr == 0 || host_ptr == nullptr || bytes == 0) {
     return;
   }
+  CHECK_LE(bytes, std::numeric_limits<uintptr_t>::max() - remote_ptr)
+      << "Remote buffer range overflows uintptr_t at 0x"
+      << absl::Hex(remote_ptr) << " + " << bytes;
   CHECK_NE(sandbox.rpc_channel(), nullptr)
       << "Sandbox RPCChannel is null while syncing buffer from sandbox";
   CHECK_OK(sandbox.rpc_channel()->CopyFromSandbox(
@@ -214,6 +218,9 @@ std::vector<char> ReadNullTerminatedArray(
   }
   CHECK_GT(elem_size, 0u) << "ReadNullTerminatedArray called with elem_size 0";
   if (elem_size == 1 && is_zero_elem == nullptr) {
+    CHECK_LE(size_t{1}, std::numeric_limits<uintptr_t>::max() - remote_ptr)
+        << "Remote null-terminated scan overflows uintptr_t at 0x"
+        << absl::Hex(remote_ptr);
     absl::StatusOr<std::string> str = sandbox.GetCString(
         sapi::v::RemotePtr(reinterpret_cast<const void*>(remote_ptr)));
     CHECK_OK(str.status())
@@ -247,7 +254,10 @@ std::vector<char> ReadNullTerminatedArray(
         single_element_mode
             ? 1
             : std::max<size_t>(1, bytes_to_page_end / elem_size);
-    size_t batch_bytes = batch_elems * elem_size;
+    size_t batch_bytes = CheckedMultiply(batch_elems, elem_size);
+    CHECK_LE(batch_bytes, std::numeric_limits<uintptr_t>::max() - cur_ptr)
+        << "Remote null-terminated scan overflows uintptr_t at 0x"
+        << absl::Hex(cur_ptr) << " + " << batch_bytes;
     batch_buf.resize(batch_bytes);
 
     absl::StatusOr<size_t> bytes_read = sandbox.rpc_channel()->CopyFromSandbox(
@@ -260,6 +270,9 @@ std::vector<char> ReadNullTerminatedArray(
       single_element_mode = true;
       batch_elems = 1;
       batch_bytes = elem_size;
+      CHECK_LE(batch_bytes, std::numeric_limits<uintptr_t>::max() - cur_ptr)
+          << "Remote null-terminated scan overflows uintptr_t at 0x"
+          << absl::Hex(cur_ptr) << " + " << batch_bytes;
       batch_buf.resize(batch_bytes);
       bytes_read = sandbox.rpc_channel()->CopyFromSandbox(
           cur_ptr, absl::MakeSpan(batch_buf.data(), batch_bytes));

@@ -22,6 +22,7 @@
 
 #include "sandboxed_api/tools/clang_generator/codegen.h"
 
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <utility>
@@ -32,6 +33,8 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/tools/clang_generator/annotations.h"
@@ -196,9 +199,11 @@ TEST(EmitHostSrcTest, ElementSizedBufferMultipliesWithOverflowCheck) {
   // `CheckedMultiply`.
   EXPECT_THAT(
       *src,
-      AllOf(HasSubstr("sapi::v::Array<char> sapi_tmp_pkts"),
-            HasSubstr("sandbox->CheckedMultiply(sizeof(*pkts), (num_pkts))"),
-            Not(HasSubstr("sapi::v::Array<MyPacket>"))));
+      AllOf(
+          HasSubstr("sapi::v::Array<char> sapi_tmp_pkts"),
+          ContainsRegex(
+              R"(sandbox->CheckedMultiply\(\s*sizeof\(\*pkts\),\s*\(sapi::lwbox::CheckedToSizeT\(num_pkts\)\)\))"),
+          Not(HasSubstr("sapi::v::Array<MyPacket>"))));
 }
 
 TEST(EmitHostSrcTest, ByteSizedBufferUsesTheSizeExpressionVerbatim) {
@@ -220,10 +225,13 @@ TEST(EmitHostSrcTest, ByteSizedBufferUsesTheSizeExpressionVerbatim) {
   ASSERT_THAT(src, IsOk());
   // A byte count is already in bytes; scaling it again by sizeof(MyPacket)
   // would over-allocate.
-  EXPECT_THAT(*src, AllOf(HasSubstr("sapi::v::Array<char> sapi_tmp_pkt"),
-                          HasSubstr("(pkt)), pkt_bytes)"),
-                          Not(HasSubstr("sapi::v::Array<MyPacket>")),
-                          Not(HasSubstr("CheckedMultiply(sizeof(*pkt)"))));
+  EXPECT_THAT(
+      *src,
+      AllOf(HasSubstr("sapi::v::Array<char> sapi_tmp_pkt"),
+            ContainsRegex(
+                R"(\(pkt\)\),\s*sapi::lwbox::CheckedToSizeT\(pkt_bytes\)\))"),
+            Not(HasSubstr("sapi::v::Array<MyPacket>")),
+            Not(HasSubstr("CheckedMultiply(sizeof(*pkt)"))));
 }
 
 TEST(EmitHostSrcTest, BufferTransferDirectionFollowsPointerDirection) {
@@ -351,7 +359,7 @@ TEST(EmitHostSrcTest, SizedByBindingSubstitutesDollarReferencesWithGetSize) {
       *src,
       AllOf(
           ContainsRegex(
-              R"(ContextBindingRegistry::Instance\(\)->GetSize\(ctx,\s*"frame_size"\)\s*\*\s*sapi::lwbox::ContextBindingRegistry::Instance\(\)->GetSize\(ctx,\s*"channels"\)\s*\*\s*2)"),
+              R"(sapi::lwbox::CheckedMultiply\(\s*sapi::lwbox::CheckedMultiply\(\s*sapi::lwbox::ContextBindingRegistry::Instance\(\)->GetSize\(\s*ctx,\s*"frame_size"\),\s*sapi::lwbox::ContextBindingRegistry::Instance\(\)->GetSize\(\s*ctx,\s*"channels"\)\),\s*2\))"),
           ContainsRegex(
               R"(ContextBindingRegistry::Instance\(\)->GetSize\(ctx,\s*"header_size"\))"),
           Not(HasSubstr("\"64\""))));
@@ -462,6 +470,41 @@ TEST(EmitHostSrcTest,
               R"(CheckedMultiply\(\s*sizeof\(\*\(table\[sapi_i\]\.cells\)\))"),
           ContainsRegex(
               R"(GetSize\(\s*(\*sandbox,\s*)?sapi::lwbox::CompositeKey\(\s*table\[sapi_i\]\.ncid,\s*table\[sapi_i\]\.varid\),\s*"cols"\))")));
+}
+
+TEST(EmitHostSrcTest, BindSizeExpressionUsesCheckedArithmetic) {
+  // The bound size expression reads `*ndims`, which the sandboxee writes. A
+  // negative value must not wrap around to a large `size_t`.
+  ir::Function func{
+      .name = "get_ndims",
+      .parameters =
+          {
+              ir::Parameter{
+                  .name = "ctx",
+                  .type = PointerTo(VoidType()),
+                  .payload =
+                      ir::OpaquePointerParam{
+                          .direction = PointerDir::kSandboxOpaque,
+                      },
+              },
+              BufferArg("ndims", ScalarType("int"), PointerDir::kOut,
+                        ir::bounds::Singleton{}),
+          },
+      .context_bound =
+          ContextBoundAnnotations{
+              .bind_data = {BindData{
+                  .context = "ctx",
+                  .binding_name = "ndims",
+                  .host_computable_expr = "ndims == nullptr ? 0 : *ndims",
+              }},
+          },
+  };
+  absl::StatusOr<std::string> src = HostSrc(std::move(func));
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      ContainsRegex(
+          R"(BindSize\(\s*(\*sandbox,\s*)?ctx,\s*"ndims",\s*\(ndims\s*==\s*nullptr\s*\?\s*0\s*:\s*sapi::lwbox::CheckedToSizeT\(\*ndims\)\)\))"));
 }
 
 TEST(EmitHostSrcTest, ElemSizedByBindingReturnScalesBoundCountByPointeeSize) {
@@ -846,7 +889,8 @@ TEST(EmitHostSrcTest,
   EXPECT_THAT(
       *src,
       AllOf(
-          HasSubstr("(items)), cap_bytes)"),
+          ContainsRegex(
+              R"(\(items\)\),\s*sapi::lwbox::CheckedToSizeT\(cap_bytes\)\))"),
           HasSubstr("sapi_tmp_items.PtrNone()"),
           Not(HasSubstr("CopyToSandbox")),
           ContainsRegex(
@@ -885,7 +929,9 @@ TEST(EmitHostSrcTest, ByteSizedByOutparamInOutCopiesInitialAndFinalSize) {
   EXPECT_THAT(
       *src,
       AllOf(
-          HasSubstr("(pkt)), cap_bytes)"), HasSubstr("CopyToSandbox"),
+          ContainsRegex(
+              R"(\(pkt\)\),\s*sapi::lwbox::CheckedToSizeT\(cap_bytes\)\))"),
+          HasSubstr("CopyToSandbox"),
           ContainsRegex(
               R"(absl::MakeSpan\(reinterpret_cast<const char\*>\(pkt\),\s*\(inout_len == nullptr\s*\?\s*0\s*:\s*sapi::lwbox::CheckedToSizeT\(\*inout_len\)\)\))"),
           HasSubstr("sapi_tmp_inout_len.PtrBoth()"),
@@ -1031,11 +1077,10 @@ TEST(EmitHostSrcTest, StructSyncEmitsResolvedMemberSizeExprsAndConstants) {
   ASSERT_THAT(src, IsOk());
   EXPECT_THAT(
       *src,
-      AllOf(HasSubstr(
-                "sandbox->CheckedMultiply(\n"
-                "        sizeof(*(Image->RasterBits)),\n"
-                "        (Image->ImageDesc.Width * Image->ImageDesc.Height))"),
-            HasSubstr("sapi_member_size_Image_Palette = 256;")));
+      AllOf(
+          ContainsRegex(
+              R"(sandbox->CheckedMultiply\(\s*sizeof\(\*\(Image->RasterBits\)\),\s*\(sapi::lwbox::CheckedMultiply\(\s*sapi::lwbox::CheckedToSizeT\(Image->ImageDesc\.Width\),\s*sapi::lwbox::CheckedToSizeT\(Image->ImageDesc\.Height\)\)\)\))"),
+          HasSubstr("sapi_member_size_Image_Palette = 256;")));
 }
 
 TEST(EmitHostSrcTest,
@@ -1149,10 +1194,14 @@ TEST(EmitHostSrcTest,
   ASSERT_THAT(src, IsOk());
   EXPECT_THAT(
       *src,
-      AllOf(HasSubstr("sapi_arr_buf.emplace(cap_bytes);"),
-            HasSubstr("*sapi_host_out_len"),
-            HasSubstr("CHECK_LE(sapi_out_bytes_buf, sapi_arr_buf->GetSize());"),
-            HasSubstr("CopyToSandbox")));
+      AllOf(
+          HasSubstr(
+              "sapi_arr_buf.emplace(sapi::lwbox::CheckedToSizeT(cap_bytes));"),
+          HasSubstr("memset(sapi_arr_buf->GetData(), 0, "
+                    "sapi_arr_buf->GetSize());"),
+          HasSubstr("sapi::lwbox::CheckedToSizeT(*sapi_host_out_len)"),
+          HasSubstr("CHECK_LE(sapi_out_bytes_buf, sapi_arr_buf->GetSize());"),
+          HasSubstr("CopyToSandbox")));
 }
 
 TEST(EmitHostSrcTest,
@@ -1267,8 +1316,7 @@ TEST(EmitHostSrcTest,
                               "std::max<size_t>(sapi_cnt_d1, 1))"));
 }
 
-TEST(EmitHostSrcTest,
-     MultiLevelPointerWithCopyFromAndBindPointeeEmitsPtrAfter) {
+TEST(EmitHostSrcTest, MultiLevelPointerWithCopyFromAndBindPointeeEmitsPtrBoth) {
   ir::Parameter db{
       .name = "db",
       .type = PointerTo(ScalarType("struct DbHandle")),
@@ -1308,7 +1356,7 @@ TEST(EmitHostSrcTest,
   });
   ASSERT_THAT(src, IsOk());
   EXPECT_THAT(*src,
-              AllOf(HasSubstr("sapi_tmp_out_slice.PtrAfter()"),
+              AllOf(HasSubstr("sapi_tmp_out_slice.PtrBoth()"),
                     HasSubstr("*out_slice = sapi_tmp_out_slice.GetValue();")));
 }
 
@@ -1414,15 +1462,16 @@ TEST(EmitHostSrcTest, MultiLevelCallbackBoundsUseCheckedToSizeT) {
       .parameters = {std::move(cb_param)},
   });
   ASSERT_THAT(src, IsOk());
-  EXPECT_THAT(*src,
-              AllOf(HasSubstr("sapi::lwbox::CheckedToSizeT(outer_bytes) / "
-                              "sizeof(const char*)"),
-                    HasSubstr("size_t sapi_elem_bytes = "
-                              "sapi::lwbox::CheckedToSizeT(rlen);"),
-                    HasSubstr("sapi::lwbox::CheckedToSizeT(rows)"),
-                    HasSubstr("sandbox->CheckedMultiply(\n"
-                              "                sizeof(**elem_rows), "
-                              "sapi::lwbox::CheckedToSizeT(cols))")));
+  EXPECT_THAT(
+      *src,
+      AllOf(
+          HasSubstr("sapi::lwbox::CheckedToSizeT(outer_bytes) / "
+                    "sizeof(const char*)"),
+          HasSubstr("size_t sapi_elem_bytes = "
+                    "sapi::lwbox::CheckedToSizeT(rlen);"),
+          HasSubstr("sapi::lwbox::CheckedToSizeT(rows)"),
+          ContainsRegex(
+              R"(sandbox->CheckedMultiply\(\s*sizeof\(\*\*elem_rows\),\s*\(sapi::lwbox::CheckedToSizeT\(cols\)\)\))")));
 }
 
 TEST(EmitHostSrcTest, MallocLifetimeBoundsUseCheckedToSizeT) {
@@ -2255,6 +2304,260 @@ TEST(EmitHostSrcTest,
           ContainsRegex(
               R"(size_t sapi_post_size =[^;]*GetSize\(\s*(\*sandbox,\s*)?sapi_ctx_pkts_inner_d_data\[sapi_i\],\s*"elem_count"\)[^;]*;\s*if \(sapi_post_size > sapi_cap_pkts_inner_d_data\[sapi_i\]\))"),
           HasSubstr("pkts[sapi_i].inner.rows")));
+}
+
+TEST(EmitHostSrcTest,
+     CompileCheckedSizeExprHandlesPrecedenceSubtractionAndTernary) {
+  ir::Function func{
+      .name = "compute_slice",
+      .parameters =
+          {
+              BufferArg("buf", ScalarType("uint8_t"), PointerDir::kIn,
+                        ByteCount("header + rows * cols - 1")),
+              BufferArg("non_empty", ScalarType("int"), PointerDir::kIn,
+                        ElemCount("ndims > 0 ? ndims * 2 : 1")),
+              // A `*` after `sizeof` is a dereference, and a `*` before `)` is
+              // a pointer declarator. Neither one is a multiplication.
+              BufferArg("deref_size", ScalarType("uint8_t"), PointerDir::kIn,
+                        ByteCount("sizeof *buf")),
+              BufferArg("by_ptr_width", ScalarType("int"), PointerDir::kIn,
+                        ElemCount("sizeof(void*) == 8 ? rows : cols")),
+              BufferArg("by_ptr_cast", ScalarType("int"), PointerDir::kIn,
+                        ElemCount("(char*)buf != nullptr ? rows : cols")),
+              ScalarArg("header", "int"),
+              ScalarArg("rows", "int"),
+              ScalarArg("cols", "int"),
+              ScalarArg("ndims", "int"),
+          },
+  };
+  absl::StatusOr<std::string> src = HostSrc(std::move(func));
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(
+          ContainsRegex(
+              R"(sapi::lwbox::CheckedSub\(\s*sapi::lwbox::CheckedAdd\(\s*sapi::lwbox::CheckedToSizeT\(header\),\s*sapi::lwbox::CheckedMultiply\(\s*sapi::lwbox::CheckedToSizeT\(rows\),\s*sapi::lwbox::CheckedToSizeT\(cols\)\)\),\s*1\))"),
+          ContainsRegex(
+              R"(ndims > 0\s*\?\s*sapi::lwbox::CheckedMultiply\(\s*sapi::lwbox::CheckedToSizeT\(ndims\),\s*2\)\s*:\s*1)"),
+          ContainsRegex(R"(\(deref_size\)\),\s*sizeof\s*\*\s*buf\))"),
+          ContainsRegex(
+              R"(sizeof\(void\s*\*\)\s*==\s*8\s*\?\s*sapi::lwbox::CheckedToSizeT\(rows\)\s*:\s*sapi::lwbox::CheckedToSizeT\(cols\))"),
+          ContainsRegex(
+              R"(\(char\s*\*\)buf\s*!=\s*nullptr\s*\?\s*sapi::lwbox::CheckedToSizeT\(rows\)\s*:\s*sapi::lwbox::CheckedToSizeT\(cols\))")));
+}
+
+TEST(EmitHostSrcTest, CompileCheckedSizeExprRejectsUncheckableOperators) {
+  // Each size expression either lowers into checked `size_t` arithmetic or
+  // becomes an expression that fails to compile. No expression falls back to
+  // unchecked native arithmetic.
+  ir::Function func{
+      .name = "uncheckable_sizes",
+      .parameters =
+          {
+              BufferArg("divided", ScalarType("uint8_t"), PointerDir::kIn,
+                        ByteCount("total / parts")),
+              BufferArg("aligned", ScalarType("uint8_t"), PointerDir::kIn,
+                        ByteCount("(total + 3) & ~3")),
+              BufferArg("modulo", ScalarType("uint8_t"), PointerDir::kIn,
+                        ByteCount("total % parts")),
+              BufferArg("shifted", ScalarType("uint8_t"), PointerDir::kIn,
+                        ByteCount("total << 1")),
+              BufferArg("cond_math", ScalarType("uint8_t"), PointerDir::kIn,
+                        ByteCount("total * parts > 0 ? total : 0")),
+              BufferArg("negated", ScalarType("uint8_t"), PointerDir::kIn,
+                        ByteCount("-total")),
+              // An operator or cast that runs before `CheckedToSizeT` cannot be
+              // checked and must fail compilation.
+              BufferArg("cast_sum", ScalarType("uint8_t"), PointerDir::kIn,
+                        ByteCount("(size_t)(total + parts)")),
+              BufferArg("c_cast_narrow", ScalarType("uint8_t"), PointerDir::kIn,
+                        ByteCount("(uint32_t)total")),
+              BufferArg("c_cast_paren", ScalarType("uint8_t"), PointerDir::kIn,
+                        ByteCount("(uint32_t)(total)")),
+              BufferArg("func_cast", ScalarType("uint8_t"), PointerDir::kIn,
+                        ByteCount("uint32_t(total)")),
+              BufferArg("brace_cast", ScalarType("uint8_t"), PointerDir::kIn,
+                        ByteCount("uint32_t{total}")),
+              BufferArg("ptr_cast", ScalarType("uint8_t"), PointerDir::kIn,
+                        ByteCount("*(int*)cursor")),
+              BufferArg("call_product", ScalarType("uint8_t"), PointerDir::kIn,
+                        ByteCount("std::max(total, parts * 2)")),
+              BufferArg("index_diff", ScalarType("uint8_t"), PointerDir::kIn,
+                        ByteCount("lens[parts - 1]")),
+              BufferArg("digit_sep_sum", ScalarType("uint8_t"), PointerDir::kIn,
+                        ByteCount("1'000 + total")),
+              BufferArg("digit_sep_bitand", ScalarType("uint8_t"),
+                        PointerDir::kIn, ByteCount("1'000 + (total & parts)")),
+              // A unary `*` or parenthesized array base is not arithmetic, so
+              // these subscripts remain checked leaves.
+              BufferArg("index_deref", ScalarType("uint8_t"), PointerDir::kIn,
+                        ByteCount("lens[*cursor]")),
+              BufferArg("paren_base", ScalarType("uint8_t"), PointerDir::kIn,
+                        ByteCount("(lens)[0]")),
+              // A checked call stays verbatim only if its arguments (also in
+              // nested checked calls) cannot run unchecked arithmetic.
+              BufferArg("call_arg_math", ScalarType("uint8_t"), PointerDir::kIn,
+                        ByteCount("sapi::lwbox::Product(lens, parts * 2)")),
+              BufferArg(
+                  "nested_call_arg_math", ScalarType("uint8_t"),
+                  PointerDir::kIn,
+                  ByteCount("sapi::lwbox::CheckedAdd("
+                            "sapi::lwbox::CheckedToSizeT(total * parts), 1)")),
+              BufferArg(
+                  "lowered_call", ScalarType("uint8_t"), PointerDir::kIn,
+                  ByteCount("sapi::lwbox::CheckedMultiply("
+                            "sapi::lwbox::CheckedToSizeT(total), "
+                            "(parts > 0 ? sapi::lwbox::CheckedToSizeT(parts) "
+                            ": 1))")),
+              ScalarArg("total", "size_t"),
+              ScalarArg("parts", "size_t"),
+              BufferArg("lens", ScalarType("size_t"), PointerDir::kIn,
+                        ElemCount("parts")),
+              BufferArg("cursor", ScalarType("size_t"), PointerDir::kIn,
+                        ir::bounds::Singleton{}),
+          },
+  };
+  absl::StatusOr<std::string> src = HostSrc(std::move(func));
+  ASSERT_THAT(src, IsOk());
+  // The generated code is formatted, which splits long string literals across
+  // lines. Join the pieces again before matching the messages.
+  std::string joined;
+  for (size_t i = 0; i < src->size(); ++i) {
+    if ((*src)[i] == '"') {
+      size_t next = i + 1;
+      while (next < src->size() && absl::ascii_isspace((*src)[next])) {
+        ++next;
+      }
+      if (next < src->size() && (*src)[next] == '"' &&
+          absl::StrContains(src->substr(i, next - i), '\n')) {
+        i = next;
+        continue;
+      }
+    }
+    joined.push_back((*src)[i]);
+  }
+  EXPECT_THAT(
+      joined,
+      AllOf(
+          ContainsRegex(
+              R"(sapi::lwbox::CheckedDivide\(\s*sapi::lwbox::CheckedToSizeT\(total\),\s*sapi::lwbox::CheckedToSizeT\(parts\)\))"),
+          ContainsRegex(
+              R"(sapi::lwbox::CheckedAdd\(\s*1'000,\s*sapi::lwbox::CheckedToSizeT\(total\)\))"),
+          HasSubstr("cannot overflow-check size expression '(total + 3) & ~3': "
+                    "operator '&' is not supported"),
+          HasSubstr("cannot overflow-check size expression 'total % parts': "
+                    "operator '%' is not supported"),
+          HasSubstr("cannot overflow-check size expression 'total << 1': "
+                    "operator '<<' is not supported"),
+          HasSubstr("cannot overflow-check size expression 'total * parts > 0 "
+                    "? total : 0': the condition uses arithmetic operator "
+                    "'*'"),
+          HasSubstr("cannot overflow-check size expression '-total': a "
+                    "negated value is not a size"),
+          HasSubstr("cannot overflow-check size expression "
+                    "'(size_t)(total + parts)': operator '+' is inside a "
+                    "call, cast, or subscript"),
+          HasSubstr("cannot overflow-check size expression '(uint32_t)total': "
+                    "cast '(uint32_t)' is not supported"),
+          HasSubstr("cannot overflow-check size expression "
+                    "'(uint32_t)(total)': cast '(uint32_t)' is not supported"),
+          HasSubstr("cannot overflow-check size expression 'uint32_t(total)': "
+                    "cast 'uint32_t' is not supported"),
+          HasSubstr("cannot overflow-check size expression 'uint32_t{total}': "
+                    "braced expressions are not supported"),
+          HasSubstr("cannot overflow-check size expression '*(int*)cursor': "
+                    "cast '(int*)' is not supported"),
+          HasSubstr("cannot overflow-check size expression "
+                    "'std::max(total, parts * 2)': operator '*' is inside a "
+                    "call, cast, or subscript"),
+          HasSubstr("cannot overflow-check size expression 'lens[parts - 1]': "
+                    "operator '-' is inside a call, cast, or subscript"),
+          HasSubstr("cannot overflow-check size expression 'total & parts': "
+                    "operator '&' is not supported"),
+          ContainsRegex(
+              R"(sapi::lwbox::CheckedAdd\(\s*1'000,\s*\(\[\]\(\)\s*->\s*size_t)"),
+          ContainsRegex(
+              R"(sapi::lwbox::CheckedToSizeT\(\s*lens\[\*cursor\]\))"),
+          ContainsRegex(R"(sapi::lwbox::CheckedToSizeT\(\s*\(lens\)\[0\]\))"),
+          HasSubstr("cannot overflow-check size expression "
+                    "'sapi::lwbox::Product(lens, parts * 2)': operator '*' is "
+                    "inside a call, cast, or subscript"),
+          HasSubstr("cannot overflow-check size expression "
+                    "'sapi::lwbox::CheckedAdd(sapi::lwbox::CheckedToSizeT("
+                    "total * parts), 1)': operator '*' is inside a call, "
+                    "cast, or subscript"),
+          ContainsRegex(
+              R"(\(lowered_call\)\),\s*sapi::lwbox::CheckedMultiply\(\s*sapi::lwbox::CheckedToSizeT\(total\),\s*\(parts\s*>\s*0\s*\?\s*sapi::lwbox::CheckedToSizeT\(parts\)\s*:\s*1\)\))"),
+          Not(HasSubstr("CheckedToSizeT((total + 3) & ~3)")),
+          Not(HasSubstr("CheckedToSizeT(total % parts)")),
+          Not(HasSubstr("CheckedToSizeT((size_t)(total + parts))")),
+          Not(HasSubstr("CheckedToSizeT((uint32_t)total)")),
+          Not(HasSubstr("CheckedToSizeT((uint32_t)(total))")),
+          Not(HasSubstr("CheckedToSizeT(uint32_t(total))")),
+          Not(HasSubstr("CheckedToSizeT(uint32_t{total})")),
+          Not(HasSubstr("CheckedToSizeT(std::max(total, parts * 2))")),
+          Not(HasSubstr("CheckedToSizeT(lens[parts - 1])")),
+          Not(HasSubstr("CheckedToSizeT(1'000 + (total & parts))"))));
+}
+
+TEST(EmitHostSrcTest, AliasHostPtrReturnVerifiesRemoteIdentity) {
+  ir::Parameter ret{
+      .name = "sapi_ret_arg",
+      .type = PointerTo(ScalarType("char")),
+      .is_return_value = true,
+      .payload =
+          ir::BufferParam{
+              .direction = PointerDir::kOut,
+              .bounds = ir::bounds::Singleton{},
+              .lifetime = ir::lifetime::AliasHostPtr{.host_param_name = "dst"},
+          },
+  };
+  ir::Parameter dst =
+      BufferArg("dst", ScalarType("char"), PointerDir::kInOut, ByteCount("n"));
+  absl::StatusOr<std::string> src = HostSrc(ir::Function{
+      .name = "fill_and_return_dst",
+      .return_value = ret,
+      .parameters = {std::move(dst), ScalarArg("n", "size_t")},
+  });
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(HasSubstr("CHECK_EQ(reinterpret_cast<uintptr_t>(sapi_ret_arg."
+                      "GetValue()),"),
+            HasSubstr("reinterpret_cast<uintptr_t>(sapi_tmp_dst.GetRemote()))"),
+            HasSubstr("return sapi_ret_arg.GetValue() ? dst : nullptr;")));
+
+  // A retained `dst` (`SANDBOX_RETAIN_AND_BIND`) is a `sapi::v::RemotePtr`, so
+  // the return must match its remote address value.
+  ir::Parameter retained_dst =
+      BufferArg("dst", ScalarType("char"), PointerDir::kInOut, ByteCount("n"));
+  retained_dst.As<ir::BufferParam>()->context_bound.retain_and_bind =
+      RetainAndBind{.context = "ctx", .binding_name = "dst"};
+  absl::StatusOr<std::string> retained_src = HostSrc(ir::Function{
+      .name = "fill_and_return_retained_dst",
+      .return_value = std::move(ret),
+      .parameters =
+          {
+              ir::Parameter{
+                  .name = "ctx",
+                  .type = PointerTo(VoidType()),
+                  .payload =
+                      ir::OpaquePointerParam{
+                          .direction = PointerDir::kSandboxOpaque,
+                      },
+              },
+              std::move(retained_dst),
+              ScalarArg("n", "size_t"),
+          },
+  });
+  ASSERT_THAT(retained_src, IsOk());
+  EXPECT_THAT(
+      *retained_src,
+      AllOf(
+          ContainsRegex(
+              R"(CHECK_EQ\(reinterpret_cast<uintptr_t>\(sapi_ret_arg\.GetValue\(\)\),\s*sapi_tmp_dst\.GetRemoteValue\(\)\);)"),
+          Not(HasSubstr("sapi_tmp_dst.GetRemote()")),
+          HasSubstr("return sapi_ret_arg.GetValue() ? dst : nullptr;")));
 }
 
 }  // namespace

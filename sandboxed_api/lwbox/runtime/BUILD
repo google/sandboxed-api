@@ -133,6 +133,7 @@ cc_library(
     deps = [
         "//sandboxed_api:sapi",
         "//sandboxed_api:vars",
+        "//sandboxed_api/util:checked_math",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/base:nullability",

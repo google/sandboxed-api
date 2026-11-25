@@ -189,6 +189,13 @@ int sum_in_ptr_with_signed_inout_count(
     const int* src SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(*inout_count),
     int* inout_count SANDBOX_INOUT_PTR, int updated_count);
 
+int sum_signed_pairs(const int* xy SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(2 * n),
+                     int n);
+
+SANDBOX_ALIAS_PTR(buf)
+int* offset_alias(int* buf SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(len),
+                  size_t len, size_t offset);
+
 typedef int (*out_counted_fill_cb)(
     int* dst SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY_OUTPARAM(*out_count,
                                                             cap_bytes),
@@ -369,4 +376,8 @@ int fill_hyperslab_slice_batch(struct BoundHyperslabSlice* slices
                                        SANDBOX_ELEM_SIZED_BY(count),
                                size_t count, int ncid, size_t rows);
 
+int fill_explicit_outparam_sized(
+    int* dst SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY_OUTPARAM(*out_len,
+                                                            cap * sizeof(int)),
+    size_t cap, size_t claimed_len, size_t* out_len SANDBOX_OUT_PTR);
 }  // extern "C"

@@ -158,6 +158,16 @@ int retain_signed_inout_db_buffer(struct DbHandle* db, int* buf,
 int sum_in_ptr_with_signed_inout_count(const int* src, int* inout_count,
                                        int updated_count);
 
+// Sums the `2 * n` values of the `n` x/y pairs in `xy`, or returns -1 if `n`
+// is negative. The sandboxed shim computes the buffer size from the signed `n`
+// with checked arithmetic.
+int sum_signed_pairs(const int* xy, int n);
+
+// Returns `buf + offset`, or `nullptr` if `buf` is null or `offset > len`. A
+// non-zero `offset` returns a pointer that does not alias `buf`, which breaks
+// the `SANDBOX_ALIAS_PTR(buf)` contract of the return value.
+int* offset_alias(int* buf, size_t len, size_t offset);
+
 // Invokes `cb` on a stack buffer pre-filled with `777` and an `out_count`
 // variable pre-filled with `initial_out_count_garbage`, returning `cb`'s result
 // and reporting `local_dst[0]` via `*observed_first_elem`.
@@ -176,6 +186,9 @@ int invoke_inout_counted_callback(inout_counted_xform_cb cb,
                                   int initial_inout_count, int should_fail,
                                   int* final_inout_count);
 
+// Returns non-zero if `probe` is marshaled into a separate address/buffer
+// rather than matching `caller_addr` directly (allowing link-time dual-mode
+// tests to detect whether they are running through the sandboxed shim).
 int is_marshaled_copy(const int* probe, uintptr_t caller_addr);
 
 // Callee-allocated (`malloc`) return values, `T**` out-parameters, and struct
@@ -341,6 +354,11 @@ int fill_nested_hyperslab_request(struct NestedHyperslabRequest* req, int ncid,
 
 int fill_hyperslab_slice_batch(struct BoundHyperslabSlice* slices, size_t count,
                                int ncid, size_t rows);
+
+// Explicit `SANDBOX_ELEM_SIZED_BY_OUTPARAM` where `claimed_len` can exceed
+// `cap` to verify host-side bounds enforcement.
+int fill_explicit_outparam_sized(int* dst, size_t cap, size_t claimed_len,
+                                 size_t* out_len);
 
 }  // extern "C"
 

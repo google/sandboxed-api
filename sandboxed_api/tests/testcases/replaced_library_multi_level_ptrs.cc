@@ -377,6 +377,24 @@ int sum_in_ptr_with_signed_inout_count(const int* src, int* inout_count,
   return sum;
 }
 
+int sum_signed_pairs(const int* xy, int n) {
+  if (xy == nullptr || n < 0) {
+    return -1;
+  }
+  int sum = 0;
+  for (int i = 0; i < 2 * n; ++i) {
+    sum += xy[i];
+  }
+  return sum;
+}
+
+int* offset_alias(int* buf, size_t len, size_t offset) {
+  if (buf == nullptr || offset > len) {
+    return nullptr;
+  }
+  return buf + offset;
+}
+
 ABSL_ATTRIBUTE_NO_SANITIZE_CFI int invoke_out_counted_callback(
     out_counted_fill_cb cb, int initial_out_count_garbage, int should_fail,
     int* observed_first_elem) {
@@ -921,6 +939,19 @@ int fill_hyperslab_slice_batch(struct BoundHyperslabSlice* slices, size_t count,
     grand_total += total;
   }
   return static_cast<int>(grand_total);
+}
+
+int fill_explicit_outparam_sized(int* dst, size_t cap, size_t claimed_len,
+                                 size_t* out_len) {
+  if (dst == nullptr || out_len == nullptr) {
+    return -1;
+  }
+  size_t safe_writes = std::min(cap, claimed_len);
+  for (size_t i = 0; i < safe_writes; ++i) {
+    dst[i] = static_cast<int>(100 + i);
+  }
+  *out_len = claimed_len;
+  return static_cast<int>(safe_writes);
 }
 
 }  // extern "C"

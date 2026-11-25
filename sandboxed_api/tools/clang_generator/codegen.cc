@@ -20,6 +20,7 @@
 #include <optional>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -34,6 +35,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_replace.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "absl/strings/substitute.h"
@@ -222,6 +224,597 @@ std::string CompileBindingExpr(absl::string_view context_var,
   return result;
 }
 
+// If `s[i]` opens a character or string literal (and is not a C++14 digit
+// separator such as `1'000`), advances `i` to the closing quote (or `s.size()`
+// if unclosed) and returns true.
+bool SkipQuotedLiteral(absl::string_view s, size_t& i) {
+  const char quote = s[i];
+  if (quote != '\'' && quote != '"') {
+    return false;
+  }
+  if (quote == '\'' && i > 0 && i + 1 < s.size() &&
+      absl::ascii_isxdigit(s[i - 1]) && absl::ascii_isxdigit(s[i + 1])) {
+    const bool is_u8_prefix =
+        i >= 2 && s[i - 2] == 'u' && s[i - 1] == '8' &&
+        (i == 2 || (!absl::ascii_isalnum(s[i - 3]) && s[i - 3] != '_'));
+    if (!is_u8_prefix) {
+      return false;
+    }
+  }
+  for (++i; i < s.size() && s[i] != quote; ++i) {
+    if (s[i] == '\\' && i + 1 < s.size()) {
+      ++i;
+    }
+  }
+  return true;
+}
+
+size_t SkipBalancedGroup(absl::string_view s, size_t open_pos, char open_ch,
+                         char close_ch) {
+  int depth = 0;
+  for (size_t i = open_pos; i < s.size(); ++i) {
+    if (SkipQuotedLiteral(s, i)) {
+      continue;
+    }
+    const char c = s[i];
+    if (c == open_ch) {
+      ++depth;
+    } else if (c == close_ch) {
+      --depth;
+      if (depth == 0) {
+        return i + 1;
+      }
+    }
+  }
+  return absl::string_view::npos;
+}
+
+bool IsNonNegativeIntegerLiteral(absl::string_view expr) {
+  if (expr.empty() || !absl::ascii_isdigit(expr[0])) {
+    return false;
+  }
+  size_t i = 0;
+  if (expr.size() >= 2 && expr[0] == '0' &&
+      (expr[1] == 'x' || expr[1] == 'X')) {
+    i = 2;
+    if (i >= expr.size()) {
+      return false;
+    }
+    while (i < expr.size() &&
+           (absl::ascii_isxdigit(expr[i]) || expr[i] == '\'')) {
+      ++i;
+    }
+  } else {
+    while (i < expr.size() &&
+           (absl::ascii_isdigit(expr[i]) || expr[i] == '\'')) {
+      ++i;
+    }
+  }
+  while (i < expr.size()) {
+    const char c = absl::ascii_tolower(expr[i]);
+    if (c != 'u' && c != 'l' && c != 'z') {
+      return false;
+    }
+    ++i;
+  }
+  return true;
+}
+
+bool IsCompileTimeSizeOperator(absl::string_view expr, absl::string_view kw) {
+  if (!absl::StartsWith(expr, kw)) {
+    return false;
+  }
+  absl::string_view rest = expr.substr(kw.size());
+  if (!rest.empty() && (absl::ascii_isalnum(rest[0]) || rest[0] == '_')) {
+    return false;
+  }
+  rest = absl::StripLeadingAsciiWhitespace(rest);
+  if (!rest.empty() && rest[0] == '(') {
+    return SkipBalancedGroup(rest, 0, '(', ')') == rest.size();
+  }
+  return !rest.empty();
+}
+
+// If `expr` is a call to a helper that computes a `size_t` with checks (such
+// as `sapi::lwbox::CheckedMultiply(...)`) or that reads a bound size
+// (`...->GetSize(...)`), returns the argument list between the parentheses of
+// the call.
+std::optional<absl::string_view> CheckedSizeCallArgs(absl::string_view expr) {
+  constexpr absl::string_view kCheckedPrefixes[] = {
+      "sapi::lwbox::CheckedToSizeT(",
+      "sapi::lwbox::CheckedMultiply(",
+      "sapi::lwbox::CheckedAdd(",
+      "sapi::lwbox::CheckedSub(",
+      "sapi::lwbox::CheckedDivide(",
+      "sapi::lwbox::Product(",
+      "sapi::lwbox::NullTerminatedByteSize(",
+      "sapi::lwbox::NullTerminatedCount(",
+      "sapi::lwbox::ContextBindingRegistry::Instance()->GetSize(",
+      "sandbox->CheckedMultiply(",
+  };
+  for (absl::string_view prefix : kCheckedPrefixes) {
+    if (absl::StartsWith(expr, prefix)) {
+      const size_t open_paren = prefix.size() - 1;
+      if (SkipBalancedGroup(expr, open_paren, '(', ')') != expr.size()) {
+        return std::nullopt;
+      }
+      return expr.substr(prefix.size(), expr.size() - prefix.size() - 1);
+    }
+  }
+  return std::nullopt;
+}
+
+std::optional<char> PrecedingNonSpaceChar(absl::string_view s, size_t pos) {
+  while (pos > 0) {
+    --pos;
+    if (!absl::ascii_isspace(s[pos])) {
+      return s[pos];
+    }
+  }
+  return std::nullopt;
+}
+
+// Returns true if the operator character `s[pos]` is a binary operator. The
+// operator is unary if it starts `s`, follows an operator or an opening
+// bracket, or follows the keyword `sizeof` or `alignof` (as in `sizeof *p`).
+// A run of `*` and `&` before `)`, `]`, `,`, `>`, or the end of `s` is a
+// pointer or reference declarator (as in `sizeof(void*)` or `(char*)p`), so
+// it is not a binary operator either.
+bool IsBinaryOperatorPosition(absl::string_view s, size_t pos) {
+  if (s[pos] == '*' || s[pos] == '&') {
+    size_t next = pos + 1;
+    while (next < s.size() &&
+           (s[next] == '*' || s[next] == '&' || absl::ascii_isspace(s[next]))) {
+      ++next;
+    }
+    if (next == s.size() || absl::StrContains(")],>", s[next])) {
+      return false;
+    }
+  }
+  std::optional<char> prev = PrecedingNonSpaceChar(s, pos);
+  if (!prev.has_value()) {
+    return false;
+  }
+  if (absl::ascii_isalnum(*prev) || *prev == '_') {
+    // Find the whole identifier, keyword, or number before the operator.
+    absl::string_view before =
+        absl::StripTrailingAsciiWhitespace(s.substr(0, pos));
+    size_t word_start = before.size();
+    while (word_start > 0 && (absl::ascii_isalnum(before[word_start - 1]) ||
+                              before[word_start - 1] == '_')) {
+      --word_start;
+    }
+    absl::string_view word = before.substr(word_start);
+    return word != "sizeof" && word != "alignof";
+  }
+  switch (*prev) {
+    case '+':
+    case '-':
+    case '*':
+    case '/':
+    case '%':
+    case '(':
+    case '[':
+    case '?':
+    case ':':
+    case ',':
+    case '<':
+    case '>':
+    case '=':
+    case '!':
+    case '&':
+    case '|':
+    case '^':
+    case '~':
+      return false;
+    default:
+      return true;
+  }
+}
+
+// Returns an expression that fails to compile and names the reason. Size
+// expressions that cannot be lowered into overflow-checked `size_t` arithmetic
+// become this expression, so unchecked native arithmetic never runs on values
+// that a sandboxee can write.
+std::string UncheckedSizeExprError(absl::string_view expr,
+                                   absl::string_view reason) {
+  // Escape the text for a C++ string literal.
+  auto escape = [](absl::string_view text) {
+    return absl::StrReplaceAll(text,
+                               {{"\\", "\\\\"}, {"\"", "\\\""}, {"\n", " "}});
+  };
+  return absl::Substitute(
+      "([]() -> size_t {\n"
+      "  static_assert(sizeof(size_t) == 0,\n"
+      "                \"cannot overflow-check size expression '$0': $1\");\n"
+      "  return 0;\n"
+      "}())",
+      escape(expr), escape(reason));
+}
+
+// Returns the first binary arithmetic operator (`+`, `-`, `*`, `/`, `%`, `<<`,
+// or `>>`) in `expr` at any nesting depth. Skips character and string literals
+// and member access (`->`).
+std::optional<std::string> FindBinaryArithmeticOperator(
+    absl::string_view expr) {
+  for (size_t i = 0; i < expr.size(); ++i) {
+    if (SkipQuotedLiteral(expr, i)) {
+      continue;
+    }
+    const char c = expr[i];
+    if (c == '-' && i + 1 < expr.size() && expr[i + 1] == '>') {
+      ++i;  // Member pointer access `a->b`.
+      continue;
+    }
+    if ((c == '<' || c == '>') && i + 1 < expr.size() && expr[i + 1] == c) {
+      return std::string(2, c);
+    }
+    if (c == '%' || ((c == '+' || c == '-' || c == '*' || c == '/') &&
+                     IsBinaryOperatorPosition(expr, i))) {
+      return std::string(1, c);
+    }
+  }
+  return std::nullopt;
+}
+
+// Validates a leaf size expression `expr` (after top-level operators, integer
+// literals, `sizeof`/`alignof`, and checked calls are handled). If `in_call`
+// is true, `expr` is an argument of a checked call instead. Returns an error
+// reason when `expr` contains a remaining operator (such as `+` in `f(a + b)`,
+// `(T)(a + b)`, or `p[i + 1]`), a C-style or scalar functional cast (such as
+// `(uint32_t)x` or `uint32_t(x)`), or braces. Those constructs execute before
+// `CheckedToSizeT` (or the checked call) and can overflow or truncate an
+// untrusted value. Skips literals, `->`, `::`, unary `*` and `&`, and pointer
+// declarators.
+std::optional<std::string> FindLeafSizeExprError(absl::string_view expr,
+                                                 bool in_call = false) {
+  // The number of calls, casts, and subscripts that contain `expr[i]`.
+  int depth = in_call ? 1 : 0;
+  for (size_t i = 0; i < expr.size(); ++i) {
+    if (SkipQuotedLiteral(expr, i)) {
+      continue;
+    }
+    const char c = expr[i];
+    if (c == '{' || c == '}') {
+      return "braced expressions are not supported";
+    }
+    if (c == '(' || c == '[') {
+      ++depth;
+      continue;
+    }
+    if (c == ')' || c == ']') {
+      if (depth > 0) {
+        --depth;
+      }
+      continue;
+    }
+    if (c == '-' && i + 1 < expr.size() && expr[i + 1] == '>') {
+      ++i;  // Member pointer access `a->b`.
+      continue;
+    }
+    if (c == ':' && i + 1 < expr.size() && expr[i + 1] == ':') {
+      ++i;  // Scope resolution `ns::name`.
+      continue;
+    }
+    if ((c == '*' || c == '&') && !IsBinaryOperatorPosition(expr, i)) {
+      continue;  // Dereference `*p`, address-of `&x`, or declarator `T*`.
+    }
+    if (absl::StrContains("+-*/%<>=!~&|^?:", c)) {
+      const bool two_chars =
+          i + 1 < expr.size() &&
+          ((absl::StrContains("+-<>=&|", c) && expr[i + 1] == c) ||
+           (absl::StrContains("+-*/%<>=!&|^", c) && expr[i + 1] == '='));
+      absl::string_view op = expr.substr(i, two_chars ? 2 : 1);
+      if (depth > 0) {
+        return absl::StrCat("operator '", op,
+                            "' is inside a call, cast, or subscript");
+      }
+      return absl::StrCat("operator '", op,
+                          "' is not supported; use +, -, *, /, sizeof, and "
+                          "cond ? a : b");
+    }
+  }
+
+  static constexpr absl::string_view kCastTypeNames[] = {
+      "bool",     "char",      "char8_t",  "char16_t",  "char32_t", "wchar_t",
+      "short",    "int",       "long",     "signed",    "unsigned", "float",
+      "double",   "size_t",    "ssize_t",  "ptrdiff_t", "intptr_t", "uintptr_t",
+      "intmax_t", "uintmax_t", "int8_t",   "int16_t",   "int32_t",  "int64_t",
+      "uint8_t",  "uint16_t",  "uint32_t", "uint64_t",
+  };
+  for (size_t i = 0; i < expr.size(); ++i) {
+    if (SkipQuotedLiteral(expr, i)) {
+      continue;
+    }
+    if (expr[i] != '(') {
+      continue;
+    }
+    std::optional<char> prev = PrecedingNonSpaceChar(expr, i);
+    if (prev.has_value() && (absl::ascii_isalnum(*prev) || *prev == '_')) {
+      size_t id_end = i;
+      while (id_end > 0 && absl::ascii_isspace(expr[id_end - 1])) {
+        --id_end;
+      }
+      size_t id_start = id_end;
+      while (id_start > 0 && (absl::ascii_isalnum(expr[id_start - 1]) ||
+                              expr[id_start - 1] == '_')) {
+        --id_start;
+      }
+      std::optional<char> before_id = PrecedingNonSpaceChar(expr, id_start);
+      if (before_id != '.' && before_id != '>') {
+        absl::string_view ident = expr.substr(id_start, id_end - id_start);
+        for (absl::string_view type_name : kCastTypeNames) {
+          if (ident == type_name) {
+            return absl::StrCat("cast '", ident, "' is not supported");
+          }
+        }
+      }
+      continue;
+    }
+    const size_t close = SkipBalancedGroup(expr, i, '(', ')');
+    if (close == absl::string_view::npos) {
+      return "unmatched '('";
+    }
+    size_t next = close;
+    while (next < expr.size() && absl::ascii_isspace(expr[next])) {
+      ++next;
+    }
+    if (next < expr.size() && expr[next] != ')' && expr[next] != ']' &&
+        expr[next] != ',' && expr[next] != '.' && expr[next] != '[' &&
+        !(expr[next] == '-' && next + 1 < expr.size() &&
+          expr[next + 1] == '>')) {
+      return absl::StrCat("cast '", expr.substr(i, close - i),
+                          "' is not supported");
+    }
+  }
+  return std::nullopt;
+}
+
+// Strips whitespace and the parentheses that enclose all of `expr`.
+absl::string_view StripEnclosingParens(absl::string_view expr) {
+  expr = absl::StripAsciiWhitespace(expr);
+  while (expr.size() >= 2 && expr.front() == '(' &&
+         SkipBalancedGroup(expr, 0, '(', ')') == expr.size()) {
+    expr = absl::StripAsciiWhitespace(expr.substr(1, expr.size() - 2));
+  }
+  return expr;
+}
+
+// Returns the positions of the `?` and the matching `:` of a top-level
+// conditional `c ? a : b` in `expr`. Skips literals, bracketed groups, and
+// `::`.
+std::optional<std::pair<size_t, size_t>> FindTopLevelConditional(
+    absl::string_view expr) {
+  int depth = 0;
+  int ternary_depth = 0;
+  std::optional<size_t> qmark_pos;
+  for (size_t i = 0; i < expr.size(); ++i) {
+    if (SkipQuotedLiteral(expr, i)) {
+      continue;
+    }
+    const char c = expr[i];
+    if (c == '(' || c == '[' || c == '{') {
+      ++depth;
+      continue;
+    }
+    if (c == ')' || c == ']' || c == '}') {
+      if (depth > 0) {
+        --depth;
+      }
+      continue;
+    }
+    if (depth != 0) {
+      continue;
+    }
+    if (c == ':' && i + 1 < expr.size() && expr[i + 1] == ':') {
+      ++i;  // Scope resolution `ns::name`.
+      continue;
+    }
+    if (c == '?') {
+      if (!qmark_pos.has_value()) {
+        qmark_pos = i;
+      }
+      ++ternary_depth;
+      continue;
+    }
+    if (c == ':' && qmark_pos.has_value()) {
+      --ternary_depth;
+      if (ternary_depth == 0) {
+        return std::make_pair(*qmark_pos, i);
+      }
+    }
+  }
+  return std::nullopt;
+}
+
+// Returns an error reason if `expr`, a checked call (see `CheckedSizeCallArgs`)
+// or an argument of one, can run an operator, a cast, or braces before the
+// checked call. The valid forms are:
+// - A checked call with valid arguments.
+// - A conditional `c ? a : b` with valid `a` and `b` and no arithmetic in `c`.
+// - A leaf that `FindLeafSizeExprError` accepts, such as `counts`, `*sandbox`,
+//   `sizeof(*p)`, `"name"`, or `sapi::lwbox::CompositeKey(ncid, varid)`.
+// The bound-size lookups (with their context keys) and the outparam capacity
+// expressions that the generator emits have these forms.
+std::optional<std::string> FindCheckedCallArgError(absl::string_view expr) {
+  expr = StripEnclosingParens(expr);
+  if (std::optional<absl::string_view> args = CheckedSizeCallArgs(expr)) {
+    // Validate each argument between top-level commas.
+    int depth = 0;
+    size_t arg_start = 0;
+    for (size_t i = 0; i < args->size(); ++i) {
+      if (SkipQuotedLiteral(*args, i)) {
+        continue;
+      }
+      const char c = (*args)[i];
+      if (c == '(' || c == '[' || c == '{') {
+        ++depth;
+      } else if (c == ')' || c == ']' || c == '}') {
+        --depth;
+      } else if (c == ',' && depth == 0) {
+        if (std::optional<std::string> err = FindCheckedCallArgError(
+                args->substr(arg_start, i - arg_start))) {
+          return err;
+        }
+        arg_start = i + 1;
+      }
+    }
+    return FindCheckedCallArgError(args->substr(arg_start));
+  }
+  if (std::optional<std::pair<size_t, size_t>> ternary =
+          FindTopLevelConditional(expr)) {
+    const auto [qmark_pos, colon_pos] = *ternary;
+    if (std::optional<std::string> op =
+            FindBinaryArithmeticOperator(expr.substr(0, qmark_pos))) {
+      return absl::StrCat("the condition uses arithmetic operator '", *op, "'");
+    }
+    if (std::optional<std::string> err = FindCheckedCallArgError(
+            expr.substr(qmark_pos + 1, colon_pos - qmark_pos - 1))) {
+      return err;
+    }
+    return FindCheckedCallArgError(expr.substr(colon_pos + 1));
+  }
+  return FindLeafSizeExprError(expr, /*in_call=*/true);
+}
+
+// Lowers an arithmetic size expression into overflow-checked `size_t` C++ code:
+// - Non-`sizeof`/`alignof` scalar leaves are wrapped in
+//   `sapi::lwbox::CheckedToSizeT(...)`.
+// - Binary `*`, `/`, `+`, and `-` lower to `sapi::lwbox::CheckedMultiply`,
+//   `CheckedDivide`, `CheckedAdd`, and `CheckedSub` (preserving `*`/`/`
+//   precedence over `+`/`-` and left-associativity).
+// - Conditional `cond ? t : f` keeps `cond` verbatim while lowering `t` and
+//   `f`. `cond` can compare values, but it cannot use arithmetic, because that
+//   arithmetic would not be checked.
+// - A checked call (see `CheckedSizeCallArgs`) stays verbatim if its arguments
+//   are valid (see `FindCheckedCallArgError`).
+// Any other operator (for example `%`, `&`, `<<`, a comparison outside a
+// condition, or a unary `-`), an operator inside a call, cast, or subscript
+// (for example `f(a + b)`, `(T)(a * b)`, or `p[i + 1]`), or a type cast or
+// braced expression lowers to an expression that fails to compile, because it
+// would run before `CheckedToSizeT`.
+std::string CompileCheckedSizeExpr(absl::string_view expr) {
+  expr = StripEnclosingParens(expr);
+  if (expr.empty()) {
+    return "0";
+  }
+
+  if (std::optional<std::pair<size_t, size_t>> ternary =
+          FindTopLevelConditional(expr)) {
+    const auto [qmark_pos, colon_pos] = *ternary;
+    absl::string_view cond =
+        absl::StripAsciiWhitespace(expr.substr(0, qmark_pos));
+    if (std::optional<std::string> op = FindBinaryArithmeticOperator(cond)) {
+      return UncheckedSizeExprError(
+          expr,
+          absl::StrCat("the condition uses arithmetic operator '", *op, "'"));
+    }
+    std::string t_expr = CompileCheckedSizeExpr(
+        expr.substr(qmark_pos + 1, colon_pos - qmark_pos - 1));
+    std::string f_expr = CompileCheckedSizeExpr(expr.substr(colon_pos + 1));
+    return absl::Substitute("($0 ? $1 : $2)", cond, t_expr, f_expr);
+  }
+
+  // Scan top-level tokens (depth 0 outside `(...)`, `[...]`, `{...}`).
+  int depth = 0;
+  std::optional<std::string> unsupported_top_op;
+  std::optional<size_t> last_add_sub;
+  std::optional<size_t> last_mul_div;
+
+  for (size_t i = 0; i < expr.size(); ++i) {
+    if (SkipQuotedLiteral(expr, i)) {
+      continue;
+    }
+    const char c = expr[i];
+    if (c == '(' || c == '[' || c == '{') {
+      ++depth;
+      continue;
+    }
+    if (c == ')' || c == ']' || c == '}') {
+      if (depth > 0) {
+        --depth;
+      }
+      continue;
+    }
+    if (depth != 0) {
+      continue;
+    }
+    if (c == '-' && i + 1 < expr.size() && expr[i + 1] == '>') {
+      ++i;  // Member pointer access `a->b`.
+      continue;
+    }
+    if (c == '<' || c == '>' || c == '&' || c == '|' || c == '^' || c == '=' ||
+        c == '!' || c == '%' || c == '~' || c == ',') {
+      if (!unsupported_top_op.has_value()) {
+        // Report two-character operators such as `<<`, `<=`, or `&&` whole.
+        const bool two_chars =
+            i + 1 < expr.size() &&
+            ((absl::StrContains("+-<>=&|", c) && expr[i + 1] == c) ||
+             (absl::StrContains("+-*/%<>=!&|^", c) && expr[i + 1] == '='));
+        unsupported_top_op = std::string(expr.substr(i, two_chars ? 2 : 1));
+      }
+      continue;
+    }
+    if ((c == '+' || c == '-') && IsBinaryOperatorPosition(expr, i)) {
+      last_add_sub = i;
+    } else if ((c == '*' || c == '/') && IsBinaryOperatorPosition(expr, i)) {
+      last_mul_div = i;
+    }
+  }
+
+  if (unsupported_top_op.has_value()) {
+    return UncheckedSizeExprError(
+        expr, absl::StrCat("operator '", *unsupported_top_op,
+                           "' is not supported; use +, -, *, /, sizeof, and "
+                           "cond ? a : b"));
+  }
+
+  if (last_add_sub.has_value()) {
+    const char op = expr[*last_add_sub];
+    std::string lhs = CompileCheckedSizeExpr(expr.substr(0, *last_add_sub));
+    std::string rhs = CompileCheckedSizeExpr(expr.substr(*last_add_sub + 1));
+    return absl::Substitute("sapi::lwbox::$0($1, $2)",
+                            op == '+' ? "CheckedAdd" : "CheckedSub", lhs, rhs);
+  }
+
+  if (last_mul_div.has_value()) {
+    const char op = expr[*last_mul_div];
+    std::string lhs = CompileCheckedSizeExpr(expr.substr(0, *last_mul_div));
+    std::string rhs = CompileCheckedSizeExpr(expr.substr(*last_mul_div + 1));
+    return absl::Substitute("sapi::lwbox::$0($1, $2)",
+                            op == '*' ? "CheckedMultiply" : "CheckedDivide",
+                            lhs, rhs);
+  }
+
+  if (absl::StartsWith(expr, "-")) {
+    return UncheckedSizeExprError(expr, "a negated value is not a size");
+  }
+
+  if (IsNonNegativeIntegerLiteral(expr) ||
+      IsCompileTimeSizeOperator(expr, "sizeof") ||
+      IsCompileTimeSizeOperator(expr, "alignof")) {
+    return std::string(expr);
+  }
+
+  if (CheckedSizeCallArgs(expr).has_value()) {
+    if (std::optional<std::string> err = FindCheckedCallArgError(expr)) {
+      return UncheckedSizeExprError(expr, *err);
+    }
+    return std::string(expr);
+  }
+
+  if (std::optional<std::string> err = FindLeafSizeExprError(expr)) {
+    return UncheckedSizeExprError(expr, *err);
+  }
+
+  return absl::Substitute("sapi::lwbox::CheckedToSizeT($0)", expr);
+}
+
+std::string CompileSizedByBindingExpr(absl::string_view context_var,
+                                      absl::string_view expr) {
+  return CompileCheckedSizeExpr(CompileBindingExpr(context_var, expr));
+}
+
 // Returns true if `type` is a pointer to `const char` (or a pointer to
 // `const char*` for global string output parameters).
 bool IsConstCharPointee(const ir::TypeInfo& type) {
@@ -303,7 +896,7 @@ std::string CompileDerefOrRawSizeExpr(absl::string_view expr) {
     return absl::Substitute(
         "($0 == nullptr ? 0 : sapi::lwbox::CheckedToSizeT(*$0))", *ident);
   }
-  return std::string(expr);
+  return CompileCheckedSizeExpr(expr);
 }
 
 // Computes the maximum allocation capacity in bytes for a buffer parameter.
@@ -330,23 +923,23 @@ std::string GetParamCapacityAsBytesExpr(const ir::Parameter& param,
             }
             return absl::Substitute(
                 "sandbox->CheckedMultiply(sizeof(*$0), ($1))", param.name,
-                elem.size_expr);
+                CompileCheckedSizeExpr(elem.size_expr));
           },
           [](const ir::bounds::ByteCount& byte) {
             return CompileDerefOrRawSizeExpr(byte.size_expr);
           },
           [&](const ir::bounds::ElemSizedByOutparam& elem) {
             DCHECK(!elem.capacity_expr.empty());
-            return elem.capacity_expr;
+            return CompileCheckedSizeExpr(elem.capacity_expr);
           },
           [&](const ir::bounds::ByteSizedByOutparam& byte) {
             DCHECK(!byte.capacity_expr.empty());
-            return byte.capacity_expr;
+            return CompileCheckedSizeExpr(byte.capacity_expr);
           },
           [&](const ir::bounds::SizedByBinding& binding) {
             std::string context_var = ResolveContextName(binding.context_expr);
             std::string expr =
-                CompileBindingExpr(context_var, binding.binding_name);
+                CompileSizedByBindingExpr(context_var, binding.binding_name);
             if (binding.is_elem_sized) {
               return absl::Substitute(
                   "sandbox->CheckedMultiply(sizeof(*$0), ($1))", param.name,
@@ -389,7 +982,7 @@ std::string GetParamSizeAsBytesExpr(const ir::Parameter& param,
             }
             return absl::Substitute(
                 "sandbox->CheckedMultiply(sizeof(*$0), ($1))", param.name,
-                elem.size_expr);
+                CompileCheckedSizeExpr(elem.size_expr));
           },
           [&](const ir::bounds::ElemSizedByOutparam& elem) {
             DCHECK(!param.type.is_pointee_void())
@@ -411,7 +1004,7 @@ std::string GetParamSizeAsBytesExpr(const ir::Parameter& param,
           [&](const ir::bounds::SizedByBinding& binding) {
             std::string context_var = ResolveContextName(binding.context_expr);
             std::string expr =
-                CompileBindingExpr(context_var, binding.binding_name);
+                CompileSizedByBindingExpr(context_var, binding.binding_name);
             if (binding.is_elem_sized) {
               return absl::Substitute(
                   "sandbox->CheckedMultiply(sizeof(*$0), ($1))", param.name,
@@ -599,6 +1192,19 @@ std::string EmitSandboxeeParamDecl(const ir::Parameter& param) {
 // Host Emission Helpers
 // -----------------------------------------------------------------------------
 
+std::optional<std::string> ExtractSoleDerefIdent(absl::string_view expr) {
+  absl::string_view trimmed = absl::StripAsciiWhitespace(expr);
+  if (!absl::ConsumePrefix(&trimmed, "*")) {
+    return std::nullopt;
+  }
+  trimmed = absl::StripAsciiWhitespace(trimmed);
+  absl::string_view rest = trimmed;
+  if (ConsumeIdentifier(rest) && rest.empty()) {
+    return std::string(trimmed);
+  }
+  return std::nullopt;
+}
+
 // Emits code to copy a callee-allocated buffer or null-terminated array from
 // `remote_ptr_expr` in the sandboxee into a freshly `calloc`-allocated host
 // buffer, immediately free the sandboxee allocation via `rpc_channel()->Free`,
@@ -624,34 +1230,20 @@ std::string EmitMallocCopyAndFreeFromSandbox(
         "sapi_remote_arr.size());\n",
         indent);
   } else {
-    auto deref_ident =
-        [](absl::string_view expr) -> std::optional<std::string> {
-      absl::string_view trimmed = absl::StripAsciiWhitespace(expr);
-      if (!absl::ConsumePrefix(&trimmed, "*")) {
-        return std::nullopt;
-      }
-      trimmed = absl::StripAsciiWhitespace(trimmed);
-      absl::string_view rest = trimmed;
-      if (ConsumeIdentifier(rest) && rest.empty()) {
-        return std::string(trimmed);
-      }
-      return std::nullopt;
-    };
     std::string size_expr = std::visit(
         absl::Overload{
             [&](const ir::bounds::ByteCount& byte) {
               if (std::optional<std::string> ptr_name =
-                      deref_ident(byte.size_expr)) {
+                      ExtractSoleDerefIdent(byte.size_expr)) {
                 return absl::Substitute(
                     "($0 == nullptr ? 0 : sapi::lwbox::CheckedToSizeT(*$0))",
                     *ptr_name);
               }
-              return absl::Substitute("sapi::lwbox::CheckedToSizeT($0)",
-                                      byte.size_expr);
+              return CompileCheckedSizeExpr(byte.size_expr);
             },
             [&](const ir::bounds::ElemCount& elem) {
               if (std::optional<std::string> ptr_name =
-                      deref_ident(elem.size_expr)) {
+                      ExtractSoleDerefIdent(elem.size_expr)) {
                 return absl::Substitute(
                     "($0 == nullptr ? 0 : "
                     "sandbox->CheckedMultiply(sizeof(*sapi_returned_sb_ptr), "
@@ -660,15 +1252,14 @@ std::string EmitMallocCopyAndFreeFromSandbox(
               }
               return absl::Substitute(
                   "sandbox->CheckedMultiply(sizeof(*sapi_returned_sb_ptr), "
-                  "sapi::lwbox::CheckedToSizeT($0))",
-                  elem.size_expr);
+                  "($0))",
+                  CompileCheckedSizeExpr(elem.size_expr));
             },
             [](const ir::bounds::SizedByBinding& binding) {
               std::string context_var =
                   ResolveContextName(binding.context_expr);
-              std::string size_expr = absl::Substitute(
-                  "sapi::lwbox::CheckedToSizeT($0)",
-                  CompileBindingExpr(context_var, binding.binding_name));
+              std::string size_expr =
+                  CompileSizedByBindingExpr(context_var, binding.binding_name);
               if (binding.is_elem_sized) {
                 return absl::Substitute(
                     "sandbox->CheckedMultiply(sizeof(*sapi_returned_sb_ptr), "
@@ -816,9 +1407,8 @@ std::string EmitStructMemberSyncsPreCall(
                                             suffix, context_var);
                 context_var = absl::StrCat("sapi_member_ctx_", suffix);
               }
-              std::string size_expr = absl::Substitute(
-                  "sapi::lwbox::CheckedToSizeT($0)",
-                  CompileBindingExpr(context_var, binding.binding_name));
+              std::string size_expr =
+                  CompileSizedByBindingExpr(context_var, binding.binding_name);
               if (binding.is_elem_sized) {
                 size_expr = absl::Substitute(
                     "sandbox->CheckedMultiply(sizeof(*($0)), ($1))",
@@ -829,13 +1419,14 @@ std::string EmitStructMemberSyncsPreCall(
             },
             [&](const ir::bounds::ByteCount& byte) {
               return absl::Substitute("sapi_member_size_$0 = $1;\n", suffix,
-                                      byte.size_expr);
+                                      CompileCheckedSizeExpr(byte.size_expr));
             },
             [&](const ir::bounds::ElemCount& elem) {
               return absl::Substitute(
                   "sapi_member_size_$0 = "
                   "sandbox->CheckedMultiply(sizeof(*($1)), ($2));\n",
-                  suffix, host_ptr_expr, elem.size_expr);
+                  suffix, host_ptr_expr,
+                  CompileCheckedSizeExpr(elem.size_expr));
             },
             [&](const auto& b) {
               using T = std::decay_t<decltype(b)>;
@@ -955,7 +1546,7 @@ std::string EmitStructMemberSyncsPostCall(
       if (const auto* byte = std::get_if<ir::bounds::ByteCount>(&sync.bounds)) {
         post_size_check = absl::Substitute(
             "    size_t sapi_post_member_size_$0 =\n"
-            "        sapi::lwbox::CheckedToSizeT($1);\n"
+            "        $1;\n"
             "    if (sapi_post_member_size_$0 > sapi_member_size_$0) {\n"
             "      sandbox->Check(absl::OutOfRangeError(\n"
             "          absl::StrCat(\"Sandboxee returned size (\",\n"
@@ -964,14 +1555,14 @@ std::string EmitStructMemberSyncsPostCall(
             "                       sapi_member_size_$0,\n"
             "                       \") for struct member $2\")));\n"
             "    }\n",
-            suffix, byte->size_expr, host_ptr_expr);
+            suffix, CompileCheckedSizeExpr(byte->size_expr), host_ptr_expr);
         copy_size_expr = absl::StrCat("sapi_post_member_size_", suffix);
       } else if (const auto* elem =
                      std::get_if<ir::bounds::ElemCount>(&sync.bounds)) {
         post_size_check = absl::Substitute(
             "    size_t sapi_post_member_size_$0 =\n"
             "        sandbox->CheckedMultiply(\n"
-            "            sizeof(*($1)), sapi::lwbox::CheckedToSizeT($2));\n"
+            "            sizeof(*($1)), ($2));\n"
             "    if (sapi_post_member_size_$0 > sapi_member_size_$0) {\n"
             "      sandbox->Check(absl::OutOfRangeError(\n"
             "          absl::StrCat(\"Sandboxee returned size (\",\n"
@@ -980,14 +1571,12 @@ std::string EmitStructMemberSyncsPostCall(
             "                       sapi_member_size_$0,\n"
             "                       \") for struct member $1\")));\n"
             "    }\n",
-            suffix, host_ptr_expr, elem->size_expr);
+            suffix, host_ptr_expr, CompileCheckedSizeExpr(elem->size_expr));
         copy_size_expr = absl::StrCat("sapi_post_member_size_", suffix);
       } else if (const auto* binding =
                      std::get_if<ir::bounds::SizedByBinding>(&sync.bounds)) {
-        std::string size_expr = absl::Substitute(
-            "sapi::lwbox::CheckedToSizeT($0)",
-            CompileBindingExpr(absl::StrCat("sapi_member_ctx_", suffix),
-                               binding->binding_name));
+        std::string size_expr = CompileSizedByBindingExpr(
+            absl::StrCat("sapi_member_ctx_", suffix), binding->binding_name);
         if (binding->is_elem_sized) {
           size_expr =
               absl::Substitute("sandbox->CheckedMultiply(sizeof(*($0)), ($1))",
@@ -1106,7 +1695,7 @@ std::string EmitCopyFromAndBindOutPtrCode(
                  std::get_if<ir::bounds::SizedByBinding>(&buffer_bounds)) {
     std::string context_var = ResolveContextName(binding->context_expr);
     std::string size_expr =
-        CompileBindingExpr(context_var, binding->binding_name);
+        CompileSizedByBindingExpr(context_var, binding->binding_name);
     if (binding->is_elem_sized) {
       size_expr = absl::Substitute(
           "sandbox->CheckedMultiply(sizeof(*sapi_returned_sb_ptr), ($0))",
@@ -1203,9 +1792,11 @@ std::string GetCallbackReturnSizeAsBytesExpr(const ir::Parameter& cb_param,
           [&](const ir::bounds::ElemCount& elem) {
             return absl::Substitute(
                 "sandbox->CheckedMultiply(sizeof(*$0), ($1))", ret_host_var,
-                elem.size_expr);
+                CompileCheckedSizeExpr(elem.size_expr));
           },
-          [](const ir::bounds::ByteCount& byte) { return byte.size_expr; },
+          [](const ir::bounds::ByteCount& byte) {
+            return CompileCheckedSizeExpr(byte.size_expr);
+          },
           [&](const ir::bounds::NullTerminated&) {
             if (cb.return_value != nullptr &&
                 IsConstCharPointee(cb.return_value->type)) {
@@ -1267,13 +1858,12 @@ void EmitMultiLevelCallbackParamMarshaling(
         absl::Overload{
             [](const ir::bounds::Singleton&) -> std::string { return "1"; },
             [](const ir::bounds::ElemCount& e) -> std::string {
-              return absl::Substitute("sapi::lwbox::CheckedToSizeT($0)",
-                                      e.size_expr);
+              return CompileCheckedSizeExpr(e.size_expr);
             },
             [&](const ir::bounds::ByteCount& b) -> std::string {
-              return absl::Substitute(
-                  "(sapi::lwbox::CheckedToSizeT($0) / sizeof($1))", b.size_expr,
-                  inner_ptr_type);
+              return absl::Substitute("($0 / sizeof($1))",
+                                      CompileCheckedSizeExpr(b.size_expr),
+                                      inner_ptr_type);
             },
             [](const auto& b) -> std::string {
               using T = std::decay_t<decltype(b)>;
@@ -1346,13 +1936,11 @@ void EmitMultiLevelCallbackParamMarshaling(
                          },
                          [&](const ir::bounds::ElemCount& e) -> std::string {
                            return absl::Substitute(
-                               "sandbox->CheckedMultiply(sizeof(**$0), "
-                               "sapi::lwbox::CheckedToSizeT($1))",
-                               p_name, e.size_expr);
+                               "sandbox->CheckedMultiply(sizeof(**$0), ($1))",
+                               p_name, CompileCheckedSizeExpr(e.size_expr));
                          },
                          [](const ir::bounds::ByteCount& b) -> std::string {
-                           return absl::Substitute(
-                               "sapi::lwbox::CheckedToSizeT($0)", b.size_expr);
+                           return CompileCheckedSizeExpr(b.size_expr);
                          },
                          [&](const auto&) -> std::string {
                            return absl::Substitute("sizeof(**$0)", p_name);
@@ -2461,7 +3049,7 @@ void EmitShadowPointerElement(const ir::Parameter& inner_param,
             return CompileDerefOrRawSizeExpr(e.size_expr);
           },
           [&](const ir::bounds::ByteCount& b) -> std::string {
-            return absl::Substitute("(($0) / sizeof($1))",
+            return absl::Substitute("($0 / sizeof($1))",
                                     CompileDerefOrRawSizeExpr(b.size_expr),
                                     child_ptr_type);
           },
@@ -2661,7 +3249,7 @@ void EmitMultiLevelPointerParam(const ir::Parameter& param,
                                   "  sapi::v::Reg<$0> sapi_tmp_$1(nullptr);\n",
                                   inner_ptr_type, param.name);
         absl::SubstituteAndAppend(
-            &call_args, "$0 == nullptr ? nullptr : sapi_tmp_$0.PtrAfter()",
+            &call_args, "$0 == nullptr ? nullptr : sapi_tmp_$0.PtrBoth()",
             param.name);
         absl::StrAppend(&post_call,
                         EmitCopyFromAndBindOutPtrCode(
@@ -2691,19 +3279,11 @@ void EmitMultiLevelPointerParam(const ir::Parameter& param,
       absl::SubstituteAndAppend(
           &pre_call, "  sapi::v::Reg<$0> sapi_tmp_$1(sapi_remote_$1);\n",
           inner_ptr_type, param.name);
-      // Zero-initialize the sandbox slot before the RPC for `lifetime_malloc`
-      // out-parameters (`PtrBoth()`): if the callee fails and returns early
-      // without writing `*out_param`, reading back an uninitialized slot via
-      // `PtrAfter()` would pass garbage to `rpc_channel()->Free()`.
-      const bool is_malloc_inner =
-          inner_buf != nullptr &&
-          std::holds_alternative<ir::lifetime::Malloc>(inner_buf->lifetime);
+      // Zero-initialize the sandbox slot before the RPC (`PtrBoth()`) on
+      // `out_ptr` and `inout_ptr` so an early-error return in the callee reads
+      // back `nullptr` instead of uninitialized remote memory.
       std::string ptr_access =
-          (buf.direction == PointerDir::kIn)
-              ? "PtrBefore()"
-              : ((buf.direction == PointerDir::kOut && !is_malloc_inner)
-                     ? "PtrAfter()"
-                     : "PtrBoth()");
+          (buf.direction == PointerDir::kIn) ? "PtrBefore()" : "PtrBoth()";
       absl::SubstituteAndAppend(&call_args,
                                 "$0 == nullptr ? nullptr : sapi_tmp_$0.$1",
                                 param.name, ptr_access);
@@ -2766,7 +3346,7 @@ void EmitMultiLevelPointerParam(const ir::Parameter& param,
               return CompileDerefOrRawSizeExpr(e.size_expr);
             },
             [&](const ir::bounds::ByteCount& b) -> std::string {
-              return absl::Substitute("(($0) / sizeof($1))",
+              return absl::Substitute("($0 / sizeof($1))",
                                       CompileDerefOrRawSizeExpr(b.size_expr),
                                       inner_ptr_type);
             },
@@ -2813,15 +3393,8 @@ void EmitMultiLevelPointerParam(const ir::Parameter& param,
 
     std::string ptr_access = "PtrBefore()";
     if (child_is_callee_written) {
-      const bool is_malloc_inner =
-          inner_buf != nullptr &&
-          std::holds_alternative<ir::lifetime::Malloc>(inner_buf->lifetime);
       ptr_access =
-          (buf.direction == PointerDir::kIn)
-              ? "PtrBefore()"
-              : ((buf.direction == PointerDir::kOut && !is_malloc_inner)
-                     ? "PtrAfter()"
-                     : "PtrBoth()");
+          (buf.direction == PointerDir::kIn) ? "PtrBefore()" : "PtrBoth()";
     }
     absl::SubstituteAndAppend(&call_args,
                               "$0 == nullptr ? nullptr : sapi_tmp_$0.$1",
@@ -2914,7 +3487,7 @@ void EmitNullTerminatedStructSyncParam(const ir::Parameter& param,
               std::string context_var =
                   ResolveContextName(binding.context_expr);
               std::string expr =
-                  CompileBindingExpr(context_var, binding.binding_name);
+                  CompileSizedByBindingExpr(context_var, binding.binding_name);
               if (binding.is_elem_sized) {
                 return absl::Substitute(
                     "sandbox->CheckedMultiply(sizeof(*($0)), ($1))",
@@ -2922,11 +3495,13 @@ void EmitNullTerminatedStructSyncParam(const ir::Parameter& param,
               }
               return expr;
             },
-            [&](const ir::bounds::ByteCount& byte) { return byte.size_expr; },
+            [&](const ir::bounds::ByteCount& byte) {
+              return CompileCheckedSizeExpr(byte.size_expr);
+            },
             [&](const ir::bounds::ElemCount& elem) {
               return absl::Substitute(
                   "sandbox->CheckedMultiply(sizeof(*($0)), ($1))",
-                  host_ptr_expr, elem.size_expr);
+                  host_ptr_expr, CompileCheckedSizeExpr(elem.size_expr));
             },
             [&](const auto& b) {
               using T = std::decay_t<decltype(b)>;
@@ -3073,15 +3648,16 @@ void EmitSizedStructSyncParam(const ir::Parameter& param,
   std::string count_expr = std::visit(
       absl::Overload{
           [](const ir::bounds::ElemCount& e) -> std::string {
-            return e.size_expr;
+            return CompileCheckedSizeExpr(e.size_expr);
           },
           [&](const ir::bounds::ByteCount& b) -> std::string {
-            return absl::Substitute("(($0) / sizeof($1))", b.size_expr,
+            return absl::Substitute("($0 / sizeof($1))",
+                                    CompileCheckedSizeExpr(b.size_expr),
                                     struct_type);
           },
           [&](const ir::bounds::SizedByBinding& b) -> std::string {
             std::string ctx = ResolveContextName(b.context_expr);
-            std::string expr = CompileBindingExpr(ctx, b.binding_name);
+            std::string expr = CompileSizedByBindingExpr(ctx, b.binding_name);
             return b.is_elem_sized ? expr
                                    : absl::Substitute("(($0) / sizeof($1))",
                                                       expr, struct_type);
@@ -3225,9 +3801,8 @@ void EmitSizedStructSyncParam(const ir::Parameter& param,
                                             context_var);
                 context_var = pinned_ctx;
               }
-              std::string expr = absl::Substitute(
-                  "sapi::lwbox::CheckedToSizeT($0)",
-                  CompileBindingExpr(context_var, binding.binding_name));
+              std::string expr =
+                  CompileSizedByBindingExpr(context_var, binding.binding_name);
               if (binding.is_elem_sized) {
                 return absl::Substitute(
                     "sandbox->CheckedMultiply(sizeof(*($0)), ($1))",
@@ -3235,11 +3810,13 @@ void EmitSizedStructSyncParam(const ir::Parameter& param,
               }
               return expr;
             },
-            [&](const ir::bounds::ByteCount& byte) { return byte.size_expr; },
+            [&](const ir::bounds::ByteCount& byte) {
+              return CompileCheckedSizeExpr(byte.size_expr);
+            },
             [&](const ir::bounds::ElemCount& elem) {
               return absl::Substitute(
                   "sandbox->CheckedMultiply(sizeof(*($0)), ($1))",
-                  host_ptr_expr, elem.size_expr);
+                  host_ptr_expr, CompileCheckedSizeExpr(elem.size_expr));
             },
             [&](const auto& b) {
               using T = std::decay_t<decltype(b)>;
@@ -3419,7 +3996,7 @@ void EmitSizedStructSyncParam(const ir::Parameter& param,
                 &post_checks,
                 "    if ($0 != nullptr) {\n"
                 "      size_t sapi_post_size =\n"
-                "          sapi::lwbox::CheckedToSizeT($1);\n"
+                "          $1;\n"
                 "      if (sapi_post_size > $2) {\n"
                 "        sandbox->Check(absl::OutOfRangeError(\n"
                 "            absl::StrCat(\"Sandboxee returned size (\",\n"
@@ -3429,7 +4006,8 @@ void EmitSizedStructSyncParam(const ir::Parameter& param,
                 "      }\n"
                 "$3"
                 "    }\n",
-                host_ptr_expr, byte->size_expr, cap_var, sync_back);
+                host_ptr_expr, CompileCheckedSizeExpr(byte->size_expr), cap_var,
+                sync_back);
           } else if (const auto* elem =
                          std::get_if<ir::bounds::ElemCount>(&s.bounds)) {
             std::string sync_back;
@@ -3444,8 +4022,7 @@ void EmitSizedStructSyncParam(const ir::Parameter& param,
                 &post_checks,
                 "    if ($0 != nullptr) {\n"
                 "      size_t sapi_post_size = sandbox->CheckedMultiply(\n"
-                "          sizeof(*($0)), "
-                "sapi::lwbox::CheckedToSizeT($1));\n"
+                "          sizeof(*($0)), ($1));\n"
                 "      if (sapi_post_size > $2) {\n"
                 "        sandbox->Check(absl::OutOfRangeError(\n"
                 "            absl::StrCat(\"Sandboxee returned size (\",\n"
@@ -3455,14 +4032,14 @@ void EmitSizedStructSyncParam(const ir::Parameter& param,
                 "      }\n"
                 "$3"
                 "    }\n",
-                host_ptr_expr, elem->size_expr, cap_var, sync_back);
+                host_ptr_expr, CompileCheckedSizeExpr(elem->size_expr), cap_var,
+                sync_back);
           } else if (const auto* binding =
                          std::get_if<ir::bounds::SizedByBinding>(&s.bounds)) {
             std::string pinned_ctx =
                 absl::Substitute("sapi_ctx_$0_$1[sapi_i]", param.name, suffix);
-            std::string size_expr = absl::Substitute(
-                "sapi::lwbox::CheckedToSizeT($0)",
-                CompileBindingExpr(pinned_ctx, binding->binding_name));
+            std::string size_expr =
+                CompileSizedByBindingExpr(pinned_ctx, binding->binding_name);
             if (binding->is_elem_sized) {
               size_expr = absl::Substitute(
                   "sandbox->CheckedMultiply(sizeof(*($0)), ($1))",
@@ -3782,7 +4359,7 @@ void EmitHostSrcParam(const ir::Parameter& param, std::string& pre_call,
                                                  param.name));
                 absl::StrAppend(
                     &call_args,
-                    absl::Substitute("sapi_tmp_$0.PtrAfter()", param.name));
+                    absl::Substitute("sapi_tmp_$0.PtrBoth()", param.name));
                 absl::SubstituteAndAppend(
                     &post_call,
                     "  if ($0 != nullptr) {\n"
@@ -3829,11 +4406,9 @@ void EmitHostSrcParam(const ir::Parameter& param, std::string& pre_call,
                   &pre_call,
                   absl::Substitute("  sapi::v::Reg<$0> sapi_tmp_$1(nullptr);\n",
                                    pointee_type, param.name));
-              std::string ptr_access =
-                  (buf.direction == PointerDir::kIn)
-                      ? "PtrBefore()"
-                      : ((buf.direction == PointerDir::kOut) ? "PtrAfter()"
-                                                             : "PtrBoth()");
+              std::string ptr_access = (buf.direction == PointerDir::kIn)
+                                           ? "PtrBefore()"
+                                           : "PtrBoth()";
               absl::StrAppend(
                   &call_args,
                   absl::Substitute("$0 == nullptr ? nullptr : sapi_tmp_$0.$1",
@@ -4194,6 +4769,9 @@ absl::flat_hash_set<std::string> GatherHostIncludes(
             host_includes.insert("<type_traits>");
             host_includes.insert("<vector>");
           }
+        } else if (std::holds_alternative<ir::lifetime::AliasHostPtr>(
+                       ret_buf->lifetime)) {
+          host_includes.insert("<cstdint>");
         } else if (ret_buf->context_bound.copy_from_and_bind.has_value() &&
                    std::holds_alternative<ir::bounds::NullTerminated>(
                        ret_buf->bounds)) {
@@ -4655,7 +5233,9 @@ absl::StatusOr<std::string> EmitHostSrc(
                                      kWrapperPrefix, func->name, call_args));
     absl::StrAppend(&out, post_call);
 
-    // Context bound post-call data binding
+    // Context bound post-call data binding. `host_computable_expr` can read
+    // values that the sandboxee writes (for example, OUT struct fields), so
+    // lower it through checked arithmetic.
     for (const auto& bind : func->context_bound.bind_data) {
       std::string ctx_name = ResolveContextName(bind.context);
       absl::StrAppend(
@@ -4665,7 +5245,8 @@ absl::StatusOr<std::string> EmitHostSrc(
               "    sapi::lwbox::ContextBindingRegistry::Instance()->BindSize(\n"
               "        $0, \"$2\", $1);\n"
               "  }\n",
-              ctx_name, bind.host_computable_expr, bind.binding_name));
+              ctx_name, CompileCheckedSizeExpr(bind.host_computable_expr),
+              bind.binding_name));
     }
 
     if (func->return_value) {
@@ -4681,11 +5262,30 @@ absl::StatusOr<std::string> EmitHostSrc(
               [&](const ir::BufferParam& ret_buf) {
                 if (const auto* alias = std::get_if<ir::lifetime::AliasHostPtr>(
                         &ret_buf.lifetime)) {
-                  absl::StrAppend(
+                  const ir::Parameter* host_param =
+                      func->FindParameter(alias->host_param_name);
+                  const auto* host_buf = host_param != nullptr
+                                             ? host_param->As<ir::BufferParam>()
+                                             : nullptr;
+                  std::string expected_remote =
+                      (host_buf != nullptr &&
+                       host_buf->context_bound.retain_and_bind.has_value())
+                          ? absl::Substitute("sapi_tmp_$0.GetRemoteValue()",
+                                             alias->host_param_name)
+                          : absl::Substitute(
+                                "reinterpret_cast<uintptr_t>(sapi_tmp_$0."
+                                "GetRemote())",
+                                alias->host_param_name);
+                  absl::SubstituteAndAppend(
                       &out,
-                      absl::Substitute(
-                          "  return sapi_ret_arg.GetValue() ? $0 : nullptr;\n",
-                          alias->host_param_name));
+                      "  if (sapi_ret_arg.GetValue() != nullptr) {\n"
+                      "    "
+                      "CHECK_EQ(reinterpret_cast<uintptr_t>(sapi_ret_arg."
+                      "GetValue()),\n"
+                      "             $1);\n"
+                      "  }\n"
+                      "  return sapi_ret_arg.GetValue() ? $0 : nullptr;\n",
+                      alias->host_param_name, expected_remote);
                 } else if (const auto* alias_cb =
                                std::get_if<ir::lifetime::AliasCallbackReturn>(
                                    &ret_buf.lifetime)) {

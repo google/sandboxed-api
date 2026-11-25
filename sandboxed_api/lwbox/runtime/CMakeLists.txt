@@ -107,6 +107,7 @@ target_link_libraries(sapi_lwbox_runtime
     absl::strings
     absl::synchronization
     sapi::base
+    sapi::checked_math
     sapi::sapi
     sapi::vars
 )

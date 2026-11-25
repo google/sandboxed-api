@@ -85,6 +85,7 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "sandboxed_api/sandbox.h"
+#include "sandboxed_api/util/checked_math.h"
 #include "sandboxed_api/var_callback.h"
 
 namespace sapi {
@@ -488,12 +489,52 @@ size_t CheckedToSizeT(T value) {
     if constexpr (std::is_signed_v<T>) {
       CHECK_GE(value, 0) << "Negative buffer size: " << value;
     }
-    if constexpr (sizeof(T) > sizeof(size_t)) {
-      CHECK_LE(static_cast<std::make_unsigned_t<T>>(value),
-               std::numeric_limits<size_t>::max());
+    using UnsignedT = std::make_unsigned_t<T>;
+    const UnsignedT uval = static_cast<UnsignedT>(value);
+    if constexpr (sizeof(UnsignedT) > sizeof(size_t)) {
+      CHECK_LE(uval, static_cast<UnsignedT>(std::numeric_limits<size_t>::max()))
+          << "Buffer size overflows size_t: " << uval;
     }
-    return static_cast<size_t>(value);
+    return static_cast<size_t>(uval);
   }
+}
+
+// Overflow-checked `size_t` arithmetic helpers for generated buffer size
+// calculations. Abort via `CHECK` on overflow or underflow.
+inline size_t CheckedAdd(size_t a, size_t b) {
+  size_t sum = 0;
+#if __has_builtin(__builtin_add_overflow)
+  CHECK(!__builtin_add_overflow(a, b, &sum))
+      << "Size addition overflow: " << a << " + " << b;
+#else
+  CHECK_LE(b, std::numeric_limits<size_t>::max() - a)
+      << "Size addition overflow: " << a << " + " << b;
+  sum = a + b;
+#endif
+  return sum;
+}
+
+inline size_t CheckedSub(size_t a, size_t b) {
+  size_t diff = 0;
+#if __has_builtin(__builtin_sub_overflow)
+  CHECK(!__builtin_sub_overflow(a, b, &diff))
+      << "Size subtraction underflow: " << a << " - " << b;
+#else
+  CHECK_GE(a, b) << "Size subtraction underflow: " << a << " - " << b;
+  diff = a - b;
+#endif
+  return diff;
+}
+
+inline size_t CheckedMultiply(size_t a, size_t b) {
+  return ::sapi::CheckedMultiply(a, b);
+}
+
+// Aborts via `CHECK` on a zero divisor, so that a sandboxee-written divisor
+// cannot raise a division-by-zero trap in the host.
+inline size_t CheckedDivide(size_t a, size_t b) {
+  CHECK_NE(b, 0u) << "Size division by zero: " << a << " / 0";
+  return a / b;
 }
 
 namespace internal {

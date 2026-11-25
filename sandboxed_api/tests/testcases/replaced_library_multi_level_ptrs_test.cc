@@ -469,6 +469,57 @@ TEST(MultiLevelPointersTest,
   }
 }
 
+TEST(MultiLevelPointersTest, HostShimSizeArithmeticAbortsOnNegativeOrOverflow) {
+  const std::vector<int> xy = {1, 2, 3, 4, 5, 6};
+  EXPECT_EQ(sum_signed_pairs(xy.data(), /*n=*/3), 21);
+
+  if (IsSandboxed()) {
+    // The shim converts the signed `n` in `2 * n` with `CheckedToSizeT`, so a
+    // negative count cannot wrap around.
+    EXPECT_DEATH(sum_signed_pairs(xy.data(), /*n=*/-1),
+                 "Negative buffer size: -1");
+    // The element-to-byte capacity `cap * sizeof(int)` overflows `size_t`.
+    EXPECT_DEATH(
+        {
+          std::vector<int> dst(4, 0);
+          size_t out_len = 0;
+          fill_explicit_outparam_sized(dst.data(), /*cap=*/SIZE_MAX / 2,
+                                       /*claimed_len=*/0, &out_len);
+        },
+        "MultiplyOverflow");
+  }
+}
+
+TEST(MultiLevelPointersTest, AliasPtrReturnMustPointToAliasedBuffer) {
+  std::vector<int> buf = {1, 2, 3, 4};
+  EXPECT_EQ(offset_alias(buf.data(), buf.size(), /*offset=*/0), buf.data());
+
+  if (IsSandboxed()) {
+    // The sandboxee returns an interior pointer instead of `buf`.
+    EXPECT_DEATH(offset_alias(buf.data(), buf.size(), /*offset=*/1),
+                 "sapi_ret_arg\\.GetValue\\(\\)\\) == ");
+  }
+}
+
+TEST(MultiLevelPointersTest, CopyFromAndBindOutSlotReadsBackNullOnEarlyReturn) {
+  DbHandle* db = nullptr;
+  ASSERT_EQ(open_db_handle(5, &db), 0);
+  // A successful call first leaves a non-null pointer in sandboxee memory that
+  // a later out slot can reuse.
+  const int* alt = nullptr;
+  ASSERT_EQ(get_db_alt_slice(db, &alt), 0);
+  ASSERT_NE(alt, nullptr);
+
+  // With a null `db`, the callee returns early and does not write `*out_alt`.
+  // The shim sends a zeroed slot (`PtrBoth()`), so the stale `alt` becomes
+  // `nullptr` instead of a value from uninitialized sandboxee memory.
+  EXPECT_EQ(get_db_alt_slice(/*db=*/nullptr, &alt), -1);
+  if (IsSandboxed()) {
+    EXPECT_EQ(alt, nullptr);
+  }
+  close_db_handle(db);
+}
+
 int TestOutCountedFillCb(int* dst, size_t cap_bytes, int* out_count,
                          int should_fail) {
   if (should_fail != 0) {
@@ -976,6 +1027,28 @@ TEST(MultiLevelPointersTest,
   }
   for (int i = 0; i < 9; ++i) {
     EXPECT_EQ(batch_out1[i], 22 * 10 + 2 + i);
+  }
+}
+
+TEST(MultiLevelPointersTest,
+     ExplicitElemSizedByOutparamRejectsOverCapacityLength) {
+  std::vector<int> dst(4, 0);
+  size_t out_len = 0;
+  ASSERT_EQ(fill_explicit_outparam_sized(dst.data(), dst.size(),
+                                         /*claimed_len=*/3, &out_len),
+            3);
+  EXPECT_EQ(out_len, 3u);
+  EXPECT_EQ(dst, (std::vector<int>{100, 101, 102, 0}));
+
+  if (IsSandboxed()) {
+    EXPECT_DEATH(
+        {
+          std::vector<int> small_dst(4, 0);
+          size_t over_len = 0;
+          fill_explicit_outparam_sized(small_dst.data(), small_dst.size(),
+                                       /*claimed_len=*/10, &over_len);
+        },
+        "Sandboxee returned size \\(40\\) exceeding capacity \\(16\\)");
   }
 }
 

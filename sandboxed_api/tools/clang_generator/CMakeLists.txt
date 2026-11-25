@@ -187,6 +187,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     absl::status_macros
     absl::status_matchers
     absl::statusor
+    absl::strings
     benchmark
     sapi::file_base
     sapi::file_helpers
