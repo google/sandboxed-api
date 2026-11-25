@@ -457,6 +457,7 @@ class PolicyBuilder final {
   // - stat64
   // - statfs
   // - statfs64
+  // - statx
   // - ustat
   PolicyBuilder& AllowStat();
 

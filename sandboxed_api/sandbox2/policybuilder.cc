@@ -879,6 +879,12 @@ PolicyBuilder& PolicyBuilder::AllowStat() {
 #ifdef __NR_statfs64
   AllowSyscall(__NR_statfs64);
 #endif
+#ifdef __NR_statx
+  AllowSyscall(__NR_statx);
+#endif
+#ifdef __NR_ustat
+  AllowSyscall(__NR_ustat);
+#endif
   return *this;
 }
 
