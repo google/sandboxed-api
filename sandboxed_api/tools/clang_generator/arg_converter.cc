@@ -644,6 +644,7 @@ ir::BufferBounds AnnotationsToBufferBounds(const Annotations& ann) {
             bounds = ir::bounds::SizedByBinding{
                 .context_expr = binding.context,
                 .binding_name = binding.binding_expr,
+                .is_elem_sized = binding.is_elem_sized,
             };
           },
           [&](const NullTerminated&) { bounds = ir::bounds::NullTerminated{}; },
@@ -1228,7 +1229,8 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
         return false;
       }
       if ((std::holds_alternative<ByteSizedBy>(ann.size_type) ||
-           std::holds_alternative<SizedByBinding>(ann.size_type)) &&
+           (std::holds_alternative<SizedByBinding>(ann.size_type) &&
+            !std::get<SizedByBinding>(ann.size_type).is_elem_sized)) &&
           IsSupportedArgByteSizedByType(alloc_ptr)) {
         return true;
       }
@@ -1286,8 +1288,10 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                   const bool is_void_byte_sized =
                       (std::holds_alternative<ByteSizedBy>(
                            matched_member->size_type) ||
-                       std::holds_alternative<SizedByBinding>(
-                           matched_member->size_type)) &&
+                       (std::holds_alternative<SizedByBinding>(
+                            matched_member->size_type) &&
+                        !std::get<SizedByBinding>(matched_member->size_type)
+                             .is_elem_sized)) &&
                       IsSupportedArgByteSizedByType(field->getType());
                   // The pointed-to buffer is copied as raw bytes, and callback
                   // fields inside it are never translated (`collect_callbacks`
@@ -1377,7 +1381,8 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
               copyability_reason.empty() ? &copyability_reason : nullptr,
               /*in_array=*/false, /*in_callback=*/is_callback_param) &&
           !((std::holds_alternative<ByteSizedBy>(ann.size_type) ||
-             std::holds_alternative<SizedByBinding>(ann.size_type)) &&
+             (std::holds_alternative<SizedByBinding>(ann.size_type) &&
+              !std::get<SizedByBinding>(ann.size_type).is_elem_sized)) &&
             IsSupportedArgByteSizedByType(type)) &&
           !(std::holds_alternative<NullTerminated>(ann.size_type) &&
             std::holds_alternative<SandboxGlobalLifetime>(ann.lifetime) &&
@@ -1843,6 +1848,13 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                              &ir_sync.bounds)) {
                 byte->size_expr = ast::PrefixStructMemberSizeExpr(
                     *record_decl, size_expr_prefix, byte->size_expr);
+              } else if (auto* binding =
+                             std::get_if<ir::bounds::SizedByBinding>(
+                                 &ir_sync.bounds)) {
+                binding->context_expr = ast::PrefixStructMemberSizeExpr(
+                    *record_decl, size_expr_prefix, binding->context_expr);
+                binding->binding_name = ast::PrefixStructMemberBindingExpr(
+                    *record_decl, size_expr_prefix, binding->binding_name);
               } else if (std::holds_alternative<ir::bounds::NullTerminated>(
                              ir_sync.bounds)) {
                 const clang::FieldDecl* synced_field = nullptr;
@@ -1916,6 +1928,14 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
           return absl::InvalidArgumentError(absl::Substitute(
               "struct_sync access path $0: lifetime_malloc cannot be combined "
               "with retain_and_bind or copy_from_and_bind_out_ptr",
+              sync.access_path));
+        }
+        if (std::holds_alternative<ir::bounds::SizedByBinding>(
+                ir_sync.bounds)) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "struct_sync access path $0: lifetime_malloc cannot be combined "
+              "with sized_by_binding or elem_sized_by_binding, because the "
+              "binding context would come from sandboxee-written fields",
               sync.access_path));
         }
       }

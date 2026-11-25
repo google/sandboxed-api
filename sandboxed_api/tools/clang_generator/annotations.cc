@@ -604,6 +604,17 @@ absl::StatusOr<Annotations> ParseReturnDeclAnnotations(
       absl::Status status = annotations.SetSizedByBinding(
           StripQuotes(ann.args[0]), StripQuotes(ann.args[1]));
       ABSL_RETURN_IF_ERROR(status);
+    } else if (ann.name == "elem_sized_by_binding") {
+      if (ann.args.size() != 2) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("function return $0: `elem_sized_by_binding` "
+                             "annotation requires two arguments",
+                             name));
+      }
+      expected_args = 2;
+      absl::Status status = annotations.SetElemSizedByBinding(
+          StripQuotes(ann.args[0]), StripQuotes(ann.args[1]));
+      ABSL_RETURN_IF_ERROR(status);
     } else if (ann.name == "lifetime_sandbox_global") {
       ABSL_RETURN_IF_ERROR(annotations.SetSandboxGlobalLifetime());
     } else if (ann.name == "lifetime_malloc") {
@@ -806,6 +817,17 @@ absl::StatusOr<Annotations> ParseParamOrPointeeAnnotations(
       }
       expected_args = 2;
       absl::Status status = annotations.SetSizedByBinding(
+          StripQuotes(ann.args[0]), StripQuotes(ann.args[1]));
+      ABSL_RETURN_IF_ERROR(status);
+    } else if (ann.name == "elem_sized_by_binding") {
+      if (ann.args.size() != 2) {
+        return absl::InvalidArgumentError(
+            absl::Substitute("param $0: `elem_sized_by_binding` annotation "
+                             "requires two arguments",
+                             name));
+      }
+      expected_args = 2;
+      absl::Status status = annotations.SetElemSizedByBinding(
           StripQuotes(ann.args[0]), StripQuotes(ann.args[1]));
       ABSL_RETURN_IF_ERROR(status);
     } else if (ann.name == "lifetime_sandbox_global") {
@@ -1050,6 +1072,10 @@ absl::Status CheckShadowRecordMatchesRealRecord(
     } else if (const auto* byte = std::get_if<ByteSizedBy>(&member.size_type)) {
       ABSL_RETURN_IF_ERROR(ast::ValidateStructMemberSizeExpr(
           *real_record, member.name, byte->expr));
+    } else if (const auto* binding =
+                   std::get_if<SizedByBinding>(&member.size_type)) {
+      ABSL_RETURN_IF_ERROR(ast::ValidateStructMemberBinding(
+          *real_record, member.name, binding->context, binding->binding_expr));
     }
   }
   return absl::OkStatus();
@@ -1106,6 +1132,25 @@ absl::StatusOr<RecordAnnotations> ParseRecordAnnotations(
         member.size_type = ByteSizedBy{ann.args[0]};
       } else if (ann.name == "null_terminated") {
         member.size_type = NullTerminated{};
+      } else if (ann.name == "sized_by_binding") {
+        if (ann.args.size() != 2) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "field $0: sized_by_binding annotation requires two arguments",
+              member.name));
+        }
+        member.size_type =
+            SizedByBinding{StripQuotes(ann.args[0]), StripQuotes(ann.args[1]),
+                           /*is_elem_sized=*/false};
+      } else if (ann.name == "elem_sized_by_binding") {
+        if (ann.args.size() != 2) {
+          return absl::InvalidArgumentError(
+              absl::Substitute("field $0: elem_sized_by_binding annotation "
+                               "requires two arguments",
+                               member.name));
+        }
+        member.size_type =
+            SizedByBinding{StripQuotes(ann.args[0]), StripQuotes(ann.args[1]),
+                           /*is_elem_sized=*/true};
       } else if (ann.name == "lifetime_malloc") {
         member.lifetime = MallocLifetime{};
       } else {
@@ -1125,6 +1170,18 @@ absl::StatusOr<RecordAnnotations> ParseRecordAnnotations(
             "written on the field",
             member.name, *member.callback_typedef));
       }
+    }
+
+    // The host reads the binding context of a `lifetime_malloc` member from
+    // sandboxee-written struct fields after the call. An `out_ptr` struct has
+    // no trusted pre-call value to pin the key to.
+    if (std::holds_alternative<MallocLifetime>(member.lifetime) &&
+        std::holds_alternative<SizedByBinding>(member.size_type)) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "field $0: lifetime_malloc on a record member cannot be combined "
+          "with sized_by_binding or elem_sized_by_binding, because the "
+          "binding context would come from sandboxee-written fields",
+          member.name));
     }
 
     if (std::holds_alternative<MallocLifetime>(member.lifetime) &&
@@ -1174,6 +1231,11 @@ absl::Status CheckCallbackTypedefAnnotationsAreContextIndependent(
   } else if (std::holds_alternative<AliasCallbackReturnLifetime>(
                  annotations.lifetime)) {
     offender = "alias_callback_return";
+  } else if (const auto* binding =
+                 std::get_if<SizedByBinding>(&annotations.size_type)) {
+    // A size binding reads the size stored for a context object of one call.
+    offender =
+        binding->is_elem_sized ? "elem_sized_by_binding" : "sized_by_binding";
   } else if (!annotations.context_bound.bind_data.empty()) {
     offender = "bind_data";
   } else if (annotations.context_bound.copy_from_and_bind.has_value()) {

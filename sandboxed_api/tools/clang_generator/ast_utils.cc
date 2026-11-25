@@ -21,6 +21,8 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
@@ -36,6 +38,7 @@
 #include "clang/AST/Stmt.h"
 #include "clang/AST/Type.h"
 #include "clang/AST/TypeLoc.h"
+#include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
@@ -44,6 +47,7 @@
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/Token.h"
 #include "clang/Rewrite/Core/Rewriter.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/Casting.h"
@@ -78,11 +82,21 @@ std::optional<std::string> ParentPrefixOfAccessPath(absl::string_view path) {
 
 namespace {
 
-// Tokenizes `expr` in Clang raw lexer mode. `expr` must be null-terminated and
+enum class StructExprRole {
+  kSize,
+  kBindingContext,
+  kBindingSize,
+};
+
+// Tokenizes `expr` in Clang raw lexer mode with C++ and `$`-identifier support
+// enabled so `$binding` placeholders lex as single `raw_identifier` tokens
+// regardless of `-fdollars-in-identifiers`. `expr` must be null-terminated and
 // must outlive the returned tokens (whose `getRawIdentifier()` views point into
 // `expr`).
-std::vector<clang::Token> LexRawTokens(const clang::LangOptions& lang_opts,
+std::vector<clang::Token> LexRawTokens(clang::LangOptions lang_opts,
                                        const std::string& expr) {
+  lang_opts.CPlusPlus = true;
+  lang_opts.DollarIdents = true;
   std::vector<clang::Token> tokens;
   clang::Lexer lexer(clang::SourceLocation::getFromRawEncoding(1), lang_opts,
                      expr.data(), expr.data(), expr.data() + expr.size());
@@ -97,6 +111,201 @@ std::vector<clang::Token> LexRawTokens(const clang::LangOptions& lang_opts,
     }
   }
   return tokens;
+}
+
+bool IsTagKeyword(const clang::Token& tok) {
+  if (!tok.is(clang::tok::raw_identifier)) {
+    return false;
+  }
+  llvm::StringRef id = tok.getRawIdentifier();
+  return id == "struct" || id == "union" || id == "enum" || id == "class";
+}
+
+// Matches `CompileBindingExpr` in `codegen.cc`: a sole C identifier without `$`
+// in `binding_expr` names a `ContextBindingRegistry` string key directly rather
+// than evaluating as a C++ variable or struct member.
+bool IsSoleBindingKey(absl::string_view expr) {
+  if (expr.empty() || absl::StrContains(expr, '$') ||
+      !(absl::ascii_isalpha(expr[0]) || expr[0] == '_')) {
+    return false;
+  }
+  for (char c : expr) {
+    if (!(absl::ascii_isalnum(c) || c == '_')) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool IsValidDollarPlaceholder(absl::string_view ident) {
+  if (ident.size() < 2 || ident[0] != '$' ||
+      !(absl::ascii_isalpha(ident[1]) || ident[1] == '_')) {
+    return false;
+  }
+  for (size_t i = 2; i < ident.size(); ++i) {
+    if (!(absl::ascii_isalnum(ident[i]) || ident[i] == '_')) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool IsMemberOfRecord(const clang::RecordDecl& record_decl,
+                      clang::DeclarationName decl_name) {
+  const clang::RecordDecl* def = record_decl.getDefinition();
+  if (def == nullptr) {
+    return false;
+  }
+  if (!def->lookup(decl_name).empty()) {
+    return true;
+  }
+  if (const auto* cxx_record = llvm::dyn_cast<clang::CXXRecordDecl>(def)) {
+    for (const clang::CXXBaseSpecifier& base : cxx_record->bases()) {
+      if (const clang::RecordDecl* base_decl =
+              base.getType()->getAsRecordDecl();
+          base_decl != nullptr && IsMemberOfRecord(*base_decl, decl_name)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool LookupInDeclContextAndUsingDirectives(
+    const clang::DeclContext& ctx, clang::DeclarationName decl_name,
+    bool require_value_decl,
+    llvm::SmallPtrSetImpl<const clang::NamespaceDecl*>& visited_ns) {
+  for (const clang::NamedDecl* nd : ctx.lookup(decl_name)) {
+    if (!require_value_decl || llvm::isa<clang::ValueDecl>(nd)) {
+      return true;
+    }
+  }
+  for (const clang::UsingDirectiveDecl* ud : ctx.using_directives()) {
+    const clang::NamespaceDecl* ns = ud->getNominatedNamespace();
+    if (ns != nullptr && visited_ns.insert(ns->getCanonicalDecl()).second &&
+        LookupInDeclContextAndUsingDirectives(*ns, decl_name,
+                                              require_value_decl, visited_ns)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool IsVisibleInEnclosingScopes(const clang::RecordDecl& def,
+                                clang::DeclarationName decl_name,
+                                bool require_value_decl) {
+  llvm::SmallPtrSet<const clang::NamespaceDecl*, 8> visited_ns;
+  for (const clang::DeclContext* ctx = def.getDeclContext(); ctx != nullptr;
+       ctx = ctx->getParent()) {
+    if (LookupInDeclContextAndUsingDirectives(*ctx, decl_name,
+                                              require_value_decl, visited_ns)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+absl::Status ValidateStructMemberExprImpl(const clang::RecordDecl& real_record,
+                                          absl::string_view field_name,
+                                          absl::string_view raw_expr,
+                                          StructExprRole role) {
+  const clang::RecordDecl* def = real_record.getDefinition();
+  if (def == nullptr) {
+    return absl::OkStatus();
+  }
+  absl::string_view expr_label =
+      role == StructExprRole::kSize
+          ? "size expression"
+          : (role == StructExprRole::kBindingContext ? "context expression"
+                                                     : "binding expression");
+  if (role != StructExprRole::kSize &&
+      absl::StripAsciiWhitespace(raw_expr).empty()) {
+    return absl::InvalidArgumentError(
+        absl::Substitute("field $0 in record $1: $2 cannot be empty",
+                         field_name, def->getName().str(), expr_label));
+  }
+  if (raw_expr.empty()) {
+    return absl::OkStatus();
+  }
+
+  clang::ASTContext& ast_ctx = def->getASTContext();
+  clang::LangOptions lang_opts = ast_ctx.getLangOpts();
+  lang_opts.CPlusPlus = true;
+  clang::IdentifierTable kw_idents(lang_opts);
+
+  if (role == StructExprRole::kBindingSize && IsSoleBindingKey(raw_expr) &&
+      kw_idents.get(llvm::StringRef(raw_expr.data(), raw_expr.size()))
+              .getTokenID() == clang::tok::identifier) {
+    return absl::OkStatus();
+  }
+
+  std::string expr(raw_expr);
+  std::vector<clang::Token> tokens = LexRawTokens(lang_opts, expr);
+  for (size_t i = 0; i < tokens.size(); ++i) {
+    if (!tokens[i].is(clang::tok::raw_identifier)) {
+      continue;
+    }
+    llvm::StringRef raw_ident = tokens[i].getRawIdentifier();
+    absl::string_view ident(raw_ident.data(), raw_ident.size());
+
+    const bool preceded_by_member_or_scope =
+        i > 0 &&
+        tokens[i - 1].isOneOf(clang::tok::period, clang::tok::arrow,
+                              clang::tok::periodstar, clang::tok::arrowstar,
+                              clang::tok::coloncolon);
+    const bool preceded_by_tag = i > 0 && IsTagKeyword(tokens[i - 1]);
+    const bool followed_by_scope =
+        i + 1 < tokens.size() && tokens[i + 1].is(clang::tok::coloncolon);
+    const bool followed_by_member_access =
+        i + 1 < tokens.size() &&
+        tokens[i + 1].isOneOf(clang::tok::period, clang::tok::arrow,
+                              clang::tok::periodstar, clang::tok::arrowstar);
+
+    if (absl::StrContains(ident, '$')) {
+      if (role != StructExprRole::kBindingSize) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "field $0 in record $1: $2 '$3' cannot contain binding "
+            "placeholder '$4'",
+            field_name, def->getName().str(), expr_label, raw_expr, ident));
+      }
+      if (!IsValidDollarPlaceholder(ident) || preceded_by_member_or_scope ||
+          followed_by_member_access || followed_by_scope) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "field $0 in record $1: $2 '$3' has invalid binding placeholder "
+            "'$4'",
+            field_name, def->getName().str(), expr_label, raw_expr, ident));
+      }
+      continue;
+    }
+
+    if (preceded_by_member_or_scope || preceded_by_tag || followed_by_scope) {
+      continue;
+    }
+
+    clang::DeclarationName decl_name(&ast_ctx.Idents.get(raw_ident));
+    if (followed_by_member_access) {
+      if (!IsNonStaticDataMember(*def, ident) &&
+          !IsVisibleInEnclosingScopes(*def, decl_name,
+                                      /*require_value_decl=*/true)) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "field $0 in record $1: $2 '$3' references unknown member '$4'",
+            field_name, def->getName().str(), expr_label, raw_expr, ident));
+      }
+      continue;
+    }
+
+    if (kw_idents.get(raw_ident).getTokenID() != clang::tok::identifier) {
+      continue;
+    }
+    if (!IsMemberOfRecord(*def, decl_name) &&
+        !IsVisibleInEnclosingScopes(*def, decl_name,
+                                    /*require_value_decl=*/false)) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "field $0 in record $1: $2 '$3' references unknown member '$4'",
+          field_name, def->getName().str(), expr_label, raw_expr, ident));
+    }
+  }
+  return absl::OkStatus();
 }
 
 }  // namespace
@@ -130,40 +339,22 @@ bool IsNonStaticDataMember(const clang::RecordDecl& record_decl,
 absl::Status ValidateStructMemberSizeExpr(const clang::RecordDecl& real_record,
                                           absl::string_view field_name,
                                           absl::string_view size_expr) {
-  const clang::RecordDecl* def = real_record.getDefinition();
-  if (def == nullptr || size_expr.empty()) {
-    return absl::OkStatus();
-  }
-  clang::LangOptions lang_opts = def->getASTContext().getLangOpts();
-  lang_opts.CPlusPlus = true;
+  return ValidateStructMemberExprImpl(real_record, field_name, size_expr,
+                                      StructExprRole::kSize);
+}
 
-  std::string expr(size_expr);
-  std::vector<clang::Token> tokens = LexRawTokens(lang_opts, expr);
-  for (size_t i = 0; i < tokens.size(); ++i) {
-    if (!tokens[i].is(clang::tok::raw_identifier)) {
-      continue;
-    }
-    const bool preceded_by_member_or_scope =
-        i > 0 &&
-        tokens[i - 1].isOneOf(clang::tok::period, clang::tok::arrow,
-                              clang::tok::periodstar, clang::tok::arrowstar,
-                              clang::tok::coloncolon);
-    const bool followed_by_member_access =
-        i + 1 < tokens.size() &&
-        tokens[i + 1].isOneOf(clang::tok::period, clang::tok::arrow,
-                              clang::tok::periodstar, clang::tok::arrowstar);
-    if (!preceded_by_member_or_scope && followed_by_member_access) {
-      llvm::StringRef ident = tokens[i].getRawIdentifier();
-      if (!IsNonStaticDataMember(
-              *def, absl::string_view(ident.data(), ident.size()))) {
-        return absl::InvalidArgumentError(absl::Substitute(
-            "field $0 in record $1: size expression '$2' references unknown "
-            "member '$3'",
-            field_name, def->getName().str(), size_expr, ident.str()));
-      }
-    }
+absl::Status ValidateStructMemberBinding(const clang::RecordDecl& real_record,
+                                         absl::string_view field_name,
+                                         absl::string_view context_expr,
+                                         absl::string_view binding_expr) {
+  if (absl::Status status =
+          ValidateStructMemberExprImpl(real_record, field_name, context_expr,
+                                       StructExprRole::kBindingContext);
+      !status.ok()) {
+    return status;
   }
-  return absl::OkStatus();
+  return ValidateStructMemberExprImpl(real_record, field_name, binding_expr,
+                                      StructExprRole::kBindingSize);
 }
 
 std::string PrefixStructMemberSizeExpr(const clang::RecordDecl& record_decl,
@@ -176,11 +367,10 @@ std::string PrefixStructMemberSizeExpr(const clang::RecordDecl& record_decl,
   if (def == nullptr) {
     return std::string(size_expr);
   }
-  clang::LangOptions lang_opts = def->getASTContext().getLangOpts();
-  lang_opts.CPlusPlus = true;
 
   std::string expr(size_expr);
-  std::vector<clang::Token> tokens = LexRawTokens(lang_opts, expr);
+  std::vector<clang::Token> tokens =
+      LexRawTokens(def->getASTContext().getLangOpts(), expr);
 
   std::string result;
   size_t last_pos = 0;
@@ -188,17 +378,23 @@ std::string PrefixStructMemberSizeExpr(const clang::RecordDecl& record_decl,
     if (!tokens[i].is(clang::tok::raw_identifier)) {
       continue;
     }
-    const bool preceded_by_member_or_scope =
-        i > 0 &&
-        tokens[i - 1].isOneOf(clang::tok::period, clang::tok::arrow,
-                              clang::tok::periodstar, clang::tok::arrowstar,
-                              clang::tok::coloncolon);
-    const bool followed_by_scope =
-        i + 1 < tokens.size() && tokens[i + 1].is(clang::tok::coloncolon);
-    if (preceded_by_member_or_scope || followed_by_scope) {
+    llvm::StringRef ident = tokens[i].getRawIdentifier();
+    // `LexRawTokens` lexes a `$binding` or `$return` placeholder as one
+    // identifier. Never prefix it, even if a field has the same spelling.
+    if (ident.starts_with('$')) {
       continue;
     }
-    llvm::StringRef ident = tokens[i].getRawIdentifier();
+    const bool preceded_by_member_scope_or_tag =
+        i > 0 &&
+        (tokens[i - 1].isOneOf(clang::tok::period, clang::tok::arrow,
+                               clang::tok::periodstar, clang::tok::arrowstar,
+                               clang::tok::coloncolon) ||
+         IsTagKeyword(tokens[i - 1]));
+    const bool followed_by_scope =
+        i + 1 < tokens.size() && tokens[i + 1].is(clang::tok::coloncolon);
+    if (preceded_by_member_scope_or_tag || followed_by_scope) {
+      continue;
+    }
     if (!IsNonStaticDataMember(*def,
                                absl::string_view(ident.data(), ident.size()))) {
       continue;
@@ -212,6 +408,15 @@ std::string PrefixStructMemberSizeExpr(const clang::RecordDecl& record_decl,
   }
   absl::StrAppend(&result, absl::string_view(expr).substr(last_pos));
   return result;
+}
+
+std::string PrefixStructMemberBindingExpr(const clang::RecordDecl& record_decl,
+                                          absl::string_view parent_prefix,
+                                          absl::string_view binding_expr) {
+  if (IsSoleBindingKey(binding_expr)) {
+    return std::string(binding_expr);
+  }
+  return PrefixStructMemberSizeExpr(record_decl, parent_prefix, binding_expr);
 }
 
 namespace {

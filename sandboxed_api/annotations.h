@@ -231,8 +231,10 @@
 // `context` object (see SANDBOX_BIND_SIZE).
 // We allow simple expressions involving binding names prefixed with '$'
 // (e.g., simply "$binding_name", or "2 * param * $binding_name").
-#define SANDBOX_BYTE_SIZED_BY_BINDING(context, binding_expr) \
-  [[clang::annotate("sandbox", "sized_by_binding", #context, #binding_expr)]]
+#define SANDBOX_BYTE_SIZED_BY_BINDING(context, binding_expr)  \
+  [[clang::annotate("sandbox", "sized_by_binding",            \
+                    SANDBOX_INTERNAL_STRINGIFY_NEST(context), \
+                    SANDBOX_INTERNAL_STRINGIFY_NEST(binding_expr))]]
 
 // Wraps a re-definition of a struct. The re-definition allows us to attach
 // annotations to each struct data member without patching the original struct
@@ -262,6 +264,13 @@
 // keyword and trailing semicolon) must be passed inside the macro parentheses.
 #define SANDBOX_ANNOTATE_STRUCT(struct_decl) \
   SANDBOX_ANNOTATE_STRUCT_IMPL(struct_decl)
+
+// Like SANDBOX_BYTE_SIZED_BY_BINDING, but the bound expression specifies the
+// number of elements rather than the number of bytes.
+#define SANDBOX_ELEM_SIZED_BY_BINDING(context, binding_expr)  \
+  [[clang::annotate("sandbox", "elem_sized_by_binding",       \
+                    SANDBOX_INTERNAL_STRINGIFY_NEST(context), \
+                    SANDBOX_INTERNAL_STRINGIFY_NEST(binding_expr))]]
 
 // Annotations for sandboxee and host thunks.
 // These just mean that we also emit these into the sandbox / host code.

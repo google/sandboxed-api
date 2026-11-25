@@ -343,9 +343,16 @@ std::string GetParamCapacityAsBytesExpr(const ir::Parameter& param,
             DCHECK(!byte.capacity_expr.empty());
             return byte.capacity_expr;
           },
-          [](const ir::bounds::SizedByBinding& binding) {
+          [&](const ir::bounds::SizedByBinding& binding) {
             std::string context_var = ResolveContextName(binding.context_expr);
-            return CompileBindingExpr(context_var, binding.binding_name);
+            std::string expr =
+                CompileBindingExpr(context_var, binding.binding_name);
+            if (binding.is_elem_sized) {
+              return absl::Substitute(
+                  "sandbox->CheckedMultiply(sizeof(*$0), ($1))", param.name,
+                  expr);
+            }
+            return expr;
           },
           [&](const ir::bounds::NullTerminated&) {
             if (IsConstCharPointee(param.type)) {
@@ -401,9 +408,16 @@ std::string GetParamSizeAsBytesExpr(const ir::Parameter& param,
                 "($0 == nullptr ? 0 : sapi::lwbox::CheckedToSizeT(*$0))",
                 byte.outparam_name);
           },
-          [](const ir::bounds::SizedByBinding& binding) {
+          [&](const ir::bounds::SizedByBinding& binding) {
             std::string context_var = ResolveContextName(binding.context_expr);
-            return CompileBindingExpr(context_var, binding.binding_name);
+            std::string expr =
+                CompileBindingExpr(context_var, binding.binding_name);
+            if (binding.is_elem_sized) {
+              return absl::Substitute(
+                  "sandbox->CheckedMultiply(sizeof(*$0), ($1))", param.name,
+                  expr);
+            }
+            return expr;
           },
           [&](const ir::bounds::NullTerminated&) {
             if (IsConstCharPointee(param.type)) {
@@ -652,7 +666,16 @@ std::string EmitMallocCopyAndFreeFromSandbox(
             [](const ir::bounds::SizedByBinding& binding) {
               std::string context_var =
                   ResolveContextName(binding.context_expr);
-              return CompileBindingExpr(context_var, binding.binding_name);
+              std::string size_expr = absl::Substitute(
+                  "sapi::lwbox::CheckedToSizeT($0)",
+                  CompileBindingExpr(context_var, binding.binding_name));
+              if (binding.is_elem_sized) {
+                return absl::Substitute(
+                    "sandbox->CheckedMultiply(sizeof(*sapi_returned_sb_ptr), "
+                    "($0))",
+                    size_expr);
+              }
+              return size_expr;
             },
             [](const ir::bounds::ByteSizedByOutparam& byte_out) {
               return absl::Substitute(
@@ -716,6 +739,9 @@ std::string EmitMallocCopyAndFreeFromSandbox(
 // members annotated with SANDBOX_STRUCT_SYNC.
 std::string EmitStructMemberSyncsPreCall(
     const ir::Parameter& param, const ir::StructSyncParam& sync_param) {
+  const bool struct_written_back =
+      param.direction() != PointerDir::kIn && !param.type.is_const &&
+      !(param.type.pointee && param.type.pointee->is_const);
   std::string ret;
   for (const auto& sync : sync_param.members) {
     std::string member_terminal =
@@ -731,6 +757,7 @@ std::string EmitStructMemberSyncsPreCall(
     }
     std::string suffix = absl::StrCat(param.name, "_", member_terminal);
     std::string host_ptr_expr = sync.access_path();
+    std::string ctx_decl;
 
     std::string size_calc = std::visit(
         absl::Overload{
@@ -743,10 +770,27 @@ std::string EmitStructMemberSyncsPreCall(
             [&](const ir::bounds::SizedByBinding& binding) {
               std::string context_var =
                   ResolveContextName(binding.context_expr);
-              std::string size_expr =
-                  CompileBindingExpr(context_var, binding.binding_name);
-              return absl::Substitute("sapi_member_size_$0 = $1;\n", suffix,
-                                      size_expr);
+              std::string ctx_init;
+              if (struct_written_back) {
+                // Pin the pre-call context key so a post-call struct writeback
+                // that zeroes or alters sibling handle fields cannot redirect
+                // or crash the post-call binding lookup.
+                ctx_decl = absl::Substitute(
+                    "  const void* sapi_member_ctx_$0 = nullptr;\n", suffix);
+                ctx_init = absl::Substitute("sapi_member_ctx_$0 = $1;\n    ",
+                                            suffix, context_var);
+                context_var = absl::StrCat("sapi_member_ctx_", suffix);
+              }
+              std::string size_expr = absl::Substitute(
+                  "sapi::lwbox::CheckedToSizeT($0)",
+                  CompileBindingExpr(context_var, binding.binding_name));
+              if (binding.is_elem_sized) {
+                size_expr = absl::Substitute(
+                    "sandbox->CheckedMultiply(sizeof(*($0)), ($1))",
+                    host_ptr_expr, size_expr);
+              }
+              return absl::Substitute("$0sapi_member_size_$1 = $2;\n", ctx_init,
+                                      suffix, size_expr);
             },
             [&](const ir::bounds::ByteCount& byte) {
               return absl::Substitute("sapi_member_size_$0 = $1;\n", suffix,
@@ -796,7 +840,7 @@ std::string EmitStructMemberSyncsPreCall(
     absl::SubstituteAndAppend(&ret,
                               R"(  void* sapi_sb_copy_$0 = nullptr;
   size_t sapi_member_size_$0 = 0;
-  if ($1 != nullptr && $2 != nullptr) {
+$6  if ($1 != nullptr && $2 != nullptr) {
     // Compute size
     $3
     // Allocate
@@ -809,7 +853,7 @@ std::string EmitStructMemberSyncsPreCall(
   }
 )",
                               suffix, param.name, host_ptr_expr, size_calc,
-                              copy_code, update_host_to_sb_ptr_code);
+                              copy_code, update_host_to_sb_ptr_code, ctx_decl);
   }
   if (param.direction() != PointerDir::kOut) {
     for (const auto& cb_field : sync_param.callbacks) {
@@ -902,6 +946,30 @@ std::string EmitStructMemberSyncsPostCall(
             "                       \") for struct member $1\")));\n"
             "    }\n",
             suffix, host_ptr_expr, elem->size_expr);
+        copy_size_expr = absl::StrCat("sapi_post_member_size_", suffix);
+      } else if (const auto* binding =
+                     std::get_if<ir::bounds::SizedByBinding>(&sync.bounds)) {
+        std::string size_expr = absl::Substitute(
+            "sapi::lwbox::CheckedToSizeT($0)",
+            CompileBindingExpr(absl::StrCat("sapi_member_ctx_", suffix),
+                               binding->binding_name));
+        if (binding->is_elem_sized) {
+          size_expr =
+              absl::Substitute("sandbox->CheckedMultiply(sizeof(*($0)), ($1))",
+                               host_ptr_expr, size_expr);
+        }
+        post_size_check = absl::Substitute(
+            "    size_t sapi_post_member_size_$0 =\n"
+            "        $1;\n"
+            "    if (sapi_post_member_size_$0 > sapi_member_size_$0) {\n"
+            "      sandbox->Check(absl::OutOfRangeError(\n"
+            "          absl::StrCat(\"Sandboxee returned size (\",\n"
+            "                       sapi_post_member_size_$0,\n"
+            "                       \") exceeding capacity (\",\n"
+            "                       sapi_member_size_$0,\n"
+            "                       \") for struct member $2\")));\n"
+            "    }\n",
+            suffix, size_expr, host_ptr_expr);
         copy_size_expr = absl::StrCat("sapi_post_member_size_", suffix);
       }
     }
@@ -1004,6 +1072,11 @@ std::string EmitCopyFromAndBindOutPtrCode(
     std::string context_var = ResolveContextName(binding->context_expr);
     std::string size_expr =
         CompileBindingExpr(context_var, binding->binding_name);
+    if (binding->is_elem_sized) {
+      size_expr = absl::Substitute(
+          "sandbox->CheckedMultiply(sizeof(*sapi_returned_sb_ptr), ($0))",
+          size_expr);
+    }
     size_calc = absl::Substitute("size_t sapi_binding_size = $0;\n", size_expr);
     alloc_and_copy_code = R"(
         sapi_host_copy = calloc(sapi_binding_size, sizeof(char));
@@ -1167,7 +1240,16 @@ void EmitMultiLevelCallbackParamMarshaling(
                   "(sapi::lwbox::CheckedToSizeT($0) / sizeof($1))", b.size_expr,
                   inner_ptr_type);
             },
-            [](const auto&) -> std::string { return "1"; },
+            [](const auto& b) -> std::string {
+              using T = std::decay_t<decltype(b)>;
+              static_assert(IsOneOf<T, ir::bounds::NullTerminated,
+                                    ir::bounds::SizedByBinding,
+                                    ir::bounds::ElemSizedByOutparam,
+                                    ir::bounds::ByteSizedByOutparam>,
+                            "Unhandled outer bounds in "
+                            "EmitCallbackMultiLevelPointerParam!");
+              return "1";
+            },
         },
         p_buf.bounds);
     read_outer = absl::Substitute(
@@ -2352,7 +2434,15 @@ void EmitShadowPointerElement(const ir::Parameter& inner_param,
             return absl::Substitute("sapi::lwbox::NullTerminatedCount($0)",
                                     host_expr);
           },
-          [](const auto&) -> std::string { return "1"; },
+          [](const auto& b) -> std::string {
+            using T = std::decay_t<decltype(b)>;
+            static_assert(IsOneOf<T, ir::bounds::SizedByBinding,
+                                  ir::bounds::ElemSizedByOutparam,
+                                  ir::bounds::ByteSizedByOutparam>,
+                          "Unhandled inner bounds in "
+                          "EmitShadowPointerElement!");
+            return "1";
+          },
       },
       inner_buf->bounds);
   bool is_singleton =
@@ -2645,7 +2735,17 @@ void EmitMultiLevelPointerParam(const ir::Parameter& param,
                                       CompileDerefOrRawSizeExpr(b.size_expr),
                                       inner_ptr_type);
             },
-            [](const auto&) -> std::string { return "1"; },
+            [](const auto& b) -> std::string {
+              using T = std::decay_t<decltype(b)>;
+              static_assert(
+                  IsOneOf<T, ir::bounds::Singleton, ir::bounds::NullTerminated,
+                          ir::bounds::SizedByBinding,
+                          ir::bounds::ElemSizedByOutparam,
+                          ir::bounds::ByteSizedByOutparam>,
+                  "Unhandled outer bounds in "
+                  "EmitMultiLevelPointerParam!");
+              return "1";
+            },
         },
         buf.bounds);
     absl::SubstituteAndAppend(
@@ -2778,7 +2878,14 @@ void EmitNullTerminatedStructSyncParam(const ir::Parameter& param,
             [&](const ir::bounds::SizedByBinding& binding) {
               std::string context_var =
                   ResolveContextName(binding.context_expr);
-              return CompileBindingExpr(context_var, binding.binding_name);
+              std::string expr =
+                  CompileBindingExpr(context_var, binding.binding_name);
+              if (binding.is_elem_sized) {
+                return absl::Substitute(
+                    "sandbox->CheckedMultiply(sizeof(*($0)), ($1))",
+                    host_ptr_expr, expr);
+              }
+              return expr;
             },
             [&](const ir::bounds::ByteCount& byte) { return byte.size_expr; },
             [&](const ir::bounds::ElemCount& elem) {
@@ -2786,7 +2893,13 @@ void EmitNullTerminatedStructSyncParam(const ir::Parameter& param,
                   "sandbox->CheckedMultiply(sizeof(*($0)), ($1))",
                   host_ptr_expr, elem.size_expr);
             },
-            [&](const auto&) {
+            [&](const auto& b) {
+              using T = std::decay_t<decltype(b)>;
+              static_assert(IsOneOf<T, ir::bounds::Singleton,
+                                    ir::bounds::ElemSizedByOutparam,
+                                    ir::bounds::ByteSizedByOutparam>,
+                            "Unhandled struct member bounds in "
+                            "EmitNullTerminatedStructSyncParam!");
               return absl::Substitute("sizeof(*($0))", host_ptr_expr);
             },
         },

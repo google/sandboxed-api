@@ -86,6 +86,7 @@ struct SizedByBinding {
   // host-computable values (e.g., "$binding_name", or "2 * param *
   // $binding_name").
   std::string binding_expr;
+  bool is_elem_sized = false;
 };
 using ArraySizedByType = std::variant<std::monostate, ElemSizedBy, ByteSizedBy,
                                       NullTerminated, SizedByBinding>;
@@ -200,7 +201,15 @@ struct Annotations {
   absl::Status SetSizedByBinding(absl::string_view context,
                                  absl::string_view binding_expr) {
     ABSL_RETURN_IF_ERROR(CheckSizeNotSet("sized_by_binding"));
-    size_type = SizedByBinding{std::string(context), std::string(binding_expr)};
+    size_type = SizedByBinding{std::string(context), std::string(binding_expr),
+                               /*is_elem_sized=*/false};
+    return absl::OkStatus();
+  }
+  absl::Status SetElemSizedByBinding(absl::string_view context,
+                                     absl::string_view binding_expr) {
+    ABSL_RETURN_IF_ERROR(CheckSizeNotSet("elem_sized_by_binding"));
+    size_type = SizedByBinding{std::string(context), std::string(binding_expr),
+                               /*is_elem_sized=*/true};
     return absl::OkStatus();
   }
 

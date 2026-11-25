@@ -236,6 +236,36 @@ SANDBOX_ANNOTATE_STRUCT(struct MemIoBuffer {
 int finalize_memio_buffer(size_t size, unsigned char fill_byte, int flags,
                           struct MemIoBuffer* out_memio SANDBOX_OUT_PTR);
 
+SANDBOX_BIND_SIZE(sapi::lwbox::CompositeKey(ncid, varid), elem_count,
+                  sapi::lwbox::Product(counts, ndims))
+int register_hyperslab_var(int ncid, int varid,
+                           const size_t* counts SANDBOX_IN_PTR
+                               SANDBOX_ELEM_SIZED_BY(ndims),
+                           size_t ndims);
+
+int read_hyperslab_var(
+    int ncid, int varid,
+    int* out_data SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY_BINDING(
+        sapi::lwbox::CompositeKey(ncid, varid), $elem_count),
+    int base_val);
+
+SANDBOX_ANNOTATE_STRUCT(struct MatrixSliceRequest {
+  int ncid;
+  int varid;
+  size_t rows;
+  size_t cols;
+  const int* row_weights SANDBOX_BYTE_SIZED_BY_BINDING(
+      sapi::lwbox::CompositeKey(ncid, varid), $cols * sizeof(int));
+  int* out_cells SANDBOX_ELEM_SIZED_BY_BINDING(
+      sapi::lwbox::CompositeKey(ncid, varid), rows * $cols);
+};)
+
+SANDBOX_BIND_SIZE(sapi::lwbox::CompositeKey(ncid, varid), cols, cols)
+int bind_matrix_var_cols(int ncid, int varid, size_t cols);
+
+int compute_matrix_slice(struct MatrixSliceRequest* slice SANDBOX_INOUT_PTR,
+                         int ncid, size_t rows);
+
 int evaluate_callbacks_at_guarded_stack_boundary(
     int (*cb6)(int p1, int p2, int p3, int p4, int p5, int p6),
     int (*cb8)(int p1, int p2, int p3, int p4, int p5, int p6, int p7, int p8));

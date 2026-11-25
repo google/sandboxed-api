@@ -671,6 +671,58 @@ TEST(MultiLevelPointersTest,
   }
 }
 
+TEST(MultiLevelPointersTest, ElemSizedByBindingWithCompositeKeyAndProduct) {
+  const size_t dims[2] = {2, 3};
+  EXPECT_EQ(register_hyperslab_var(/*ncid=*/4, /*varid=*/7, dims, 2), 11);
+  std::vector<int> hyperslab_out(6, 0);
+  EXPECT_EQ(
+      read_hyperslab_var(/*ncid=*/4, /*varid=*/7, hyperslab_out.data(), 100),
+      6);
+  EXPECT_EQ(hyperslab_out, (std::vector<int>{147, 148, 149, 150, 151, 152}));
+}
+
+TEST(MultiLevelPointersTest,
+     StructMemberSizedByBindingResolvesSiblingFieldsOverShadowingParams) {
+  ASSERT_EQ(bind_matrix_var_cols(/*ncid=*/5, /*varid=*/9, /*cols=*/3), 509);
+  const int weights[3] = {10, 20, 30};
+  std::vector<int> cells = {1, 2, 3, 4, 5, 6};
+  const int* orig_weights_ptr = weights;
+  int* orig_cells_ptr = cells.data();
+  MatrixSliceRequest slice{
+      .ncid = 5,
+      .varid = 9,
+      .rows = 2,
+      .cols = 0,
+      .row_weights = weights,
+      .out_cells = cells.data(),
+  };
+
+  // Pass decoy `ncid = -77` (would CHECK-fail `CompositeKey` if used) and
+  // decoy `rows = 0` (would transfer 0 elements if used) to prove struct
+  // fields win over same-named function parameters while `$cols` resolves the
+  // bound size rather than `slice.cols`.
+  EXPECT_EQ(compute_matrix_slice(&slice, /*ncid=*/-77, /*rows=*/0), -71);
+  EXPECT_EQ(slice.cols, 3u);
+  EXPECT_EQ(slice.row_weights, orig_weights_ptr);
+  EXPECT_EQ(slice.out_cells, orig_cells_ptr);
+  EXPECT_EQ(cells, (std::vector<int>{70, 81, 92, 83, 104, 125}));
+
+  if (IsSandboxed()) {
+    std::vector<int> small_cells(6, 0);
+    MatrixSliceRequest bad_slice{
+        .ncid = 5,
+        .varid = 9,
+        .rows = 2,
+        .cols = 10,  // Triggers post-call `slice->rows = 10` inflation.
+        .row_weights = weights,
+        .out_cells = small_cells.data(),
+    };
+    EXPECT_DEATH(
+        compute_matrix_slice(&bad_slice, /*ncid=*/-77, /*rows=*/0),
+        "Sandboxee returned size \\(120\\) exceeding capacity \\(24\\)");
+  }
+}
+
 TEST(MultiLevelPointersTest,
      CallbackTrampolineDoesNotReadPastOwnedStackArguments) {
   auto cb6 = +[](int p1, int p2, int p3, int p4, int p5, int p6) -> int {

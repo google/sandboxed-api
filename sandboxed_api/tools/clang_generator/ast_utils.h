@@ -49,19 +49,39 @@ bool IsNonStaticDataMember(const clang::RecordDecl& record_decl,
                            absl::string_view name);
 
 // Validates a `size_expr` from a `SANDBOX_ANNOTATE_STRUCT` field annotation
-// against `real_record`, rejecting any unqualified base identifier before `.`
-// or `->` (or `.*` / `->*`) that is not a non-static data member of
-// `real_record`.
+// against `real_record`, rejecting `$` placeholders, unknown member bases
+// before `.`/`->`, and unqualified identifiers that are neither members of
+// `real_record` nor visible in its enclosing declaration scopes.
 absl::Status ValidateStructMemberSizeExpr(const clang::RecordDecl& real_record,
                                           absl::string_view field_name,
                                           absl::string_view size_expr);
 
+// Validates `context_expr` and `binding_expr` from a `SANDBOX_ANNOTATE_STRUCT`
+// `sized_by_binding` or `elem_sized_by_binding` field annotation against
+// `real_record`. Allows `$name` placeholders (or a single bare binding key
+// identifier) in `binding_expr`, while checking sibling field and
+// enclosing-scope identifiers in both expressions. Rejects empty expressions
+// and `$` placeholders in `context_expr`.
+absl::Status ValidateStructMemberBinding(const clang::RecordDecl& real_record,
+                                         absl::string_view field_name,
+                                         absl::string_view context_expr,
+                                         absl::string_view binding_expr);
+
 // Rewrites `size_expr` by prepending `parent_prefix` (e.g., "Image->") to
-// every unqualified identifier token that resolves to a non-static data
-// member of `record_decl`.
+// every unqualified identifier token (excluding `$` placeholders, scope
+// qualifiers, member-access suffixes, and elaborated tag names) that resolves
+// to a non-static data member of `record_decl`.
 std::string PrefixStructMemberSizeExpr(const clang::RecordDecl& record_decl,
                                        absl::string_view parent_prefix,
                                        absl::string_view size_expr);
+
+// Rewrites `binding_expr` from a `sized_by_binding` or `elem_sized_by_binding`
+// field annotation like `PrefixStructMemberSizeExpr`, while preserving a sole
+// bare binding key identifier (e.g., `"row_size"` without `$`) unprefixed even
+// if `record_decl` also has a field with that name.
+std::string PrefixStructMemberBindingExpr(const clang::RecordDecl& record_decl,
+                                          absl::string_view parent_prefix,
+                                          absl::string_view binding_expr);
 
 // Returns the source text of `decl` with the SANDBOX_* annotation macros
 // removed.

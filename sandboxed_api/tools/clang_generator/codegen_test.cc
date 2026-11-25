@@ -381,6 +381,135 @@ TEST(EmitHostSrcTest, ClearBindingsReleasesTheContext) {
   EXPECT_THAT(*src, HasSubstr("ClearBindings"));
 }
 
+TEST(EmitHostSrcTest,
+     StructMemberSizedByBindingPinsContextAndValidatesPostCallCapacity) {
+  ir::Parameter slice_param{
+      .name = "slice",
+      .type = PointerTo(ir::TypeInfo{
+          .kind = ir::TypeKind::kStruct,
+          .canonical_name = "MatrixSlice",
+      }),
+      .payload =
+          ir::StructSyncParam{
+              .direction = PointerDir::kInOut,
+              .members =
+                  {
+                      ir::StructMemberSync{
+                          .member_name = "cells",
+                          .parent_prefix = "slice->",
+                          .direction = PointerDir::kInOut,
+                          .bounds =
+                              ir::bounds::SizedByBinding{
+                                  .context_expr =
+                                      "sapi::lwbox::CompositeKey(slice->ncid, "
+                                      "slice->varid)",
+                                  .binding_name = "slice->rows * $cols",
+                                  .is_elem_sized = true,
+                              },
+                      },
+                  },
+          },
+  };
+  ir::Parameter table_param{
+      .name = "table",
+      .type = PointerTo(ir::TypeInfo{
+          .kind = ir::TypeKind::kStruct,
+          .canonical_name = "const MatrixSlice",
+          .is_const = true,
+      }),
+      .payload =
+          ir::StructSyncParam{
+              .direction = PointerDir::kIn,
+              .members =
+                  {
+                      ir::StructMemberSync{
+                          .member_name = "cells",
+                          .parent_prefix = "table->",
+                          .direction = PointerDir::kIn,
+                          .bounds =
+                              ir::bounds::SizedByBinding{
+                                  .context_expr = "sapi::lwbox::CompositeKey("
+                                                  "table[sapi_i].ncid, "
+                                                  "table[sapi_i].varid)",
+                                  .binding_name = "$cols",
+                                  .is_elem_sized = true,
+                              },
+                      },
+                  },
+              .array_bounds = ir::bounds::NullTerminated{},
+          },
+  };
+
+  absl::StatusOr<std::string> src = HostSrc(ir::Function{
+      .name = "sync_matrix_slices",
+      .parameters = {std::move(slice_param), std::move(table_param)},
+  });
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(
+          ContainsRegex(
+              R"(sapi_member_ctx_slice_cells\s*=\s*sapi::lwbox::CompositeKey\(\s*slice->ncid,\s*slice->varid\))"),
+          ContainsRegex(
+              R"(GetSize\(\s*(\*sandbox,\s*)?sapi_member_ctx_slice_cells,\s*"cols"\))"),
+          // Neither the pre-call nor the post-call lookup reads the handle
+          // fields of the written-back struct.
+          Not(ContainsRegex(
+              R"(GetSize\(\s*(\*sandbox,\s*)?sapi::lwbox::CompositeKey\(\s*slice->)")),
+          HasSubstr("sapi_post_member_size_slice_cells > "
+                    "sapi_member_size_slice_cells"),
+          ContainsRegex(
+              R"(CheckedMultiply\(\s*sizeof\(\*\(table\[sapi_i\]\.cells\)\))"),
+          ContainsRegex(
+              R"(GetSize\(\s*(\*sandbox,\s*)?sapi::lwbox::CompositeKey\(\s*table\[sapi_i\]\.ncid,\s*table\[sapi_i\]\.varid\),\s*"cols"\))")));
+}
+
+TEST(EmitHostSrcTest, ElemSizedByBindingReturnScalesBoundCountByPointeeSize) {
+  ir::BufferParam copy_bound_ret{
+      .direction = PointerDir::kOut,
+      .bounds =
+          ir::bounds::SizedByBinding{
+              .context_expr = "ctx",
+              .binding_name = "$count",
+              .is_elem_sized = true,
+          },
+  };
+  ir::BufferParam malloc_ret = copy_bound_ret;
+  copy_bound_ret.context_bound.copy_from_and_bind =
+      CopyFromAndBindOutPtr{.context = "ctx", .binding_name = "samples"};
+  malloc_ret.lifetime = ir::lifetime::Malloc{};
+
+  // Both host copies of the returned array hold `$count` elements, not bytes.
+  for (const ir::BufferParam& ret : {copy_bound_ret, malloc_ret}) {
+    absl::StatusOr<std::string> src = HostSrc(ir::Function{
+        .name = "get_samples",
+        .return_value =
+            ir::Parameter{
+                .name = "sapi_ret_arg",
+                .type = PointerTo(ScalarType("int")),
+                .is_return_value = true,
+                .payload = ret,
+            },
+        .parameters =
+            {
+                ir::Parameter{
+                    .name = "ctx",
+                    .type = PointerTo(VoidType()),
+                    .payload =
+                        ir::OpaquePointerParam{
+                            .direction = PointerDir::kSandboxOpaque,
+                        },
+                },
+            },
+    });
+    ASSERT_THAT(src, IsOk());
+    EXPECT_THAT(
+        *src,
+        ContainsRegex(
+            R"(CheckedMultiply\(\s*sizeof\(\*sapi_returned_sb_ptr\),\s*\([^;]*GetSize\(\s*(\*sandbox,\s*)?ctx,\s*"count"\))"));
+  }
+}
+
 TEST(EmitHostSrcTest, RuntimeHeaderIsIncludedInHostOnly) {
   constexpr absl::string_view kRuntimeInclude =
       R"(#include "sandboxed_api/lwbox/runtime/lwbox_runtime.h")";

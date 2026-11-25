@@ -164,10 +164,12 @@ struct ByteSizedByOutparam {
   std::string capacity_expr;  // Maximum capacity the host allocated
 };
 
-// Size stored in the runtime context map (SANDBOX_SIZED_BY_BINDING).
+// Size stored in the runtime context map (SANDBOX_BYTE_SIZED_BY_BINDING or
+// SANDBOX_ELEM_SIZED_BY_BINDING).
 struct SizedByBinding {
   std::string context_expr;  // Expression naming the context object
   std::string binding_name;  // Key the size is stored under
+  bool is_elem_sized = false;
 };
 
 }  // namespace bounds

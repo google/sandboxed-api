@@ -775,6 +775,22 @@ TEST_F(IrConvertTest,
                                  "callback returns a pointer")));
 }
 
+TEST_F(IrConvertTest, CallbackTypedefWithSizeBindingOnReturnIsRejected) {
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    [[clang::annotate("sandbox", "lifetime_outer_call")]]
+    [[clang::annotate("sandbox", "elem_sized_by_binding", "ctx", "$count")]]
+    typedef unsigned char* (*chunk_allocator)(
+        void* ctx [[clang::annotate("sandbox", "host_opaque_ptr")]]);
+    extern "C" void compress(chunk_allocator alloc);
+  )",
+                         "compress"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("callback typedef chunk_allocator, return value: the "
+                         "elem_sized_by_binding annotation describes one "
+                         "particular call site")));
+}
+
 TEST_F(IrConvertTest, CallbackTypedefWithUnnamedParameterDefaultsName) {
   SAPI_ASSERT_OK_AND_ASSIGN(const Function func,
                             ConvertSnippetToIR(R"(
@@ -975,6 +991,195 @@ TEST_F(IrConvertTest, ParseRecordAnnotationsRejectsUnknownMemberInSizeExpr) {
                HasSubstr("field RasterBits in record SavedImage: size "
                          "expression 'TypoDesc.Width * ImageDesc.Height' "
                          "references unknown member 'TypoDesc'")));
+}
+
+TEST_F(IrConvertTest,
+       StructSyncPrefixesSiblingFieldsInSizedByBindingForStructAndArray) {
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      const Function func,
+      ConvertSnippetToIR(
+          R"cc(
+            struct SliceHdr {
+              int ctx_id;
+            };
+            struct MatrixSlice {
+              int ncid;
+              int varid;
+              int rows;
+              int stride;
+              SliceHdr hdr;
+              const char* raw_bytes;
+              const int* cells;
+              const char* sole_key_buf;
+            };
+            inline void sandbox_annotation_1() {
+              struct MatrixSlice {
+                const char* raw_bytes
+                    [[clang::annotate("sandbox", "sized_by_binding",
+                                      "sapi::lwbox::CompositeKey(ncid, varid)",
+                                      "rows * $stride")]];
+                const int* cells [[clang::annotate(
+                    "sandbox", "elem_sized_by_binding",
+                    "::sapi::lwbox::CompositeKey(ncid, varid)",
+                    "rows * $stride")]];
+                const char* sole_key_buf [[clang::annotate(
+                    "sandbox", "sized_by_binding",
+                    "sapi::lwbox::ContextKey(hdr.ctx_id)", "stride")]];
+              };
+            }
+            extern "C" void ProcessSlices(
+                MatrixSlice* single [[clang::annotate("sandbox", "inout_ptr")]],
+                const MatrixSlice* table
+                [[clang::annotate("sandbox", "in_ptr")]] [[clang::annotate(
+                    "sandbox", "null_terminated")]]);
+          )cc",
+          "ProcessSlices"));
+  ASSERT_EQ(func.parameters.size(), 2u);
+
+  const auto* single_sync = func.parameters[0].As<StructSyncParam>();
+  ASSERT_NE(single_sync, nullptr);
+  ASSERT_EQ(single_sync->members.size(), 3u);
+
+  const auto* single_raw =
+      std::get_if<bounds::SizedByBinding>(&single_sync->members[0].bounds);
+  ASSERT_NE(single_raw, nullptr);
+  EXPECT_FALSE(single_raw->is_elem_sized);
+  EXPECT_EQ(single_raw->context_expr,
+            "sapi::lwbox::CompositeKey(single->ncid, single->varid)");
+  EXPECT_EQ(single_raw->binding_name, "single->rows * $stride");
+
+  const auto* single_cells =
+      std::get_if<bounds::SizedByBinding>(&single_sync->members[1].bounds);
+  ASSERT_NE(single_cells, nullptr);
+  EXPECT_TRUE(single_cells->is_elem_sized);
+  EXPECT_EQ(single_cells->context_expr,
+            "::sapi::lwbox::CompositeKey(single->ncid, single->varid)");
+  EXPECT_EQ(single_cells->binding_name, "single->rows * $stride");
+
+  const auto* single_sole =
+      std::get_if<bounds::SizedByBinding>(&single_sync->members[2].bounds);
+  ASSERT_NE(single_sole, nullptr);
+  EXPECT_EQ(single_sole->context_expr,
+            "sapi::lwbox::ContextKey(single->hdr.ctx_id)");
+  EXPECT_EQ(single_sole->binding_name, "stride");
+
+  const auto* table_sync = func.parameters[1].As<StructSyncParam>();
+  ASSERT_NE(table_sync, nullptr);
+  ASSERT_EQ(table_sync->members.size(), 3u);
+  const auto* table_raw =
+      std::get_if<bounds::SizedByBinding>(&table_sync->members[0].bounds);
+  ASSERT_NE(table_raw, nullptr);
+  EXPECT_EQ(
+      table_raw->context_expr,
+      "sapi::lwbox::CompositeKey(table[sapi_i].ncid, table[sapi_i].varid)");
+  EXPECT_EQ(table_raw->binding_name, "table[sapi_i].rows * $stride");
+}
+
+TEST_F(IrConvertTest,
+       ParseRecordAnnotationsRejectsInvalidSizedByBindingMemberExpressions) {
+  EXPECT_THAT(ConvertSnippetToIR(
+                  R"cc(
+                    struct MatrixSlice {
+                      int ncid;
+                      int* cells;
+                    };
+                    inline void sandbox_annotation_1() {
+                      struct MatrixSlice {
+                        int* cells [[clang::annotate(
+                            "sandbox", "elem_sized_by_binding",
+                            "sapi::lwbox::CompositeKey(ncid, missing_varid)",
+                            "$cols")]];
+                      };
+                    }
+                    extern "C" void ProcessSlice(
+                        MatrixSlice* s
+                        [[clang::annotate("sandbox", "inout_ptr")]]);
+                  )cc",
+                  "ProcessSlice"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       AllOf(HasSubstr("context expression"),
+                             HasSubstr("unknown member 'missing_varid'"))));
+
+  // `ConvertSnippetToIR` appends to the current virtual file, so use a new one.
+  set_input_file("invalid_binding_expr.cc");
+  EXPECT_THAT(
+      ConvertSnippetToIR(
+          R"cc(
+            struct MatrixSlice {
+              int ncid;
+              int varid;
+              int* cells;
+            };
+            inline void sandbox_annotation_1() {
+              struct MatrixSlice {
+                int* cells
+                    [[clang::annotate("sandbox", "sized_by_binding",
+                                      "sapi::lwbox::CompositeKey(ncid, varid)",
+                                      "missing_rows * $cols")]];
+              };
+            }
+            extern "C" void ProcessSlice(
+                MatrixSlice* s [[clang::annotate("sandbox", "inout_ptr")]]);
+          )cc",
+          "ProcessSlice"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstr("binding expression"),
+                     HasSubstr("unknown member 'missing_rows'"))));
+}
+
+TEST_F(IrConvertTest,
+       ParseRecordAnnotationsRejectsSizedByBindingOnLifetimeMallocMember) {
+  EXPECT_THAT(ConvertSnippetToIR(
+                  R"cc(
+                    struct MatrixSlice {
+                      int ncid;
+                      int* cells;
+                    };
+                    inline void sandbox_annotation_1() {
+                      struct MatrixSlice {
+                        int* cells [[clang::annotate(
+                            "sandbox", "elem_sized_by_binding",
+                            "sapi::lwbox::ContextKey(ncid)",
+                            "$count")]] [[clang::annotate("sandbox",
+                                                          "lifetime_malloc")]];
+                      };
+                    }
+                    extern "C" void ProcessSlice(
+                        MatrixSlice* s
+                        [[clang::annotate("sandbox", "out_ptr")]]);
+                  )cc",
+                  "ProcessSlice"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("lifetime_malloc on a record member cannot be "
+                                 "combined with sized_by_binding")));
+}
+
+TEST_F(IrConvertTest,
+       ExplicitStructSyncRejectsLifetimeMallocOnSizedByBindingMember) {
+  EXPECT_THAT(
+      ConvertSnippetToIR(
+          R"cc(
+            struct MatrixSlice {
+              int ncid;
+              int* cells;
+            };
+            inline void sandbox_annotation_1() {
+              struct MatrixSlice {
+                int* cells [[clang::annotate("sandbox", "elem_sized_by_binding",
+                                             "sapi::lwbox::ContextKey(ncid)",
+                                             "$count")]];
+              };
+            }
+            extern "C" void ProcessSlice(
+                MatrixSlice* s
+                [[clang::annotate("sandbox", "out_ptr")]] [[clang::annotate(
+                    "sandbox", "struct_sync", "binding_1", "{s->cells",
+                    "out_ptr", "lifetime_malloc}", "$")]]);
+          )cc",
+          "ProcessSlice"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("lifetime_malloc cannot be combined with "
+                         "sized_by_binding")));
 }
 
 // A `typedef struct { ... } Image;` declares an *anonymous* record, so
@@ -4187,6 +4392,29 @@ TEST_F(IrConvertTest, ConvertsFloatAndTenArgCallbacks) {
   EXPECT_EQ(cb->return_value->type.canonical_name, "double");
 
   Library lib{.name = "MyLib", .functions = {cb_fn}};
+  EXPECT_THAT(ValidateAndLinkLibraryIR(lib), IsOk());
+}
+
+TEST_F(IrConvertTest, ConvertsElemSizedByBinding) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function fn,
+                            ConvertSnippetToIR(R"(
+    extern "C" int read_bound(
+        int* bound_elems
+            [[clang::annotate("sandbox", "out_ptr")]]
+            [[clang::annotate("sandbox", "elem_sized_by_binding", "ctx",
+                              "$elem_count")]],
+        void* ctx [[clang::annotate("sandbox", "sandbox_opaque_ptr")]]);
+  )",
+                                               "read_bound"));
+  ASSERT_EQ(fn.parameters.size(), 2u);
+  const auto* bound_buf = fn.parameters[0].As<BufferParam>();
+  ASSERT_NE(bound_buf, nullptr);
+  ASSERT_TRUE(
+      std::holds_alternative<bounds::SizedByBinding>(bound_buf->bounds));
+  EXPECT_TRUE(
+      std::get<bounds::SizedByBinding>(bound_buf->bounds).is_elem_sized);
+
+  Library lib{.name = "MyLib", .functions = {fn}};
   EXPECT_THAT(ValidateAndLinkLibraryIR(lib), IsOk());
 }
 

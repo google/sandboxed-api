@@ -199,6 +199,31 @@ struct MemIoBuffer {
 int finalize_memio_buffer(size_t size, unsigned char fill_byte, int flags,
                           struct MemIoBuffer* out_memio);
 
+// Context binding with `SANDBOX_ELEM_SIZED_BY_BINDING`, `ContextKey`,
+// `CompositeKey`, and `Product` (modeled on NetCDF 2D hyperslab I/O).
+int register_hyperslab_var(int ncid, int varid, const size_t* counts,
+                           size_t ndims);
+
+int read_hyperslab_var(int ncid, int varid, int* out_data, int base_val);
+
+// Struct-member `SANDBOX_BYTE_SIZED_BY_BINDING` and
+// `SANDBOX_ELEM_SIZED_BY_BINDING` referencing sibling fields (`ncid`, `varid`,
+// `rows`) while a sibling field (`cols`) shares the `$cols` binding name and
+// enclosing function parameters (`ncid`, `rows`) shadow the struct fields.
+struct MatrixSliceRequest {
+  int ncid;
+  int varid;
+  size_t rows;
+  size_t cols;
+  const int* row_weights;
+  int* out_cells;
+};
+
+int bind_matrix_var_cols(int ncid, int varid, size_t cols);
+
+int compute_matrix_slice(struct MatrixSliceRequest* slice, int ncid,
+                         size_t rows);
+
 // Invokes a 0-stack-arg callback (`cb6`) and a 2-stack-arg callback on x86_64
 // (`cb8`, 0 stack args on AArch64) with the caller stack pointer positioned
 // immediately below an unmapped `PROT_NONE` guard page, verifying that

@@ -498,6 +498,63 @@ int finalize_memio_buffer(size_t size, unsigned char fill_byte, int flags,
   return 0;
 }
 
+static size_t g_hyperslab_elems = 0;
+
+int register_hyperslab_var(int ncid, int varid, const size_t* counts,
+                           size_t ndims) {
+  if (counts == nullptr || ndims == 0) {
+    return -1;
+  }
+  size_t prod = 1;
+  for (size_t i = 0; i < ndims; ++i) {
+    prod *= counts[i];
+  }
+  g_hyperslab_elems = prod;
+  return ncid + varid;
+}
+
+int read_hyperslab_var(int ncid, int varid, int* out_data, int base_val) {
+  if (out_data == nullptr) {
+    return -1;
+  }
+  for (size_t i = 0; i < g_hyperslab_elems; ++i) {
+    out_data[i] = base_val + static_cast<int>(i) + ncid * 10 + varid;
+  }
+  return static_cast<int>(g_hyperslab_elems);
+}
+
+static size_t g_matrix_cols = 0;
+
+int bind_matrix_var_cols(int ncid, int varid, size_t cols) {
+  if (ncid < 0 || varid < 0 || cols == 0) {
+    return -1;
+  }
+  g_matrix_cols = cols;
+  return ncid * 100 + varid;
+}
+
+int compute_matrix_slice(struct MatrixSliceRequest* slice, int ncid,
+                         size_t rows) {
+  if (slice == nullptr || slice->row_weights == nullptr ||
+      slice->out_cells == nullptr) {
+    return -1;
+  }
+  for (size_t r = 0; r < slice->rows; ++r) {
+    for (size_t c = 0; c < g_matrix_cols; ++c) {
+      slice->out_cells[r * g_matrix_cols + c] +=
+          static_cast<int>(r + 1) * slice->row_weights[c] + slice->ncid * 10 +
+          slice->varid;
+    }
+  }
+  if (slice->cols != 0) {
+    slice->rows = slice->cols;
+  } else {
+    slice->cols = g_matrix_cols;
+  }
+  return ncid + static_cast<int>(rows) +
+         static_cast<int>(slice->rows * g_matrix_cols);
+}
+
 ABSL_ATTRIBUTE_NO_SANITIZE_CFI int evaluate_callbacks_at_guarded_stack_boundary(
     int (*cb6)(int p1, int p2, int p3, int p4, int p5, int p6),
     int (*cb8)(int p1, int p2, int p3, int p4, int p5, int p6, int p7,

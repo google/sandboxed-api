@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -1595,6 +1596,85 @@ TEST(NullTerminatedArrayTest, ReadNullTerminatedArrayCheckFailures) {
         ReadNullTerminatedArray(sb, 0x1000, sizeof(uint32_t));
       },
       "exceeds maximum size");
+}
+
+TEST(LwboxRuntimeTest, ContextKeyCompositeKeyAndProduct) {
+  enum UnscopedSlot : int {
+    kSlotInvalid = -1,
+    kSlotZero = 0,
+    kSlotThree = 3,
+  };
+  enum class ScopedSlot : uint32_t {
+    kZero = 0,
+    kSeven = 7,
+  };
+
+  EXPECT_EQ(CheckedToSizeT(kSlotThree), 3u);
+  EXPECT_EQ(CheckedToSizeT(ScopedSlot::kSeven), 7u);
+  EXPECT_DEATH(CheckedToSizeT(kSlotInvalid), "Negative buffer size: -1");
+
+  // `ContextKey(0)` must still be non-null so `ContextBindingRegistry` accepts
+  // integer handle `0`, and distinct handles must produce distinct keys.
+  EXPECT_NE(ContextKey(0), nullptr);
+  EXPECT_NE(ContextKey(0), ContextKey(1));
+  EXPECT_EQ(ContextKey(kSlotThree), ContextKey(3));
+  EXPECT_EQ(ContextKey(ScopedSlot::kSeven), ContextKey(7u));
+  EXPECT_NE(ContextKey((1ULL << 61) - 1), ContextKey(0));
+
+  // `CompositeKey` must be non-null at `(0, 0)`, isolate its two 30-bit
+  // components without carry/collision, and remain domain-disjoint from
+  // `ContextKey` (`bits [63:62] == 0b10` vs `0b01`) and host pointers.
+  EXPECT_NE(CompositeKey(0, 0), nullptr);
+  EXPECT_NE(CompositeKey(0, 1), CompositeKey(1, 0));
+  EXPECT_NE(CompositeKey(0x3fffffffULL, 0), CompositeKey(0, 0x3fffffffULL));
+  EXPECT_NE(CompositeKey(0x3fffffffULL, 0x3fffffffULL),
+            CompositeKey(0x3fffffffULL, 0));
+  EXPECT_EQ(CompositeKey(kSlotThree, ScopedSlot::kSeven), CompositeKey(3, 7));
+
+  // Each key kind has its own tag in `bits [63:62]`. Canonical user-space
+  // pointers have `0b00` there.
+  auto domain_tag = [](const void* key) {
+    return reinterpret_cast<uintptr_t>(key) >> 62;
+  };
+  for (uint64_t x : {uint64_t{0}, uint64_t{1}, uint64_t{0x3fffffffULL},
+                     (uint64_t{1} << 61) - 1}) {
+    EXPECT_EQ(domain_tag(ContextKey(x)), 0b01u);
+    for (uint64_t a : {uint64_t{0}, uint64_t{1}, uint64_t{0x3fffffffULL}}) {
+      for (uint64_t b : {uint64_t{0}, uint64_t{1}, uint64_t{0x3fffffffULL}}) {
+        EXPECT_NE(ContextKey(x), CompositeKey(a, b));
+        EXPECT_EQ(domain_tag(CompositeKey(a, b)), 0b10u);
+      }
+    }
+  }
+
+  // Negative signed handles and out-of-range unsigned handles must CHECK-fail
+  // rather than truncating or colliding across tag domains.
+  EXPECT_DEATH(CompositeKey(1, -1), "Negative buffer size");
+  EXPECT_DEATH(CompositeKey(-1, 1), "Negative buffer size");
+  EXPECT_DEATH(CompositeKey(1ULL << 30, 0),
+               "CompositeKey first component out of 30-bit range");
+  EXPECT_DEATH(CompositeKey(0, 1ULL << 30),
+               "CompositeKey second component out of 30-bit range");
+  EXPECT_DEATH(ContextKey(-1), "Negative buffer size");
+  EXPECT_DEATH(ContextKey(1ULL << 61), "ContextKey handle out of 61-bit range");
+
+  // `Product` edge cases and overflow / negative-dimension `CHECK` failures.
+  const size_t kEmpty = 0;
+  EXPECT_EQ(Product<size_t>(nullptr, 3), 0u);
+  EXPECT_EQ(Product(&kEmpty, 0), 0u);
+
+  const int kDims[] = {3, 4, 5};
+  EXPECT_EQ(Product(kDims, 3), 60u);
+
+  const int kZeroFactor[] = {1000, 0, 1000};
+  EXPECT_EQ(Product(kZeroFactor, 3), 0u);
+
+  const int kNegativeDims[] = {4, -1, 2};
+  EXPECT_DEATH(Product(kNegativeDims, 3), "counts\\[i\\] >= 0");
+
+  const size_t kOverflowDims[] = {std::numeric_limits<size_t>::max() / 2 + 2,
+                                  2};
+  EXPECT_DEATH(Product(kOverflowDims, 2), "mul_overflow|max\\(\\) / dim");
 }
 
 TEST(LwboxRuntimeTest, CallbackBoolArgIgnoresUpper56GarbageBits) {

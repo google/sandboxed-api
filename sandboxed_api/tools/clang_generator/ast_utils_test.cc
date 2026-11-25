@@ -56,6 +56,7 @@
 namespace sapi {
 namespace {
 
+using ::absl_testing::IsOk;
 using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
 
@@ -357,6 +358,128 @@ SANDBOX_HOST_STATE_VAR
 Map<unsigned long, int> params;
 )"));
   EXPECT_EQ(source, "Map<unsigned long, int> params");
+}
+
+TEST_F(AstCaptureTest,
+       PrefixStructMemberSizeAndBindingExprsHandlePlaceholdersAndScopes) {
+  constexpr absl::string_view kRecordCode = R"(
+struct Nested {
+  int ncid;
+};
+struct ncid {
+  int dummy;
+};
+struct MatrixReq {
+  int sapi;
+  int ncid;
+  int varid;
+  int rows;
+  int stride;
+  int n;
+  Nested other;
+  Nested* other_ptr;
+};
+)";
+  ASSERT_THAT(
+      RunOnDecl<clang::RecordDecl>(
+          kRecordCode, "MatrixReq",
+          [&](const clang::RecordDecl* record) {
+            EXPECT_EQ(ast::PrefixStructMemberSizeExpr(*record, "req->", "$n"),
+                      "$n");
+            EXPECT_EQ(ast::PrefixStructMemberSizeExpr(*record, "req->",
+                                                      "rows * $stride"),
+                      "req->rows * $stride");
+            EXPECT_EQ(
+                ast::PrefixStructMemberBindingExpr(*record, "req->", "stride"),
+                "stride");
+            EXPECT_EQ(ast::PrefixStructMemberBindingExpr(*record, "req->",
+                                                         "rows * $stride"),
+                      "req->rows * $stride");
+            EXPECT_EQ(
+                ast::PrefixStructMemberSizeExpr(
+                    *record, "req->", "sapi::lwbox::CompositeKey(ncid, varid)"),
+                "sapi::lwbox::CompositeKey(req->ncid, req->varid)");
+            EXPECT_EQ(ast::PrefixStructMemberSizeExpr(
+                          *record, "req->",
+                          "::sapi::lwbox::CompositeKey(ncid, varid)"),
+                      "::sapi::lwbox::CompositeKey(req->ncid, req->varid)");
+            EXPECT_EQ(ast::PrefixStructMemberSizeExpr(
+                          *record, "req->", "other.ncid + other_ptr->ncid"),
+                      "req->other.ncid + req->other_ptr->ncid");
+            EXPECT_EQ(ast::PrefixStructMemberSizeExpr(
+                          *record, "req->", "rows * sizeof(struct ncid)"),
+                      "req->rows * sizeof(struct ncid)");
+            return absl::OkStatus();
+          }),
+      IsOk());
+}
+
+TEST_F(AstCaptureTest,
+       ValidateStructMemberSizeAndBindingExprsCatchInvalidIdentifiers) {
+  constexpr absl::string_view kRecordCode = R"(
+constexpr int kHeaderExtra = 8;
+struct BaseReq {
+  int base_rows;
+};
+struct Inner {
+  void* ctx;
+};
+struct MatrixReq : BaseReq {
+  int ncid;
+  int varid;
+  int rows;
+  Inner hdr;
+  int* data;
+};
+)";
+  ASSERT_THAT(
+      RunOnDecl<clang::RecordDecl>(
+          kRecordCode, "MatrixReq",
+          [&](const clang::RecordDecl* record) {
+            EXPECT_THAT(ast::ValidateStructMemberSizeExpr(
+                            *record, "data",
+                            "(rows + base_rows) * sizeof(int) + kHeaderExtra"),
+                        IsOk());
+            EXPECT_THAT(
+                ast::ValidateStructMemberBinding(
+                    *record, "data", "sapi::lwbox::CompositeKey(ncid, varid)",
+                    "rows * $cols"),
+                IsOk());
+            EXPECT_THAT(ast::ValidateStructMemberBinding(
+                            *record, "data", "hdr.ctx", "bare_binding_key"),
+                        IsOk());
+
+            EXPECT_THAT(
+                ast::ValidateStructMemberSizeExpr(*record, "data", "typo_rows"),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("references unknown member 'typo_rows'")));
+            EXPECT_THAT(
+                ast::ValidateStructMemberSizeExpr(*record, "data", "$cols"),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("cannot contain binding placeholder")));
+            EXPECT_THAT(
+                ast::ValidateStructMemberBinding(
+                    *record, "data", "sapi::lwbox::CompositeKey(ncid, bad_id)",
+                    "$cols"),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("references unknown member 'bad_id'")));
+            EXPECT_THAT(
+                ast::ValidateStructMemberBinding(*record, "data", "hdr.ctx",
+                                                 "bad_rows * $cols"),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("references unknown member 'bad_rows'")));
+            EXPECT_THAT(ast::ValidateStructMemberBinding(*record, "data",
+                                                         "hdr.ctx", "rows * $"),
+                        StatusIs(absl::StatusCode::kInvalidArgument,
+                                 HasSubstr("invalid binding placeholder")));
+            EXPECT_THAT(
+                ast::ValidateStructMemberBinding(*record, "data", "  ",
+                                                 "$cols"),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("context expression cannot be empty")));
+            return absl::OkStatus();
+          }),
+      IsOk());
 }
 
 TEST_F(AstCaptureTest, RemovesInlineVariableAnnotation) {

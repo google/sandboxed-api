@@ -23,11 +23,12 @@
 // cannot be expressed that way is state that has to outlive a single call:
 //
 //   - ContextBindingRegistry: sizes, remote buffers and host copies keyed by
-//     an opaque context pointer, so that a value produced by one call can be
-//     consumed, reused or freed by a later one. This is what implements
+//     an opaque context pointer (or by a `ContextKey` / `CompositeKey` for
+//     integer handles), so that a value produced by one call can be consumed,
+//     reused or freed by a later one. This is what implements
 //     SANDBOX_BIND_SIZE, SANDBOX_BYTE_SIZED_BY_BINDING,
-//     SANDBOX_RETAIN_AND_BIND, SANDBOX_COPY_FROM_AND_BIND_OUT_PTR and
-//     SANDBOX_CLEAR_BINDINGS.
+//     SANDBOX_ELEM_SIZED_BY_BINDING, SANDBOX_RETAIN_AND_BIND,
+//     SANDBOX_COPY_FROM_AND_BIND_OUT_PTR and SANDBOX_CLEAR_BINDINGS.
 //   - GlobalStringRegistry: caches C strings with global lifetime
 //     (SANDBOX_LIFETIME_GLOBAL) read out of the sandboxee, which have to stay
 //     valid for the lifetime of the process.
@@ -63,6 +64,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -473,17 +475,25 @@ class HostCallbackRegistry {
 void SyncFromSandboxToHost(sapi::SandboxBase& sandbox, uintptr_t remote_ptr,
                            void* host_ptr, size_t bytes);
 
-// Converts an integral size expression to `size_t`, aborting via `CHECK_GE` if
-// a signed value is negative so untrusted signed sizes from a sandboxee cannot
-// wrap around to huge `size_t` values.
+// Converts an integral or enum size/handle expression to `size_t`, aborting via
+// `CHECK` if a signed value is negative (or exceeds `size_t`) so untrusted
+// signed values from a sandboxee cannot wrap around to huge `size_t` values.
 template <typename T>
 size_t CheckedToSizeT(T value) {
-  static_assert(std::is_integral_v<T>,
-                "CheckedToSizeT requires an integral type");
-  if constexpr (std::is_signed_v<T>) {
-    CHECK_GE(value, 0) << "Negative buffer size: " << value;
+  static_assert(std::is_integral_v<T> || std::is_enum_v<T>,
+                "CheckedToSizeT requires an integral or enum type");
+  if constexpr (std::is_enum_v<T>) {
+    return CheckedToSizeT(static_cast<std::underlying_type_t<T>>(value));
+  } else {
+    if constexpr (std::is_signed_v<T>) {
+      CHECK_GE(value, 0) << "Negative buffer size: " << value;
+    }
+    if constexpr (sizeof(T) > sizeof(size_t)) {
+      CHECK_LE(static_cast<std::make_unsigned_t<T>>(value),
+               std::numeric_limits<size_t>::max());
+    }
+    return static_cast<size_t>(value);
   }
-  return static_cast<size_t>(value);
 }
 
 namespace internal {
@@ -776,6 +786,81 @@ std::vector<char> ReadNullTerminatedArray(sapi::SandboxBase& sandbox,
           return internal::IsZeroElement(*reinterpret_cast<const ValueT*>(raw));
         });
   }
+}
+
+// Synthesizes a non-null context key for `ContextBindingRegistry` from a 61-bit
+// non-negative integer or enum handle (even when `handle == 0`), tagged with
+// `bits [63:62] == 0b01` and `bit 0 == 1` so it is domain-disjoint from
+// `CompositeKey` (`0b10`), canonical user-space pointers (`0b00`), and null.
+// CHECK-fails on negative signed values or handles outside `[0, 2^61)`.
+//
+// TODO(cffsmith): Replace the tagged-pointer keys of `ContextKey` and
+// `CompositeKey` with a typed variant key in `ContextBindingRegistry`
+// (pointer, `int64_t`, or a `(parent, child)` pair). This removes the range
+// limits, the aborts on negative handles, and the 64-bit requirement.
+template <typename T>
+const void* ContextKey(T handle) {
+  static_assert(sizeof(uintptr_t) == 8, "ContextKey requires 64-bit uintptr_t");
+  static_assert(std::is_integral_v<T> || std::is_enum_v<T>,
+                "ContextKey requires an integral or enum handle type");
+  const uint64_t u = CheckedToSizeT(handle);
+  CHECK_EQ(u >> 61, 0u) << "ContextKey handle out of 61-bit range: " << u;
+  return reinterpret_cast<const void*>((1ULL << 62) | (u << 1) | 1ULL);
+}
+
+// Synthesizes a non-null composite context key for `ContextBindingRegistry`
+// from a pair of 30-bit non-negative integer or enum handles (such as
+// `(ncid, varid)` in NetCDF), tagged with `bits [63:62] == 0b10` and
+// `bit 0 == 1` (`ua` in `bits [60:31]`, `ub` in `bits [30:1]`) so it is
+// domain-disjoint from `ContextKey` (`0b01`), canonical user-space pointers
+// (`0b00`), and null. CHECK-fails on negative signed values or components
+// exceeding `0x3fffffff`.
+template <typename A, typename B>
+const void* CompositeKey(A a, B b) {
+  static_assert(sizeof(uintptr_t) == 8,
+                "CompositeKey requires 64-bit uintptr_t");
+  static_assert((std::is_integral_v<A> || std::is_enum_v<A>) &&
+                    (std::is_integral_v<B> || std::is_enum_v<B>),
+                "CompositeKey requires integral or enum handle types");
+  const uint64_t ua = CheckedToSizeT(a);
+  const uint64_t ub = CheckedToSizeT(b);
+  CHECK_LE(ua, 0x3fffffffULL)
+      << "CompositeKey first component out of 30-bit range: " << ua;
+  CHECK_LE(ub, 0x3fffffffULL)
+      << "CompositeKey second component out of 30-bit range: " << ub;
+  return reinterpret_cast<const void*>((2ULL << 62) | (ua << 31) | (ub << 1) |
+                                       1ULL);
+}
+
+// Computes the overflow-checked product of `ndims` dimension counts
+// (`counts[0] * ... * counts[ndims - 1]`) for N-dimensional hyperslab array
+// sizing (such as `nc_put_vara_*` / `nc_get_vara_*`). Returns 0 if `counts` is
+// null or `ndims == 0`.
+template <typename T>
+inline size_t Product(const T* absl_nullable counts, size_t ndims) {
+  if (counts == nullptr || ndims == 0) {
+    return 0;
+  }
+  size_t prod = 1;
+  for (size_t i = 0; i < ndims; ++i) {
+    if constexpr (std::is_signed_v<T>) {
+      CHECK_GE(counts[i], 0);
+    }
+    if constexpr (sizeof(T) > sizeof(size_t)) {
+      CHECK_LE(static_cast<std::make_unsigned_t<T>>(counts[i]),
+               std::numeric_limits<size_t>::max());
+    }
+    const size_t dim = static_cast<size_t>(counts[i]);
+#if __has_builtin(__builtin_mul_overflow)
+    CHECK(!__builtin_mul_overflow(prod, dim, &prod));
+#else
+    if (dim != 0) {
+      CHECK_LE(prod, std::numeric_limits<size_t>::max() / dim);
+    }
+    prod *= dim;
+#endif
+  }
+  return prod;
 }
 
 }  // namespace lwbox
