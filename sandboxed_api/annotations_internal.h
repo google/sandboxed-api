@@ -49,14 +49,6 @@
 
 #define SANDBOX_INTERNAL_FOREACH_AGAIN() SANDBOX_INTERNAL_FOREACH_HELPER
 
-#define SANDBOX_FUNCS_IMPL(...)                                    \
-  const char* SANDBOX_INTERNAL_CAT(sandbox_funcs_, __LINE__)[] = { \
-      SANDBOX_INTERNAL_FOREACH(SANDBOX_INTERNAL_STRINGIFY, ##__VA_ARGS__)}
-
-#define SANDBOX_IGNORE_FUNCS_IMPL(...)                                    \
-  const char* SANDBOX_INTERNAL_CAT(sandbox_ignore_funcs_, __LINE__)[] = { \
-      SANDBOX_INTERNAL_FOREACH(SANDBOX_INTERNAL_STRINGIFY, ##__VA_ARGS__)}
-
 #define SANDBOX_ANNOTATE_STRUCT_IMPL(struct_decl)                     \
   inline void SANDBOX_INTERNAL_CAT(sandbox_annotation_, __LINE__)() { \
     struct_decl                                                       \

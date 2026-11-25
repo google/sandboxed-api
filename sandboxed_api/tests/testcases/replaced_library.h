@@ -102,8 +102,8 @@ void mylib_expected_syscall2();
 void mylib_unexpected_syscall1();
 void mylib_unexpected_syscall2();
 
-// This function is not supported, but we will exclude it using
-// SANDBOX_FUNCS/SANDBOX_IGNORE_FUNCS annotations.
+// This function is not supported, and is excluded via SANDBOX_UNSUPPORTED in
+// lwbox_sandbox.cc.
 void mylib_func_with_unsupported_arg(union mylib_union* arg);
 
 // This function has a SANDBOX_UNSUPPORTED annotation and should be ignored

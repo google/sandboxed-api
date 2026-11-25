@@ -22,7 +22,6 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
@@ -99,14 +98,26 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
   std::string func_type = decl->getType().getCanonicalType().getAsString();
 
   bool has_unsupported_annotation = false;
+  bool is_inlined = false;
+  for (const clang::FunctionDecl* redecl : decl->redecls()) {
+    if (redecl->isInlined()) {
+      is_inlined = true;
+    }
+    ABSL_ASSIGN_OR_RETURN(std::vector<SandboxAnnotation> redecl_annotations,
+                          GetSandboxAnnotations(redecl));
+    for (const auto& ann : redecl_annotations) {
+      if (ann.name == "unsupported") {
+        has_unsupported_annotation = true;
+      }
+    }
+  }
+
   bool is_host_thunk = false;
   bool is_sandboxee_thunk = false;
   ABSL_ASSIGN_OR_RETURN(std::vector<SandboxAnnotation> annotations,
                         GetSandboxAnnotations(decl));
   for (const auto& ann : annotations) {
-    if (ann.name == "unsupported") {
-      has_unsupported_annotation = true;
-    } else if (ann.name == "host_thunk") {
+    if (ann.name == "host_thunk") {
       if (ann.args.empty()) {
         return absl::NotFoundError(
             "Host thunk doesn't not specify the function name.");
@@ -149,29 +160,22 @@ absl::Status SandboxedLibraryEmitter::AddFunction(clang::FunctionDecl* decl) {
     }
   }
 
-  // Check if this is a duplicate signature or overloaded declaration.
-  auto [it, inserted] = used_funcs_.insert({func_name, func_type});
-  if (!inserted) {
-    if (it->second != func_type) {
-      LOG(WARNING) << "Function " << func_name
-                   << " has multiple signatures: " << it->second << " and "
-                   << func_type;
-    } else {
-      return absl::OkStatus();
-    }
-  }
-
-  if (has_unsupported_annotation || is_host_thunk) {
+  // Skip non-thunk inline or internal-linkage helper definitions in headers,
+  // which execute in the caller's translation unit rather than across the
+  // sandbox link boundary.
+  if (!is_host_thunk && !is_sandboxee_thunk &&
+      (is_inlined || !decl->isExternallyVisible())) {
     return absl::OkStatus();
   }
 
-  // Skip functions explicitly excluded via SANDBOX_IGNORE_FUNCS, or not listed
-  // in SANDBOX_FUNCS when an explicit allowlist is provided
-  // (!sandbox_funcs_.empty()). Sandboxee thunks are exempt from SANDBOX_FUNCS
-  // because their target function was already verified in library_ir_ above.
-  if (ignore_funcs_.contains(func_name) ||
-      (!is_sandboxee_thunk && !sandbox_funcs_.empty() &&
-       !sandbox_funcs_.contains(func_name))) {
+  // Deduplicate identical (name, canonical signature) declarations across the
+  // annotation file and library headers while allowing distinct C++ overloads.
+  auto [_, inserted] = used_funcs_.insert({func_name, func_type});
+  if (!inserted) {
+    return absl::OkStatus();
+  }
+
+  if (has_unsupported_annotation || is_host_thunk) {
     return absl::OkStatus();
   }
 
@@ -397,46 +401,6 @@ absl::Status SandboxedLibraryEmitter::AddVar(clang::VarDecl* decl) {
       library_ir_.sandboxee_code = getStringFromVarDecl(decl);
     }
   }
-
-  constexpr absl::string_view kSandboxFuncs = "sandbox_funcs_";
-  constexpr absl::string_view kIgnoreFuncs = "sandbox_ignore_funcs_";
-  const bool is_sandbox_funcs = decl->getIdentifier() != nullptr &&
-                                decl->getName().starts_with(kSandboxFuncs);
-  const bool is_ignore_funcs = decl->getIdentifier() != nullptr &&
-                               decl->getName().starts_with(kIgnoreFuncs);
-  if (is_sandbox_funcs || is_ignore_funcs) {
-    if (funcs_loc_) {
-      return absl::AlreadyExistsError(absl::Substitute(
-          "Only one of SANDBOX_FUNCS or SANDBOX_IGNORE_FUNCS can be used "
-          "per file. Previous annotation was at $0",
-          *funcs_loc_));
-    }
-    clang::SourceManager& source_manager =
-        decl->getASTContext().getSourceManager();
-    funcs_loc_ = source_manager.getExpansionLoc(decl->getBeginLoc())
-                     .printToString(source_manager);
-    const auto* init_list =
-        llvm::dyn_cast_or_null<clang::InitListExpr>(decl->getAnyInitializer());
-    if (init_list == nullptr) {
-      return absl::InvalidArgumentError(
-          "SANDBOX_FUNCS / SANDBOX_IGNORE_FUNCS must be initialized with an "
-          "initializer list of string literals");
-    }
-    for (const clang::Expr* init : init_list->inits()) {
-      std::optional<std::string> eval_str =
-          init->tryEvaluateString(decl->getASTContext());
-      if (!eval_str.has_value()) {
-        return absl::InvalidArgumentError(
-            "SANDBOX_FUNCS / SANDBOX_IGNORE_FUNCS elements must be string "
-            "literals");
-      }
-      if (is_sandbox_funcs) {
-        sandbox_funcs_.insert(*eval_str);
-      } else {
-        ignore_funcs_.insert(*eval_str);
-      }
-    }
-  }
   return absl::OkStatus();
 }
 
@@ -495,24 +459,6 @@ absl::Status SandboxedLibraryEmitter::PostParseAllFiles() {
                          absl::StrJoin(unused_pointee_contracts, ", ")));
   }
 
-  if (!funcs_loc_) {
-    return ValidateAndLinkLibraryIR(library_ir_);
-  }
-  const char* ann = "SANDBOX_FUNCS";
-  absl::flat_hash_set<std::string>* funcs = &sandbox_funcs_;
-  if (!ignore_funcs_.empty()) {
-    ann = "SANDBOX_IGNORE_FUNCS";
-    funcs = &ignore_funcs_;
-  }
-  for (const auto& [func, _] : used_funcs_) {
-    funcs->erase(func);
-  }
-  if (!funcs->empty()) {
-    std::vector<std::string> funcs_vec(funcs->begin(), funcs->end());
-    std::sort(funcs_vec.begin(), funcs_vec.end());
-    return absl::InvalidArgumentError(absl::Substitute(
-        "$0: unused $1: $2", *funcs_loc_, ann, absl::StrJoin(funcs_vec, ", ")));
-  }
   return ValidateAndLinkLibraryIR(library_ir_);
 }
 

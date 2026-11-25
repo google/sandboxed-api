@@ -75,18 +75,16 @@ TEST_F(SandboxedLibraryEmitterTest, SandboxeeThunkNotUsed) {
   EXPECT_THAT(*sandboxee_src, Not(HasSubstr("func_with_thunk_thunk")));
 }
 
-TEST_F(SandboxedLibraryEmitterTest,
-       SandboxeeAndHostThunkWithoutSandboxFuncsOrExternC) {
+TEST_F(SandboxedLibraryEmitterTest, SandboxeeAndHostThunkWithoutExternC) {
   GeneratorOptions options;
   options.name = "MyLib";
   options.sandboxed_library_gen = true;
   SandboxedLibraryEmitter emitter;
   ASSERT_THAT(
       RunFrontendAction(R"(
-        const char* sandbox_funcs_1[] = {"func_with_thunk"};
-
         extern "C" int func_with_thunk(int a);
-        extern "C" int unlisted_func(int a);
+        extern "C" [[clang::annotate("sandbox", "unsupported", "not needed")]]
+        int unlisted_func(int a);
 
         [[clang::annotate("sandbox", "sandboxee_thunk", "func_with_thunk")]]
         int func_with_thunk_sandbox(int a) {
@@ -584,15 +582,12 @@ TEST_F(SandboxedLibraryEmitterTest,
   EXPECT_THAT(emitter.PostParseAllFiles(), IsOk());
 }
 
-// Verifies that a callback typedef referenced only by a function listed in
-// `SANDBOX_IGNORE_FUNCS` is still counted as referenced (does not trigger an
+// Verifies that a callback typedef referenced only by a function marked
+// `SANDBOX_UNSUPPORTED` is still counted as referenced (does not trigger an
 // unused-typedef error), while pruning its reverse invoker and thunk pool.
 TEST_F(SandboxedLibraryEmitterTest,
-       CallbackTypedefUsedOnlyByIgnoredFunctionIsNotReported) {
+       CallbackTypedefUsedOnlyByUnsupportedFunctionIsNotReported) {
   SAPI_ASSERT_OK_AND_ASSIGN(const auto emitted, EmitHostAndSandboxeeSrc(R"(
-    const char* sandbox_ignore_funcs_1[] = {"compress", "ignored_with_cb",
-                                            "ignored_by_val"};
-
     struct ByVal {
       long a;
       long b;
@@ -606,9 +601,12 @@ TEST_F(SandboxedLibraryEmitterTest,
     [[clang::annotate("sandbox", "elem_sized_by", "size")]]
     typedef unsigned char* (*chunk_allocator)(unsigned long size);
 
-    extern "C" void compress(chunk_allocator alloc);
-    extern "C" void ignored_with_cb(ignored_reversible_cb cb);
-    extern "C" void ignored_by_val(by_val_cb cb);
+    extern "C" [[clang::annotate("sandbox", "unsupported", "unneeded")]]
+    void compress(chunk_allocator alloc);
+    extern "C" [[clang::annotate("sandbox", "unsupported", "unneeded")]]
+    void ignored_with_cb(ignored_reversible_cb cb);
+    extern "C" [[clang::annotate("sandbox", "unsupported", "by-value struct")]]
+    void ignored_by_val(by_val_cb cb);
     extern "C" int active_with_cb(active_const_ptr_cb cb);
   )"));
 
@@ -620,6 +618,89 @@ TEST_F(SandboxedLibraryEmitterTest,
   EXPECT_THAT(emitted.second, Not(HasSubstr("sapi_invoke_by_val_cb")));
   EXPECT_THAT(emitted.first, HasSubstr("sapi_bind_thunk_active_const_ptr_cb"));
   EXPECT_THAT(emitted.second, HasSubstr("sapi_invoke_active_const_ptr_cb"));
+}
+
+TEST_F(SandboxedLibraryEmitterTest,
+       UnsupportedOverloadInAnnotationFileSkipsMatchingHeaderOverload) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  options.sandboxed_library_gen = true;
+  options.limit_scan_depth = true;
+  options.in_files = {"annotations.cc", "header.h"};
+  SandboxedLibraryEmitter emitter;
+  ASSERT_THAT(
+      RunClangTool({"tool", "-fsyntax-only", "--std=c++20", "-I.", "-Wno-error",
+                    "annotations.cc"},
+                   {{"annotations.cc", R"(
+                     union BadUnion { int a; float b; };
+                     int overloaded(int x);
+                     [[clang::annotate("sandbox", "unsupported", "union arg")]]
+                     int overloaded(BadUnion* u);
+                   )"}},
+                   std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+  ASSERT_THAT(
+      RunClangTool({"tool", "-fsyntax-only", "--std=c++20", "-I.", "-Wno-error",
+                    "header.h"},
+                   {{"header.h", R"(
+                     union BadUnion { int a; float b; };
+                     int overloaded(int x);
+                     int overloaded(BadUnion* u);
+                   )"}},
+                   std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+  ASSERT_THAT(emitter.PostParseAllFiles(), IsOk());
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string host_src, emitter.EmitHostSrc(options));
+  EXPECT_THAT(host_src, HasSubstr("_Z10overloadedi(int x)"));
+  EXPECT_THAT(host_src, Not(HasSubstr("BadUnion")));
+}
+
+TEST_F(SandboxedLibraryEmitterTest,
+       UnsupportedRedeclarationAfterHeaderDeclarationSkipsFunction) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  options.sandboxed_library_gen = true;
+  options.limit_scan_depth = true;
+  options.in_files = {"annotations.cc", "header.h"};
+  SandboxedLibraryEmitter emitter;
+  ASSERT_THAT(
+      RunClangTool({"tool", "-fsyntax-only", "--std=c++20", "-I.", "-Wno-error",
+                    "annotations.cc"},
+                   {{"header.h", R"(
+                     extern "C" int exported_func(int x);
+                     extern "C" int take_raw_fd(int fd);
+                     extern "C" void unannotated_ptr(void* p);
+                   )"},
+                    {"annotations.cc", R"(
+                     #include "header.h"
+                     extern "C" [[clang::annotate("sandbox", "unsupported", "raw fd")]]
+                     int take_raw_fd(int fd);
+                     extern "C" [[clang::annotate("sandbox", "unsupported", "raw void*")]]
+                     void unannotated_ptr(void* p);
+                   )"}},
+                   std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+  ASSERT_THAT(emitter.PostParseAllFiles(), IsOk());
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string host_src, emitter.EmitHostSrc(options));
+  EXPECT_THAT(host_src, HasSubstr("exported_func"));
+  EXPECT_THAT(host_src, Not(HasSubstr("take_raw_fd")));
+  EXPECT_THAT(host_src, Not(HasSubstr("unannotated_ptr")));
+}
+
+TEST_F(SandboxedLibraryEmitterTest, StaticAndInlineHeaderFunctionsAreSkipped) {
+  SAPI_ASSERT_OK_AND_ASSIGN(const auto emitted, EmitHostAndSandboxeeSrc(R"(
+    static inline int static_inline_helper(int* p) { return *p; }
+    inline int inline_helper(int* p) { return *p; }
+    extern "C" int forward_declared_inline(int* p);
+    inline int forward_declared_inline(int* p) { return *p; }
+    static int static_helper(int* p) { return *p; }
+    extern "C" int exported_func(int x);
+  )"));
+  EXPECT_THAT(emitted.first, HasSubstr("exported_func"));
+  EXPECT_THAT(emitted.first, Not(HasSubstr("static_inline_helper")));
+  EXPECT_THAT(emitted.first, Not(HasSubstr("inline_helper")));
+  EXPECT_THAT(emitted.first, Not(HasSubstr("forward_declared_inline")));
+  EXPECT_THAT(emitted.first, Not(HasSubstr("static_helper")));
 }
 
 TEST_F(SandboxedLibraryEmitterTest,

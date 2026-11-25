@@ -3,11 +3,6 @@
 #include "sandboxed_api/annotations.h"
 #include "sandboxed_api/tests/testcases/replaced_library_complex_size.h"
 
-SANDBOX_FUNCS(mylib_copy_image, mylib_fill_bytes, mylib_copy_with_inptr_len,
-              mylib_set_with_outptr_len_capacity,
-              mylib_set_with_outptr_bytes_capacity,
-              mylib_set_with_inoutptr_len);
-
 void mylib_copy_image(
     const char* src SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(1 +
                                                          (width * height * 2)),
@@ -26,6 +21,9 @@ void mylib_copy_with_inptr_len(
 // `mylib_set_with_outptr_len`. So, we can only annotate and transparently
 // sandbox the `mylib_set_with_outptr_len_capacity` variant, which does have
 // that param.
+SANDBOX_UNSUPPORTED("Missing capacity parameter for dst")
+void mylib_set_with_outptr_len(int buf_num, int* dst, size_t* len);
+
 void mylib_set_with_outptr_len_capacity(
     int buf_num,
     int* dst SANDBOX_OUT_PTR SANDBOX_ELEM_SIZED_BY_OUTPARAM(*len, capacity),

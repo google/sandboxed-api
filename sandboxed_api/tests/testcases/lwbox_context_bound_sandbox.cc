@@ -7,23 +7,6 @@
 
 extern "C" {
 
-SANDBOX_FUNCS(
-    create_context_with_sb_buffer, to_upper_context_sb_buffers, get_buff_inline,
-    get_buff_null_terminated, destroy_context_with_sb_buffer,
-    create_context_sized_by_params, fill_context_sized_by_params,
-    get_buff_sized_by_params, destroy_context_sized_by_params,
-    create_context_sized_after_decoding, get_dimensions_sized_after_decoding,
-    get_buff_sized_after_decoding, get_buff_sized_after_decoding_outparam,
-    get_unsigned_int_buff_sized_after_decoding_outparam,
-    increment_buff_sized_after_decoding, destroy_context_sized_after_decoding,
-    create_context_stores_part_of_input_size,
-    hash_input_buffer_with_part_of_size_in_context,
-    destroy_context_stores_part_of_input_size,
-    create_context_with_host_owned_in_buffer,
-    create_context_with_host_owned_out_buffer,
-    get_next_chunk_host_owned_out_buffer,
-    destroy_context_with_host_owned_buffer);
-
 // Constant-sized and Null-terminated buffers.
 
 SANDBOX_OPAQUE_PTR

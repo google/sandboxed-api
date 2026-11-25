@@ -22,22 +22,16 @@
 
 // NOTE: this functionality is experimental and may change in the future.
 
-// Optional macros to explicitly allowlist or blocklist functions to be
-// sandboxed. Do not use these by default: when neither macro is used, all
-// functions in the library header files are selected for sandboxing, and
-// individual unsupported functions should be marked with `SANDBOX_UNSUPPORTED`
-// (from `annotations_unimplemented.h`) instead.
+// Marks a public function declaration as unsupported for sandboxing, with a
+// brief explanation of why. By default, all non-inline external functions in
+// the library header files are selected for sandboxing; functions marked with
+// `SANDBOX_UNSUPPORTED` are excluded and will not have wrappers generated.
 //
 // For example:
-//   SANDBOX_FUNCS(foo_init, foo_destroy, foo_something);
-// or:
-//   SANDBOX_IGNORE_FUNCS(foo_unused_func, foo_unsupported_signature);
-//
-// Functions that are not selected by these macros will not be available
-// in the sandbox. If used, only one of the macros can be used in a given file
-// once.
-#define SANDBOX_FUNCS(...) SANDBOX_FUNCS_IMPL(__VA_ARGS__)
-#define SANDBOX_IGNORE_FUNCS(...) SANDBOX_IGNORE_FUNCS_IMPL(__VA_ARGS__)
+//   SANDBOX_UNSUPPORTED("variadic arguments are not supported")
+//   int foo_printf(const char* fmt, ...);
+#define SANDBOX_UNSUPPORTED(reason) \
+  [[clang::annotate("sandbox", "unsupported", reason)]]
 
 // Pointer argument annotations that denote direction of the pointee data:
 // data is input for the sandbox function, output of the sandbox function,

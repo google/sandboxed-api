@@ -21,9 +21,8 @@
 
 // The following annotations will be available in the future. If you need to use
 // one of them, consider it unsupported and add an additional
-// SANDBOX_UNSUPPORTED("reason") to the function declaration.
-#define SANDBOX_UNSUPPORTED(reason) \
-  [[clang::annotate("sandbox", "unsupported", reason)]]
+// SANDBOX_UNSUPPORTED("reason") (from `annotations.h`) to the function
+// declaration.
 
 // These need to be used if the sandbox allocates memory that is supposed to be
 // freed by the host (for malloc()-allocated output buffers, use

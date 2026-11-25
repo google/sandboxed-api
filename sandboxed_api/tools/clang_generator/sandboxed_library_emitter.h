@@ -15,11 +15,9 @@
 #ifndef SANDBOXED_API_TOOLS_CLANG_GENERATOR_SANDBOXED_LIBRARY_EMITTER_H_
 #define SANDBOXED_API_TOOLS_CLANG_GENERATOR_SANDBOXED_LIBRARY_EMITTER_H_
 
-#include <optional>
 #include <string>
 #include <utility>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
@@ -77,11 +75,9 @@ class SandboxedLibraryEmitter : public EmitterBase {
   absl::Status ParsePointeeContract(const clang::TypedefNameDecl& decl);
 
   absl::flat_hash_set<std::string> includes_;
-  absl::flat_hash_set<std::string> sandbox_funcs_;
-  absl::flat_hash_set<std::string> ignore_funcs_;
-  absl::flat_hash_map<std::string, std::string> used_funcs_;
+  absl::flat_hash_set<std::pair<std::string, std::string>> used_funcs_;
   // Names of callback typedefs referenced by at least one declaration (even if
-  // ignored), used to detect and report unused callback typedefs in the
+  // unsupported), used to detect and report unused callback typedefs in the
   // annotation file.
   absl::flat_hash_set<std::string> referenced_callback_typedefs_;
   // Names of callback typedefs referenced by at least one emitted function or
@@ -92,7 +88,6 @@ class SandboxedLibraryEmitter : public EmitterBase {
   // pointee typedef, used to detect and report unused pointee typedefs in the
   // annotation file.
   absl::flat_hash_set<std::string> used_pointee_contracts_;
-  std::optional<std::string> funcs_loc_;
   ir::Library library_ir_;
 };
 

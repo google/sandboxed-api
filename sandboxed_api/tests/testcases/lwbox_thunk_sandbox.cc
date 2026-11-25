@@ -4,8 +4,6 @@
 #include "sandboxed_api/annotations.h"
 #include "sandboxed_api/tests/testcases/replaced_library_thunk.h"
 
-SANDBOX_FUNCS(sum_buffs);
-
 // An example thunk for deeply syncing pointers in a struct with a union.
 // Otherwise, we need some annotation capturing a mapping of predicates
 // to the member of the union that is active. Then use that mapping to
