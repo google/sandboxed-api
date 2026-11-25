@@ -1701,20 +1701,21 @@ absl::StatusOr<std::unique_ptr<Policy>> PolicyBuilder::TryBuild(
     // arbitrary host domain sockets unless:
     // 1) The caller explicitly opted into host networking via
     //    UnrestrictedNetworking() (netns_mode_ == NETNS_MODE_NONE), OR
-    // 2) The caller configured NetworkProxy with UNIX socket path filtering.
+    // 2) The caller configured NetworkProxyHandler with UNIX socket path
+    //    filtering, so seccomp traps connect() to the proxy allowlist and
+    //    restricts AF_UNIX socket() to SOCK_STREAM.
     // Starting in Landlock ABI v9 (LANDLOCK_ACCESS_FS_RESOLVE_UNIX), pathname
     // AF_UNIX sockets are restricted by Landlock filesystem rules, so neither
-    // UnrestrictedNetworking() nor NetworkProxy is required.
+    // UnrestrictedNetworking() nor NetworkProxyHandler is required.
     landlock_abi =
         landlock_abi_version_for_testing_.value_or(GetLandlockAbiVersion());
     if (landlock_abi < 9) {
       bool has_unrestricted_networking = (netns_mode_ == NETNS_MODE_NONE);
-      bool has_network_proxy = allowed_endpoints_.has_value();
-      bool has_unix_socket_filtering =
-          has_network_proxy && allowed_endpoints_->filter_unix_sockets();
-
+      // Check the AddNetworkProxyHandlerPolicy() argument rather than
+      // AllowedEndpoints::filter_unix_sockets(): AllowUnixSocket() sets the
+      // latter without installing the AF_UNIX socket() seccomp rule.
       if (!has_unrestricted_networking &&
-          (!has_network_proxy || !has_unix_socket_filtering)) {
+          !network_proxy_handler_filters_unix_sockets_) {
         return absl::FailedPreconditionError(
             "Cannot use Landlock mode without either UnrestrictedNetworking or "
             "a NetworkProxy with UNIX socket filtering enabled "
@@ -2015,6 +2016,22 @@ PolicyBuilder& PolicyBuilder::AddNetworkProxyPolicy(bool filter_unix_sockets) {
         "at most once"));
     return *this;
   }
+  // An earlier socket(2) rule would run before the AF_UNIX SOCK_STREAM-only
+  // rule below and could allow AF_UNIX datagram sockets.
+  bool socket_handled = handled_syscalls_.contains(__NR_socket) ||
+                        custom_policy_syscalls_.contains(__NR_socket);
+#ifdef SAPI_PPC64_LE
+  socket_handled = socket_handled ||
+                   handled_syscalls_.contains(__NR_socketcall) ||
+                   custom_policy_syscalls_.contains(__NR_socketcall);
+#endif
+  if (filter_unix_sockets && socket_handled) {
+    SetError(absl::FailedPreconditionError(
+        "AddNetworkProxyPolicy or AddNetworkProxyHandlerPolicy with "
+        "filter_unix_sockets cannot be used after __NR_socket has already been "
+        "allowed or handled"));
+    return *this;
+  }
 
   allowed_endpoints_ = AllowedEndpoints();
 
@@ -2067,25 +2084,50 @@ PolicyBuilder& PolicyBuilder::AddNetworkProxyPolicy(bool filter_unix_sockets) {
                        };
                      });
 #ifdef SAPI_PPC64_LE
-  AddPolicyOnSyscall(__NR_socketcall, {
-                                          ARG_32(0),
-                                          JEQ32(SYS_SOCKET, ALLOW),
-                                          JEQ32(SYS_GETSOCKOPT, ALLOW),
-                                          JEQ32(SYS_RECVMSG, ALLOW),
-                                      });
+  if (filter_unix_sockets) {
+    // Block SYS_SOCKET via __NR_socketcall when filtering UNIX sockets because
+    // seccomp-bpf cannot inspect its userspace pointer arguments to block
+    // AF_UNIX SOCK_DGRAM sockets; modern PPC64LE libc uses __NR_socket.
+    AddPolicyOnSyscall(__NR_socketcall, {
+                                            ARG_32(0),
+                                            JEQ32(SYS_SOCKET, ERRNO(EACCES)),
+                                            JEQ32(SYS_GETSOCKOPT, ALLOW),
+                                            JEQ32(SYS_RECVMSG, ALLOW),
+                                        });
+  } else {
+    AddPolicyOnSyscall(__NR_socketcall, {
+                                            ARG_32(0),
+                                            JEQ32(SYS_SOCKET, ALLOW),
+                                            JEQ32(SYS_GETSOCKOPT, ALLOW),
+                                            JEQ32(SYS_RECVMSG, ALLOW),
+                                        });
+  }
 #endif
   return *this;
 }
 
 PolicyBuilder& PolicyBuilder::AddNetworkProxyHandlerPolicy(
     bool filter_unix_sockets) {
-  if (handled_syscalls_.contains(__NR_connect)) {
+  // An earlier connect(2) rule would run before the TRAP(0) rule below and
+  // bypass NetworkProxyHandler.
+  bool connect_handled = handled_syscalls_.contains(__NR_connect) ||
+                         custom_policy_syscalls_.contains(__NR_connect);
+#ifdef SAPI_PPC64_LE
+  connect_handled = connect_handled ||
+                    handled_syscalls_.contains(__NR_socketcall) ||
+                    custom_policy_syscalls_.contains(__NR_socketcall);
+#endif
+  if (connect_handled) {
     SetError(absl::FailedPreconditionError(
         "AddNetworkProxyHandlerPolicy cannot be used after __NR_connect has "
         "already been allowed or handled"));
     return *this;
   }
   AddNetworkProxyPolicy(filter_unix_sockets);
+  if (!last_status_.ok()) {
+    return *this;
+  }
+  network_proxy_handler_filters_unix_sockets_ = filter_unix_sockets;
   AllowSyscall(__NR_rt_sigreturn);
 
   AddPolicyOnSyscall(__NR_rt_sigaction, {

@@ -1043,10 +1043,18 @@ class PolicyBuilder final {
 
   // Allows syscalls that are necessary for the NetworkProxyClient.
   //
-  // When filter_unix_sockets is true, AF_UNIX domain sockets are restricted to
-  // stream (SOCK_STREAM) sockets in seccomp and filtered against allowed
-  // UNIX socket endpoint paths (via AllowUnixSocket). Datagram AF_UNIX sockets
-  // are blocked due to TOCTOU security limitations in seccomp filtering.
+  // Does not install the SIGSYS seccomp trap on connect(2); callers must invoke
+  // NetworkProxyClient::Connect manually. When filter_unix_sockets is true,
+  // AF_UNIX socket(2) creation is restricted to stream (SOCK_STREAM) sockets in
+  // seccomp and NetworkProxy validates paths against AllowUnixSocket. Datagram
+  // AF_UNIX sockets are blocked due to TOCTOU security limitations in seccomp
+  // filtering. Landlock mode at ABI <= 8 requires
+  // AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true) so connect(2) is
+  // trapped in seccomp.
+  //
+  // When filter_unix_sockets is true, this must be called before any other
+  // rule on socket(2) (__NR_socketcall on PPC64LE); otherwise TryBuild()
+  // returns FAILED_PRECONDITION.
   //
   // Recommendation: For datagram sockets or to completely avoid connect(2),
   // sendto(2), and sendmsg(2) proxy interception, pre-open connected socket
@@ -1060,6 +1068,10 @@ class PolicyBuilder final {
   // When filter_unix_sockets is true, pathname AF_UNIX domain sockets connected
   // inside the sandbox are intercepted by NetworkProxyHandler and validated
   // against paths permitted via AllowUnixSocket.
+  //
+  // Must be called before any other rule on connect(2) and, when
+  // filter_unix_sockets is true, on socket(2) (__NR_socketcall on PPC64LE);
+  // otherwise TryBuild() returns FAILED_PRECONDITION.
   PolicyBuilder& AddNetworkProxyHandlerPolicy(bool filter_unix_sockets = false);
 
   // Makes root of the filesystem writeable
@@ -1221,6 +1233,9 @@ class PolicyBuilder final {
 
   // List of allowed endpoints
   absl::optional<AllowedEndpoints> allowed_endpoints_;
+  // Set by AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true), which
+  // traps connect(2) and restricts AF_UNIX socket(2) to SOCK_STREAM.
+  bool network_proxy_handler_filters_unix_sockets_ = false;
   std::optional<int> landlock_abi_version_for_testing_;
 };
 

@@ -438,6 +438,68 @@ TEST(PolicyBuilderTest,
 }
 
 TEST(PolicyBuilderTest,
+     EnableLandlockAllowUnixSocketWithoutUnixFilterFailsOnAbiV8) {
+  PolicyBuilder builder;
+  PolicyBuilderPeer(&builder).SetLandlockAbiVersion(8);
+  builder.EnableLandlock(sandbox2::EnableLandlock())
+      .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/false)
+      .AllowUnixSocket("/tmp/test.sock");
+  EXPECT_THAT(builder.TryBuild(),
+              StatusIs(absl::StatusCode::kFailedPrecondition,
+                       HasSubstr("UNIX socket filtering enabled")));
+}
+
+TEST(PolicyBuilderTest,
+     EnableLandlockWithManualNetworkProxyPolicyFailsOnAbiV8) {
+  PolicyBuilder builder;
+  PolicyBuilderPeer(&builder).SetLandlockAbiVersion(8);
+  builder.EnableLandlock(sandbox2::EnableLandlock())
+      .AllowSyscall(__NR_connect)
+      .AddNetworkProxyPolicy(/*filter_unix_sockets=*/true);
+  EXPECT_THAT(builder.TryBuild(),
+              StatusIs(absl::StatusCode::kFailedPrecondition,
+                       HasSubstr("AddNetworkProxyHandlerPolicy")));
+}
+
+TEST(PolicyBuilderTest, AddNetworkProxyHandlerPolicyAfterCustomConnectFails) {
+  PolicyBuilder builder;
+  builder.AddPolicyOnSyscall(__NR_connect, {ALLOW})
+      .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true);
+  EXPECT_THAT(builder.TryBuild(),
+              StatusIs(absl::StatusCode::kFailedPrecondition,
+                       HasSubstr("AddNetworkProxyHandlerPolicy cannot be used "
+                                 "after __NR_connect")));
+}
+
+TEST(PolicyBuilderTest,
+     AddNetworkProxyPolicyWithUnixFilterAfterAllowSocketFails) {
+  PolicyBuilder builder;
+  builder.AllowSyscall(__NR_socket)
+      .AddNetworkProxyPolicy(/*filter_unix_sockets=*/true);
+  EXPECT_THAT(builder.TryBuild(),
+              StatusIs(absl::StatusCode::kFailedPrecondition,
+                       HasSubstr("after __NR_socket")));
+}
+
+TEST(PolicyBuilderTest,
+     AddNetworkProxyHandlerPolicyWithUnixFilterAfterCustomSocketFails) {
+  PolicyBuilder builder;
+  builder.AddPolicyOnSyscall(__NR_socket, {ALLOW})
+      .AddNetworkProxyHandlerPolicy(/*filter_unix_sockets=*/true);
+  EXPECT_THAT(builder.TryBuild(),
+              StatusIs(absl::StatusCode::kFailedPrecondition,
+                       HasSubstr("after __NR_socket")));
+}
+
+TEST(PolicyBuilderTest,
+     AddNetworkProxyPolicyWithoutUnixFilterAfterAllowSocketSucceeds) {
+  PolicyBuilder builder;
+  builder.AllowSyscall(__NR_socket)
+      .AddNetworkProxyPolicy(/*filter_unix_sockets=*/false);
+  EXPECT_THAT(builder.TryBuild(), IsOk());
+}
+
+TEST(PolicyBuilderTest,
      EnableLandlockNetworkProxyWithoutUnixFilterSucceedsOnAbiV9AndV10) {
   for (int abi_version : {9, 10}) {
     PolicyBuilder builder;
