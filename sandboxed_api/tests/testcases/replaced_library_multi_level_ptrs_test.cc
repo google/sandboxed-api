@@ -773,4 +773,210 @@ TEST(MultiLevelPointersTest, NineFloatStackSpillCallbackReturnsFloat) {
   EXPECT_FLOAT_EQ(evaluate_nine_float_callback(0.5f, nullptr), -1.0f);
 }
 
+TEST(MultiLevelPointersTest,
+     SizedStructArrayPreservesSandboxeeClearedNullPointerMember) {
+  int slice0[] = {5, 6};
+  int slice1[] = {10, 20, 30};
+  int* orig_ptr1 = slice1;
+  OuterPacketRecord packets[3] = {
+      {"drop", {slice0, 2}, 0},
+      {"keep", {slice1, 3}, 0},
+      {"empty", {nullptr, 0}, 0},
+  };
+
+  EXPECT_EQ(filter_or_scale_outer_packets(packets, 3, /*min_len=*/3,
+                                          /*scale=*/2),
+            1);
+  EXPECT_EQ(packets[0].payload.values, nullptr);
+  EXPECT_EQ(packets[0].payload.len, 0u);
+  EXPECT_EQ(packets[0].checksum, -1);
+  // Caller's original buffer for element 0 remains untouched.
+  EXPECT_EQ(slice0[0], 5);
+  EXPECT_EQ(slice0[1], 6);
+
+  EXPECT_EQ(packets[1].payload.values, orig_ptr1);
+  EXPECT_EQ(packets[1].payload.len, 3u);
+  EXPECT_EQ(slice1[0], 20);
+  EXPECT_EQ(slice1[1], 40);
+  EXPECT_EQ(slice1[2], 60);
+  EXPECT_EQ(packets[1].checksum, 124);
+
+  EXPECT_EQ(packets[2].payload.values, nullptr);
+  EXPECT_EQ(packets[2].payload.len, 0u);
+}
+
+TEST(MultiLevelPointersTest,
+     ExplicitStructSyncOnSizedArrayMutatesAndRezerosNullTerminatedStrings) {
+  char label0[] = {'a', 'b', 'c', '\0', 'Z'};
+  char label1[] = {'x', 'y', '\0', 'Q'};
+  int vals0[] = {1, 2, 3};
+  int vals1[] = {10, 20};
+  MutableLabeledSlice slices[2] = {
+      {label0, vals0, 3},
+      {label1, vals1, 2},
+  };
+
+  EXPECT_EQ(mutate_labeled_slices(slices, 2, /*clobber_sentinel=*/0,
+                                  /*delta=*/5),
+            2);
+  EXPECT_STREQ(slices[0].label, "ABC");
+  EXPECT_EQ(label0[4], 'Z');
+  EXPECT_EQ(vals0[0], 6);
+  EXPECT_EQ(vals0[1], 7);
+  EXPECT_EQ(vals0[2], 8);
+  EXPECT_STREQ(slices[1].label, "XY");
+  EXPECT_EQ(label1[3], 'Q');
+  EXPECT_EQ(vals1[0], 15);
+  EXPECT_EQ(vals1[1], 25);
+
+  if (IsSandboxed()) {
+    char clobber0[] = {'h', 'i', '\0', 'W'};
+    int cvals0[] = {4};
+    MutableLabeledSlice clobbered[1] = {{clobber0, cvals0, 1}};
+    EXPECT_EQ(mutate_labeled_slices(clobbered, 1, /*clobber_sentinel=*/1,
+                                    /*delta=*/1),
+              1);
+    EXPECT_EQ(clobber0[0], 'H');
+    EXPECT_EQ(clobber0[1], 'I');
+    EXPECT_EQ(clobber0[2], '\0');
+    EXPECT_EQ(clobber0[3], 'W');
+    EXPECT_EQ(cvals0[0], 5);
+  }
+}
+
+TEST(MultiLevelPointersTest,
+     ExplicitStructSyncOnSizedArrayRetainsAndBindsPerElementBuffers) {
+  int span0[] = {2, 3, 4};
+  int span2[] = {10, 20};
+  RetainedSpanSpec specs[3] = {
+      {span0, 3, 2},
+      {nullptr, 0, 7},
+      {span2, 2, 3},
+  };
+
+  // A zero-length array stages no element buffers.
+  EXPECT_EQ(create_retained_span_table(specs, 0), nullptr);
+  // A `nullptr` return frees the staged element buffers instead of retaining
+  // them under a null context.
+  RetainedSpanSpec rejected[2] = {
+      {span0, 3, 1},
+      {span2, 2, -1},
+  };
+  EXPECT_EQ(create_retained_span_table(rejected, 2), nullptr);
+
+  RetainedSpanTable* table = create_retained_span_table(specs, 3);
+  ASSERT_NE(table, nullptr);
+  if (IsSandboxed()) {
+    // Mutating host buffers after `create_retained_span_table` must not affect
+    // the sandboxee's retained remote copies.
+    span0[0] = -100;
+    span2[0] = -200;
+  }
+  // 2 * (2 + 3 + 4) + 0 + 3 * (10 + 20) = 18 + 90 = 108.
+  EXPECT_EQ(eval_retained_span_table(table), 108);
+  destroy_retained_span_table(table);
+}
+
+TEST(MultiLevelPointersTest, ByteAndBindingSizedStructArraysSyncEveryElement) {
+  const size_t dims[] = {2, 1};  // elem_count = 2
+  ASSERT_EQ(register_hyperslab_var(/*ncid=*/41, /*varid=*/3, dims, 2), 44);
+  std::vector<int> values[6] = {{1}, {2, 3}, {4}, {5, 6}, {7}, {8, 9}};
+  InnerPayloadSlice byte_sized[2] = {{values[0].data(), 1},
+                                     {values[1].data(), 2}};
+  InnerPayloadSlice elem_bound[2] = {{values[2].data(), 1},
+                                     {values[3].data(), 2}};
+  InnerPayloadSlice byte_bound[2] = {{values[4].data(), 1},
+                                     {values[5].data(), 2}};
+
+  // Each array has two elements. A wrong element count skips the second
+  // element or reads past the end of the array.
+  EXPECT_EQ(scale_payload_slice_arrays(byte_sized, sizeof(byte_sized),
+                                       /*ncid=*/41, /*varid=*/3, elem_bound,
+                                       byte_bound, /*scale=*/10),
+            9);
+  EXPECT_EQ(values[0], (std::vector<int>{10}));
+  EXPECT_EQ(values[1], (std::vector<int>{20, 30}));
+  EXPECT_EQ(values[2], (std::vector<int>{40}));
+  EXPECT_EQ(values[3], (std::vector<int>{50, 60}));
+  EXPECT_EQ(values[4], (std::vector<int>{70}));
+  EXPECT_EQ(values[5], (std::vector<int>{80, 90}));
+}
+
+TEST(MultiLevelPointersTest, SizedStructArrayTransfersLifetimeMallocMembers) {
+  int dummy = 0;
+  // The sandboxee sets a `nullptr` buffer for size 0, which must replace the
+  // caller's garbage pointer.
+  MemIoBuffer memios[3] = {{.size = 7, .memory = &dummy, .flags = -1}, {}, {}};
+  ASSERT_EQ(finalize_memio_buffers(memios, 3, /*fill_byte=*/0x40), 0);
+  EXPECT_EQ(memios[0].size, 0u);
+  EXPECT_EQ(memios[0].memory, nullptr);
+  ASSERT_NE(memios[1].memory, nullptr);
+  ASSERT_NE(memios[2].memory, nullptr);
+  const auto* bytes1 = static_cast<const unsigned char*>(memios[1].memory);
+  const auto* bytes2 = static_cast<const unsigned char*>(memios[2].memory);
+  EXPECT_EQ(std::vector<unsigned char>(bytes1, bytes1 + memios[1].size),
+            (std::vector<unsigned char>{0x50, 0x51}));
+  EXPECT_EQ(std::vector<unsigned char>(bytes2, bytes2 + memios[2].size),
+            (std::vector<unsigned char>{0x60, 0x61, 0x62, 0x63}));
+  EXPECT_EQ(memios[2].flags, 2);
+  free(memios[1].memory);
+  free(memios[2].memory);
+}
+
+TEST(MultiLevelPointersTest, SizedStructArrayRejectsInflatedMemberLength) {
+  std::vector<int> values0 = {1, 2};
+  std::vector<int> values1 = {3};
+  InnerPayloadSlice slices[2] = {{values0.data(), 2}, {values1.data(), 1}};
+
+  // A smaller length is in the capacity, and the host keeps its buffers.
+  inflate_payload_slice_lens(slices, 2, /*new_len=*/1);
+  EXPECT_EQ(slices[0].values, values0.data());
+  EXPECT_EQ(slices[0].len, 1u);
+  EXPECT_EQ(slices[1].values, values1.data());
+  EXPECT_EQ(slices[1].len, 1u);
+
+  if (IsSandboxed()) {
+    // Each element now has a capacity of 1 `int` (4 bytes).
+    EXPECT_DEATH(inflate_payload_slice_lens(slices, 2, /*new_len=*/3),
+                 "Sandboxee returned size \\(12\\) exceeding capacity \\(4\\)");
+  }
+}
+
+TEST(MultiLevelPointersTest,
+     SizedByBindingReferencesStructFieldsInNestedStructAndSizedArray) {
+  const size_t dims_a[] = {2, 2};  // elem_count = 4
+  const size_t dims_b[] = {3, 1};  // elem_count = 3
+  ASSERT_EQ(register_hyperslab_var(/*ncid=*/21, /*varid=*/1, dims_a, 2), 22);
+  ASSERT_EQ(register_hyperslab_var(/*ncid=*/22, /*varid=*/2, dims_b, 2), 24);
+
+  // Nested struct: `rows = 2`, `elem_count = 4` -> 8 elements.
+  // Pass bogus `ncid = -999` and `rows = 0` arguments so unprefixed codegen
+  // would look up the wrong composite key or copy 0 elements.
+  std::vector<int> nested_out(8, -1);
+  NestedHyperslabRequest req = {
+      /*tag_id=*/5,
+      {/*ncid=*/21, /*varid=*/1, /*rows=*/2, nested_out.data()},
+  };
+  ASSERT_EQ(fill_nested_hyperslab_request(&req, /*ncid=*/-999, /*rows=*/0), 8);
+  for (int i = 0; i < 8; ++i) {
+    EXPECT_EQ(nested_out[i], 500 + 21 * 10 + 1 + i);
+  }
+
+  // Sized struct array: two slices referencing distinct `(ncid, varid)` keys.
+  std::vector<int> batch_out0(8, -1);  // 2 * 4 = 8
+  std::vector<int> batch_out1(9, -1);  // 3 * 3 = 9
+  BoundHyperslabSlice batch[2] = {
+      {/*ncid=*/21, /*varid=*/1, /*rows=*/2, batch_out0.data()},
+      {/*ncid=*/22, /*varid=*/2, /*rows=*/3, batch_out1.data()},
+  };
+  ASSERT_EQ(fill_hyperslab_slice_batch(batch, 2, /*ncid=*/-999, /*rows=*/0),
+            17);
+  for (int i = 0; i < 8; ++i) {
+    EXPECT_EQ(batch_out0[i], 21 * 10 + 1 + i);
+  }
+  for (int i = 0; i < 9; ++i) {
+    EXPECT_EQ(batch_out1[i], 22 * 10 + 2 + i);
+  }
+}
+
 }  // namespace

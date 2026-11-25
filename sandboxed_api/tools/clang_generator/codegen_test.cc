@@ -1781,6 +1781,83 @@ TEST(EmitHostSrcTest,
                       "func))")));
 }
 
+TEST(EmitHostSrcTest, WrittenBackStructArrayChecksInMemberSizesAfterCopyback) {
+  // `chunks` is written back element by element, so the sandboxee controls
+  // `chunks[i].len` after the call even though `data` is an input buffer.
+  ir::Parameter chunks{
+      .name = "chunks",
+      .type = PointerTo(ir::TypeInfo{.kind = ir::TypeKind::kStruct,
+                                     .canonical_name = "Chunk"}),
+      .payload =
+          ir::StructSyncParam{
+              .direction = PointerDir::kInOut,
+              .members =
+                  {
+                      ir::StructMemberSync{
+                          .member_name = "data",
+                          .parent_prefix = "chunks->",
+                          .direction = PointerDir::kIn,
+                          .bounds = ByteCount("chunks[sapi_i].len"),
+                      },
+                  },
+              .array_bounds = ElemCount("count"),
+          },
+  };
+
+  absl::StatusOr<std::string> src = HostSrc(ir::Function{
+      .name = "process_chunks",
+      .parameters = {std::move(chunks), ScalarArg("count", "size_t")},
+  });
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(
+          HasSubstr("std::vector<size_t> sapi_cap_chunks_data(sapi_count_"
+                    "chunks, 0);"),
+          HasSubstr("sapi_cap_chunks_data[sapi_i] = sapi_arr->GetSize();"),
+          // The check uses the `chunks[sapi_i].len` value that the
+          // copy-back wrote.
+          ContainsRegex(
+              R"(chunks\[sapi_i\] = sapi_structs_chunks\[sapi_i\];(\s|\S)*size_t sapi_post_size =[^;]*chunks\[sapi_i\]\.len[^;]*;\s*if \(sapi_post_size > sapi_cap_chunks_data\[sapi_i\]\))"),
+          HasSubstr("for struct member chunks[sapi_i].data")));
+}
+
+TEST(EmitHostSrcTest, SizedStructSyncRegistersAndBindsCallbackMembers) {
+  ir::Parameter hooks{
+      .name = "hooks",
+      .type = PointerTo(ir::TypeInfo{.kind = ir::TypeKind::kStruct,
+                                     .canonical_name = "Hooks"}),
+      .payload =
+          ir::StructSyncParam{
+              .direction = PointerDir::kInOut,
+              .callbacks =
+                  {
+                      ir::StructCallbackField{
+                          .member_name = "cb",
+                          .typedef_name = "adder",
+                      },
+                  },
+              .array_bounds = ElemCount("n"),
+          },
+  };
+
+  absl::StatusOr<std::string> src = HostSrc(ir::Function{
+      .name = "update_hooks",
+      .parameters = {std::move(hooks), ScalarArg("n", "size_t")},
+  });
+  ASSERT_THAT(src, IsOk());
+  // Before the call, each host callback becomes a registered sandboxee
+  // trampoline. After the copy-back, each callback becomes a host thunk, so
+  // that the caller never gets a raw sandboxee function pointer.
+  EXPECT_THAT(
+      *src,
+      AllOf(
+          ContainsRegex(
+              R"(sapi_structs_hooks\[sapi_i\]\.cb =\s*reinterpret_cast<decltype\(sapi_structs_hooks\[sapi_i\]\.cb\)>\(\s*sapi_register_callback_adder\(\s*reinterpret_cast<uintptr_t>\(hooks\[sapi_i\]\.cb\)\)\))"),
+          ContainsRegex(
+              R"(hooks\[sapi_i\] = sapi_structs_hooks\[sapi_i\];(\s|\S)*hooks\[sapi_i\]\.cb =\s*reinterpret_cast<decltype\(hooks\[sapi_i\]\.cb\)>\(\s*sapi_bind_thunk_adder\(\s*reinterpret_cast<uintptr_t>\(\s*sapi_structs_hooks\[sapi_i\]\.cb\)\)\))")));
+}
+
 TEST(EmitHostSrcTest,
      CallbackWithNullTerminatedStructArrayUsesTypedReadNullTerminatedArray) {
   ir::TypeInfo record_type{
@@ -1975,6 +2052,209 @@ TEST(EmitHostSrcTest,
           HasSubstr("sapi_tmp_unrelated_out.PtrAfter()"),
           ContainsRegex(
               R"(if \(sapi_final_size > 0\) \{\s*sandbox->Check\(\s*sandbox->rpc_channel\(\)\s*->CopyFromSandbox)")));
+}
+
+TEST(EmitHostSrcTest,
+     SizedStructSyncGuardsNullPointerRestoreAndSyncsOutputsPostRestore) {
+  ir::TypeInfo record_type{
+      .kind = ir::TypeKind::kStruct,
+      .canonical_name = "Packet",
+  };
+  ir::Parameter struct_param{
+      .name = "items",
+      .type = PointerTo(std::move(record_type)),
+      .payload =
+          ir::StructSyncParam{
+              .direction = PointerDir::kInOut,
+              .members =
+                  {
+                      ir::StructMemberSync{
+                          .member_name = "data",
+                          .parent_prefix = "items->",
+                          .direction = PointerDir::kInOut,
+                          .bounds =
+                              ir::bounds::ElemCount{
+                                  .size_expr = "items[sapi_i].len",
+                              },
+                      },
+                  },
+              .array_bounds = ir::bounds::ElemCount{.size_expr = "count"},
+          },
+  };
+  ir::Function func{
+      .name = "filter_packets",
+      .parameters = {std::move(struct_param), ScalarArg("count", "size_t")},
+  };
+
+  absl::StatusOr<std::string> src = HostSrc(std::move(func));
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(
+          // A member that the sandboxee clears to `nullptr` stays `nullptr`.
+          ContainsRegex(
+              R"(if \(items\[sapi_i\]\.data != nullptr\) \{\s*items\[sapi_i\]\.data = sapi_host_ptr_data;\s*\})"),
+          // The output buffer syncs back after the restore, only for a
+          // non-null member, and only after the post-call size passes the
+          // capacity check.
+          ContainsRegex(
+              R"(items\[sapi_i\]\.data = sapi_host_ptr_data;(\s|\S)*if \(items\[sapi_i\]\.data != nullptr\) \{\s*size_t sapi_post_size(\s|\S)*if \(sapi_post_size > sapi_cap_items_data\[sapi_i\]\)(\s|\S)*SyncFromSandboxToHost\(\s*\*sandbox,\s*sapi_remote_items_data\[sapi_i\],\s*reinterpret_cast<void\*>\(items\[sapi_i\]\.data\),\s*sapi_post_size\))")));
+}
+
+TEST(EmitHostSrcTest,
+     SizedStructSyncRezerosNullTerminatedInOutAndRetainsMembers) {
+  ir::TypeInfo record_type{
+      .kind = ir::TypeKind::kStruct,
+      .canonical_name = "LabeledSpan",
+  };
+  ir::Parameter struct_param{
+      .name = "slices",
+      .type = PointerTo(std::move(record_type)),
+      .payload =
+          ir::StructSyncParam{
+              .direction = PointerDir::kIn,
+              .members =
+                  {
+                      ir::StructMemberSync{
+                          .member_name = "label",
+                          .parent_prefix = "slices->",
+                          .direction = PointerDir::kInOut,
+                          .bounds = ir::bounds::NullTerminated{},
+                      },
+                      ir::StructMemberSync{
+                          .member_name = "data",
+                          .parent_prefix = "slices->",
+                          .direction = PointerDir::kIn,
+                          .bounds =
+                              ir::bounds::ElemCount{
+                                  .size_expr = "slices[sapi_i].len",
+                              },
+                          .context_bound =
+                              ContextBoundAnnotations{
+                                  .retain_and_bind =
+                                      RetainAndBind{
+                                          .context = "$return",
+                                          .binding_name = "slices->data",
+                                      },
+                              },
+                      },
+                  },
+              .array_bounds = ir::bounds::ElemCount{.size_expr = "count"},
+          },
+  };
+  ir::Function func{
+      .name = "create_handle",
+      .return_value =
+          ir::Parameter{
+              .name = "sapi_ret_arg",
+              .type = PointerTo(ScalarType("void")),
+              .is_return_value = true,
+              .payload = ir::OpaquePointerParam{.direction =
+                                                    PointerDir::kSandboxOpaque},
+          },
+      .parameters = {std::move(struct_param), ScalarArg("count", "size_t")},
+  };
+
+  absl::StatusOr<std::string> src = HostSrc(std::move(func));
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(HasSubstr("sandbox->Check(sandbox->Allocate(&sapi_arr, "
+                      "/*automatic_free=*/false));"),
+            HasSubstr("memset(reinterpret_cast<char*>(slices[sapi_i].label) +\n"
+                      "                   sapi_cap_slices_label[sapi_i] -\n"
+                      "                   sizeof(*(slices[sapi_i].label)),\n"
+                      "               0, sizeof(*(slices[sapi_i].label)));"),
+            HasSubstr("sapi::lwbox::ContextBindingRegistry::Instance()"
+                      "->RetainPointer(\n"
+                      "            sapi_ret_arg.GetValue(), "
+                      "absl::StrCat(\"slices->data_\", sapi_i),\n"
+                      "            sapi_remote_slices_data[sapi_i], "
+                      "sapi_cap_slices_data[sapi_i]);"),
+            HasSubstr("sandbox->Check(sandbox->rpc_channel()->Free(\n"
+                      "            reinterpret_cast<void*>("
+                      "sapi_remote_slices_data[sapi_i])));")));
+}
+
+TEST(EmitHostSrcTest,
+     StructSyncAndSizedStructSyncEmitPrefixedSizedByBindingLookups) {
+  ir::TypeInfo outer_type{
+      .kind = ir::TypeKind::kStruct,
+      .canonical_name = "OuterBoundPacket",
+  };
+  ir::Parameter single_param{
+      .name = "pkt",
+      .type = PointerTo(outer_type),
+      .payload =
+          ir::StructSyncParam{
+              .direction = PointerDir::kInOut,
+              .members =
+                  {
+                      ir::StructMemberSync{
+                          .member_name = "data",
+                          .parent_prefix = "pkt->inner.",
+                          .direction = PointerDir::kOut,
+                          .bounds =
+                              ir::bounds::SizedByBinding{
+                                  .context_expr =
+                                      "sapi::lwbox::CompositeKey("
+                                      "pkt->inner.ncid, pkt->inner.varid)",
+                                  .binding_name =
+                                      "pkt->inner.rows * $elem_count",
+                                  .is_elem_sized = true,
+                              },
+                      },
+                  },
+          },
+  };
+  ir::Parameter array_param{
+      .name = "pkts",
+      .type = PointerTo(std::move(outer_type)),
+      .payload =
+          ir::StructSyncParam{
+              .direction = PointerDir::kInOut,
+              .members =
+                  {
+                      ir::StructMemberSync{
+                          .member_name = "data",
+                          .parent_prefix = "pkts->inner.",
+                          .direction = PointerDir::kOut,
+                          .bounds =
+                              ir::bounds::SizedByBinding{
+                                  .context_expr = "sapi::lwbox::CompositeKey("
+                                                  "pkts[sapi_i].inner.ncid, "
+                                                  "pkts[sapi_i].inner.varid)",
+                                  .binding_name =
+                                      "pkts[sapi_i].inner.rows * $elem_count",
+                                  .is_elem_sized = true,
+                              },
+                      },
+                  },
+              .array_bounds = ir::bounds::ElemCount{.size_expr = "count"},
+          },
+  };
+  ir::Function func{
+      .name = "read_bound_packets",
+      .parameters = {std::move(single_param), std::move(array_param),
+                     ScalarArg("count", "size_t")},
+  };
+
+  absl::StatusOr<std::string> src = HostSrc(std::move(func));
+  ASSERT_THAT(src, IsOk());
+  EXPECT_THAT(
+      *src,
+      AllOf(
+          ContainsRegex(
+              R"(sapi::lwbox::CompositeKey\(\s*pkt->inner\.ncid,\s*pkt->inner\.varid\))"),
+          HasSubstr("pkt->inner.rows"),
+          // The written-back array pins the context key of each element
+          // before the call, and the post-call capacity check looks up the
+          // binding under the pinned key.
+          ContainsRegex(
+              R"(sapi_ctx_pkts_inner_d_data\[sapi_i\]\s*=\s*sapi::lwbox::CompositeKey\(\s*pkts\[sapi_i\]\.inner\.ncid,\s*pkts\[sapi_i\]\.inner\.varid\))"),
+          ContainsRegex(
+              R"(size_t sapi_post_size =[^;]*GetSize\(\s*(\*sandbox,\s*)?sapi_ctx_pkts_inner_d_data\[sapi_i\],\s*"elem_count"\)[^;]*;\s*if \(sapi_post_size > sapi_cap_pkts_inner_d_data\[sapi_i\]\))"),
+          HasSubstr("pkts[sapi_i].inner.rows")));
 }
 
 }  // namespace

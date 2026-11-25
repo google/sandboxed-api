@@ -1294,5 +1294,136 @@ TEST_F(SandboxedLibraryEmitterErrorTest,
   EXPECT_THAT(ok_emitter.PostParseAllFiles(), IsOk());
 }
 
+TEST_F(SandboxedLibraryEmitterTest,
+       EmitsNestedStructAnnotationsSizedStructArrayAndElemSizedByBinding) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  options.out_file = "my_lib.h";
+  options.sandboxed_library_gen = true;
+  SandboxedLibraryEmitter emitter;
+
+  ASSERT_THAT(
+      RunFrontendAction(
+          R"cc(
+            struct InnerSlice {
+              int* data;
+              unsigned long len;
+            };
+            struct OuterPacket {
+              const char* tag;
+              InnerSlice inner;
+            };
+            inline void sandbox_annotation_1() {
+              struct InnerSlice {
+                int* data [[clang::annotate("sandbox", "elem_sized_by", "len")]];
+                unsigned long len;
+              };
+            }
+            inline void sandbox_annotation_2() {
+              struct OuterPacket {
+                const char* tag [[clang::annotate("sandbox",
+                                                  "null_"
+                                                  "terminated")]];
+                InnerSlice inner;
+              };
+            }
+            extern "C" int process_packets(
+                OuterPacket* packets [[clang::annotate("sandbox", "inout_ptr")]]
+                [[clang::annotate("sandbox", "elem_sized_by", "count")]],
+                unsigned long count,
+                int* bound_elems
+                [[clang::annotate("sandbox", "out_ptr")]] [[clang::annotate(
+                    "sandbox", "elem_sized_by_binding", "ctx", "$elem_count")]],
+                void* ctx [[clang::annotate("sandbox", "sandbox_opaque_ptr")]]);
+          )cc",
+          std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+  ASSERT_THAT(emitter.PostParseAllFiles(), IsOk());
+
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string host_src, emitter.EmitHostSrc(options));
+  EXPECT_THAT(host_src, HasSubstr("sapi_structs_packets[sapi_i].inner.data"));
+  EXPECT_THAT(host_src, HasSubstr("packets[sapi_i].inner.len"));
+  EXPECT_THAT(host_src,
+              HasSubstr("sapi::lwbox::ContextBindingRegistry::Instance()"
+                        "->GetSize(\n              ctx, \"elem_count\")"));
+}
+
+TEST_F(SandboxedLibraryEmitterTest,
+       EmitsExplicitStructSyncOnSizedArrayAndMemberSizedByBinding) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  options.out_file = "my_lib.h";
+  options.sandboxed_library_gen = true;
+  SandboxedLibraryEmitter emitter;
+
+  ASSERT_THAT(
+      RunFrontendAction(
+          R"cc(
+            struct BoundInner {
+              int ncid;
+              int varid;
+              unsigned long rows;
+              int* data;
+            };
+            struct LabeledPacket {
+              char* label;
+              const int* retained_data;
+              unsigned long retained_len;
+              BoundInner bound;
+            };
+            inline void sandbox_annotation_1() {
+              struct BoundInner {
+                int ncid;
+                int varid;
+                unsigned long rows;
+                int* data
+                    [[clang::annotate("sandbox", "elem_sized_by_binding",
+                                      "sapi::lwbox::CompositeKey(ncid, varid)",
+                                      "rows * $elem_count")]];
+              };
+            }
+            inline void sandbox_annotation_2() {
+              struct LabeledPacket {
+                char* label [[clang::annotate("sandbox", "null_terminated")]];
+                const int* retained_data [[clang::annotate(
+                    "sandbox", "elem_sized_by", "retained_len")]];
+                unsigned long retained_len;
+                BoundInner bound;
+              };
+            }
+            extern "C"
+                [[clang::annotate("sandbox", "sandbox_opaque_ptr")]] void*
+                register_and_fill_packets(
+                    LabeledPacket* pkts
+                    [[clang::annotate("sandbox", "inout_ptr")]]
+                    [[clang::annotate("sandbox", "elem_sized_by", "count")]]
+                    [[clang::annotate("sandbox", "struct_sync", "L1",
+                                      "{pkts->label", "inout_ptr}",
+                                      "{pkts->retained_data", "in_ptr",
+                                      "retain_and_bind(\"$return\")}",
+                                      "{pkts->bound.data", "out_ptr}", "$")]],
+                    unsigned long count,
+                    LabeledPacket* single_pkt
+                    [[clang::annotate("sandbox", "inout_ptr")]]);
+          )cc",
+          std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+  ASSERT_THAT(emitter.PostParseAllFiles(), IsOk());
+
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string host_src, emitter.EmitHostSrc(options));
+  EXPECT_THAT(
+      host_src,
+      AllOf(
+          HasSubstr("memset(reinterpret_cast<char*>(pkts[sapi_i].label)"),
+          ContainsRegex(
+              R"(RetainPointer\(\s*(\*sandbox,\s*)?sapi_ret_arg\.GetValue\(\),\s*absl::StrCat\("L1_pkts__retained_data_",\s*sapi_i\))"),
+          ContainsRegex(
+              R"(sapi::lwbox::CompositeKey\(\s*pkts\[sapi_i\]\.bound\.ncid,\s*pkts\[sapi_i\]\.bound\.varid\))"),
+          HasSubstr("pkts[sapi_i].bound.rows"),
+          ContainsRegex(
+              R"(sapi::lwbox::CompositeKey\(\s*single_pkt->bound\.ncid,\s*single_pkt->bound\.varid\))"),
+          HasSubstr("single_pkt->bound.rows")));
+}
+
 }  // namespace
 }  // namespace sapi

@@ -1247,30 +1247,50 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
       const bool is_null_terminated_struct_array =
           ann.ptr_dir == PointerDir::kIn &&
           std::holds_alternative<NullTerminated>(ann.size_type);
+      const bool is_sized_struct_array =
+          (ann.ptr_dir == PointerDir::kIn || ann.ptr_dir == PointerDir::kOut ||
+           ann.ptr_dir == PointerDir::kInOut) &&
+          ((std::holds_alternative<ElemSizedBy>(ann.size_type) &&
+            !std::get<ElemSizedBy>(ann.size_type)
+                 .sized_by_outparam_data.has_value()) ||
+           (std::holds_alternative<ByteSizedBy>(ann.size_type) &&
+            !std::get<ByteSizedBy>(ann.size_type)
+                 .sized_by_outparam_data.has_value()) ||
+           std::holds_alternative<SizedByBinding>(ann.size_type));
       const bool is_single_struct_ptr =
           std::holds_alternative<std::monostate>(ann.size_type) &&
           (ann.ptr_dir == PointerDir::kIn || ann.ptr_dir == PointerDir::kOut ||
            ann.ptr_dir == PointerDir::kInOut);
       if (!is_callback_param && !is_pointee_contract &&
-          (is_null_terminated_struct_array || is_single_struct_ptr) &&
+          (is_null_terminated_struct_array || is_sized_struct_array ||
+           is_single_struct_ptr) &&
           ann.struct_sync.empty() && !ann.shallow_struct_sync) {
         if (const auto* record_decl = type->getPointeeType()->getAsRecordDecl();
             record_decl != nullptr &&
             type->getPointeeType().isTriviallyCopyableType(context) &&
             !record_decl->hasFlexibleArrayMember()) {
-          auto rec_it =
-              conv_ctx.record_annotations.find(record_decl->getName());
-          if (rec_it != conv_ctx.record_annotations.end()) {
-            const RecordAnnotations& rec_ann = rec_it->second;
-            std::vector<StructSync> inferred_syncs;
-            bool all_fields_ok = true;
-            for (const clang::FieldDecl* field : record_decl->fields()) {
+          std::vector<StructSync> inferred_syncs;
+          auto infer_record_syncs =
+              [&](auto& self, const clang::RecordDecl* cur_record,
+                  absl::string_view access_prefix) -> bool {
+            if (cur_record == nullptr || cur_record->hasFlexibleArrayMember()) {
+              return false;
+            }
+            const RecordAnnotations* rec_ann = nullptr;
+            if (auto rec_it =
+                    conv_ctx.record_annotations.find(cur_record->getName());
+                rec_it != conv_ctx.record_annotations.end()) {
+              rec_ann = &rec_it->second;
+            }
+            for (const clang::FieldDecl* field : cur_record->fields()) {
               llvm::StringRef field_name = field->getName();
               const DataMemberAnnotations* matched_member = nullptr;
-              for (const auto& member_ann : rec_ann.member_annotations) {
-                if (member_ann.name == field_name) {
-                  matched_member = &member_ann;
-                  break;
+              if (rec_ann != nullptr) {
+                for (const auto& member_ann : rec_ann->member_annotations) {
+                  if (member_ann.name == field_name) {
+                    matched_member = &member_ann;
+                    break;
+                  }
                 }
               }
               if (matched_member != nullptr) {
@@ -1306,8 +1326,7 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                     copyability_reason = absl::Substitute(
                         "field $0 of '$1': $2", std::string(field_name),
                         type->getPointeeType().getAsString(), pointee_reason);
-                    all_fields_ok = false;
-                    break;
+                    return false;
                   }
                   const bool is_const_or_null_term =
                       field->getType()->getPointeeType().isConstQualified() ||
@@ -1322,23 +1341,21 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                         "requires const non-malloc pointee",
                         std::string(field_name),
                         type->getPointeeType().getAsString());
-                    all_fields_ok = false;
-                    break;
+                    return false;
                   }
                   const bool is_malloc_out =
                       std::holds_alternative<MallocLifetime>(
                           matched_member->lifetime) &&
                       *ann.ptr_dir != PointerDir::kIn;
-                  if (is_single_struct_ptr && !is_malloc_out &&
-                      *ann.ptr_dir == PointerDir::kOut) {
+                  if ((is_single_struct_ptr || is_sized_struct_array) &&
+                      !is_malloc_out && *ann.ptr_dir == PointerDir::kOut) {
                     copyability_reason = absl::Substitute(
                         "field $0 of '$1': caller-allocated pointer field on "
                         "out_ptr struct requires inout_ptr on the struct "
                         "parameter",
                         std::string(field_name),
                         type->getPointeeType().getAsString());
-                    all_fields_ok = false;
-                    break;
+                    return false;
                   }
                   PointerDir member_dir =
                       is_malloc_out ? PointerDir::kOut
@@ -1348,7 +1365,7 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                                            : *ann.ptr_dir);
                   inferred_syncs.push_back(StructSync{
                       .access_path =
-                          absl::StrCat(name, "->", field->getNameAsString()),
+                          absl::StrCat(access_prefix, field->getNameAsString()),
                       .ptr_dir = member_dir,
                       .lifetime = is_malloc_out
                                       ? PointerLifetime{MallocLifetime{}}
@@ -1357,19 +1374,32 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                   continue;
                 }
               }
+              if (const auto* nested_record =
+                      field->getType()->getAsRecordDecl();
+                  nested_record != nullptr &&
+                  field->getType().isTriviallyCopyableType(context)) {
+                if (self(self, nested_record,
+                         absl::StrCat(access_prefix, field->getNameAsString(),
+                                      "."))) {
+                  continue;
+                }
+                return false;
+              }
               std::string field_reason;
               if (!IsDeeplyTriviallyCopyableType(context, field->getType(),
                                                  conv_ctx, &field_reason)) {
                 copyability_reason = absl::Substitute(
                     "field $0 of '$1': $2", std::string(field_name),
                     type->getPointeeType().getAsString(), field_reason);
-                all_fields_ok = false;
-                break;
+                return false;
               }
             }
-            if (all_fields_ok && !inferred_syncs.empty()) {
-              ann.struct_sync = std::move(inferred_syncs);
-            }
+            return true;
+          };
+          if (infer_record_syncs(infer_record_syncs, record_decl,
+                                 absl::StrCat(name, "->")) &&
+              !inferred_syncs.empty()) {
+            ann.struct_sync = std::move(inferred_syncs);
           }
         }
       }
@@ -1759,18 +1789,14 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
         "pointer",
         name));
   }
-
-  if (!struct_callbacks.empty() &&
-      !std::holds_alternative<std::monostate>(ann.size_type) &&
-      !(std::holds_alternative<NullTerminated>(ann.size_type) &&
-        ann.ptr_dir == PointerDir::kIn &&
-        type->getPointeeType().isConstQualified())) {
-    return absl::InvalidArgumentError(absl::Substitute(
-        "$0: array of structs with callback fields is not supported", name));
-  }
-
   if (!ann.struct_sync.empty() || ann.shallow_struct_sync ||
       !struct_callbacks.empty()) {
+    if (HasSizedByOutparam(ann.size_type)) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "argument $0: sized_by_outparam is not supported on arrays of "
+          "synchronized structs",
+          name));
+    }
     // Unlike a plain buffer, a synchronized struct has no defensible default
     // direction: guessing kIn would silently drop the write-back of the
     // synchronized members, which is the whole point of the annotation. Every
@@ -1789,22 +1815,9 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
         .array_bounds = AnnotationsToBufferBounds(ann),
         .context_bound = std::move(ann.context_bound),
     };
-    // The pointee's record declaration and annotations are the same for every
-    // synchronized member, so resolve them once rather than per member. The
-    // annotations guarantee a pointer to a record here (see
-    // CheckParsedAnnotations).
-    const clang::RecordDecl* record_decl = nullptr;
-    const RecordAnnotations* rec_ann = nullptr;
-    if (type->isPointerType()) {
-      if (const auto* rd = type->getPointeeType()->getAsRecordDecl();
-          rd != nullptr) {
-        record_decl = rd->getDefinition() != nullptr ? rd->getDefinition() : rd;
-        auto it = conv_ctx.record_annotations.find(record_decl->getName());
-        if (it != conv_ctx.record_annotations.end()) {
-          rec_ann = &it->second;
-        }
-      }
-    }
+    const clang::RecordDecl* top_record =
+        type->isPointerType() ? type->getPointeeType()->getAsRecordDecl()
+                              : nullptr;
 
     sync_param.members.reserve(ann.struct_sync.size());
     for (const auto& sync : ann.struct_sync) {
@@ -1826,13 +1839,42 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
           .context_bound = sync.context_bound,
           .lifetime = AnnotationsToLifetimePolicy(sync_a),
       };
+      const clang::RecordDecl* owner_record = top_record;
+      std::string top_arrow = absl::StrCat(name, "->");
+      absl::string_view nested_chain = ir_sync.parent_prefix;
+      if (absl::ConsumePrefix(&nested_chain, top_arrow)) {
+        while (!nested_chain.empty() && owner_record != nullptr) {
+          size_t dot_pos = nested_chain.find('.');
+          if (dot_pos == absl::string_view::npos) {
+            break;
+          }
+          absl::string_view step_field = nested_chain.substr(0, dot_pos);
+          nested_chain.remove_prefix(dot_pos + 1);
+          const clang::RecordDecl* next_record = nullptr;
+          for (const clang::FieldDecl* f : owner_record->fields()) {
+            if (absl::string_view(f->getName().data(), f->getName().size()) ==
+                step_field) {
+              next_record = f->getType()->getAsRecordDecl();
+              break;
+            }
+          }
+          owner_record = next_record;
+        }
+      }
+      const RecordAnnotations* rec_ann = nullptr;
+      if (owner_record != nullptr) {
+        if (auto it = conv_ctx.record_annotations.find(owner_record->getName());
+            it != conv_ctx.record_annotations.end()) {
+          rec_ann = &it->second;
+        }
+      }
       if (rec_ann != nullptr) {
         for (const auto& member_ann : rec_ann->member_annotations) {
           if (member_ann.name == ir_sync.member_name) {
             Annotations member_a;
             member_a.size_type = member_ann.size_type;
             ir_sync.bounds = AnnotationsToBufferBounds(member_a);
-            if (record_decl != nullptr) {
+            if (owner_record != nullptr) {
               std::string size_expr_prefix = ir_sync.parent_prefix;
               if (!std::holds_alternative<std::monostate>(ann.size_type)) {
                 absl::string_view nested_prefix = ir_sync.parent_prefix;
@@ -1843,22 +1885,22 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
               if (auto* elem =
                       std::get_if<ir::bounds::ElemCount>(&ir_sync.bounds)) {
                 elem->size_expr = ast::PrefixStructMemberSizeExpr(
-                    *record_decl, size_expr_prefix, elem->size_expr);
+                    *owner_record, size_expr_prefix, elem->size_expr);
               } else if (auto* byte = std::get_if<ir::bounds::ByteCount>(
                              &ir_sync.bounds)) {
                 byte->size_expr = ast::PrefixStructMemberSizeExpr(
-                    *record_decl, size_expr_prefix, byte->size_expr);
+                    *owner_record, size_expr_prefix, byte->size_expr);
               } else if (auto* binding =
                              std::get_if<ir::bounds::SizedByBinding>(
                                  &ir_sync.bounds)) {
                 binding->context_expr = ast::PrefixStructMemberSizeExpr(
-                    *record_decl, size_expr_prefix, binding->context_expr);
+                    *owner_record, size_expr_prefix, binding->context_expr);
                 binding->binding_name = ast::PrefixStructMemberBindingExpr(
-                    *record_decl, size_expr_prefix, binding->binding_name);
+                    *owner_record, size_expr_prefix, binding->binding_name);
               } else if (std::holds_alternative<ir::bounds::NullTerminated>(
                              ir_sync.bounds)) {
                 const clang::FieldDecl* synced_field = nullptr;
-                for (const clang::FieldDecl* f : record_decl->fields()) {
+                for (const clang::FieldDecl* f : owner_record->fields()) {
                   if (absl::string_view(f->getName().data(),
                                         f->getName().size()) ==
                       ir_sync.member_name) {

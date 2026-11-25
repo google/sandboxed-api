@@ -335,16 +335,24 @@ absl::Status CheckStructSyncAnnotations(absl::string_view name,
                            name));
     }
 
-    // We only support an array of struct pointers plus struct_sync when the
-    // array is a const input array terminated by a zero sentinel
-    // (`SANDBOX_IN_PTR SANDBOX_NULL_TERMINATED`) and all synchronized members
-    // are non-retained inputs (`in_ptr`).
-    if (!std::holds_alternative<std::monostate>(annotations.size_type)) {
-      if (!std::holds_alternative<NullTerminated>(annotations.size_type) ||
-          annotations.ptr_dir != PointerDir::kIn ||
+    if (annotations.ptr_dir == PointerDir::kSandboxOpaque ||
+        annotations.ptr_dir == PointerDir::kHostOpaque) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "$0: struct_sync cannot be combined with an opaque pointer direction",
+          name));
+    }
+
+    // Null-terminated struct arrays only support const input arrays whose
+    // synchronized members are non-retained inputs (`in_ptr`). Explicitly sized
+    // struct arrays (`elem_sized_by`, `byte_sized_by`, `sized_by_binding`,
+    // `elem_sized_by_binding`) support `struct_sync` directly, whereas
+    // `sized_by_outparam` is rejected.
+    if (std::holds_alternative<NullTerminated>(annotations.size_type)) {
+      if (annotations.ptr_dir != PointerDir::kIn ||
           !type->getPointeeType().isConstQualified()) {
         return absl::InvalidArgumentError(absl::Substitute(
-            "$0: array of struct pointers with struct_sync is not supported",
+            "$0: null-terminated struct array with struct_sync requires a "
+            "const in_ptr struct pointer",
             name));
       }
       for (const auto& sync : annotations.struct_sync) {
@@ -361,6 +369,16 @@ absl::Status CheckStructSyncAnnotations(absl::string_view name,
               name));
         }
       }
+    } else if (const auto* elem =
+                   std::get_if<ElemSizedBy>(&annotations.size_type);
+               (elem != nullptr && elem->sized_by_outparam_data.has_value()) ||
+               (std::holds_alternative<ByteSizedBy>(annotations.size_type) &&
+                std::get<ByteSizedBy>(annotations.size_type)
+                    .sized_by_outparam_data.has_value())) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "argument $0: sized_by_outparam is not supported on arrays of "
+          "synchronized structs",
+          name));
     }
   }
 

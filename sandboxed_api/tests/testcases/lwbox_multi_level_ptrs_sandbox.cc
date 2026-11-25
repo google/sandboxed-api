@@ -236,6 +236,17 @@ SANDBOX_ANNOTATE_STRUCT(struct MemIoBuffer {
 int finalize_memio_buffer(size_t size, unsigned char fill_byte, int flags,
                           struct MemIoBuffer* out_memio SANDBOX_OUT_PTR);
 
+SANDBOX_ANNOTATE_STRUCT(struct InnerPayloadSlice {
+  int* values SANDBOX_ELEM_SIZED_BY(len);
+  size_t len;
+};)
+
+SANDBOX_ANNOTATE_STRUCT(struct OuterPacketRecord {
+  const char* tag SANDBOX_NULL_TERMINATED;
+  struct InnerPayloadSlice payload;
+  int checksum;
+};)
+
 SANDBOX_BIND_SIZE(sapi::lwbox::CompositeKey(ncid, varid), elem_count,
                   sapi::lwbox::Product(counts, ndims))
 int register_hyperslab_var(int ncid, int varid,
@@ -283,5 +294,79 @@ double evaluate_ten_arg_float_callback(
 float evaluate_nine_float_callback(
     float base, float (*cb)(float f1, float f2, float f3, float f4, float f5,
                             float f6, float f7, float f8, float f9, int scale));
+
+int filter_or_scale_outer_packets(struct OuterPacketRecord* packets
+                                      SANDBOX_INOUT_PTR
+                                          SANDBOX_ELEM_SIZED_BY(count),
+                                  size_t count, size_t min_len, int scale);
+
+SANDBOX_ANNOTATE_STRUCT(struct MutableLabeledSlice {
+  char* label SANDBOX_NULL_TERMINATED;
+  int* values SANDBOX_ELEM_SIZED_BY(len);
+  size_t len;
+};)
+
+int mutate_labeled_slices(struct MutableLabeledSlice* slices SANDBOX_INOUT_PTR
+                              SANDBOX_ELEM_SIZED_BY(count) SANDBOX_STRUCT_SYNC(
+                                  {slices->label, inout_ptr},
+                                  {slices->values, inout_ptr}),
+                          size_t count, int clobber_sentinel, int delta);
+
+SANDBOX_ANNOTATE_STRUCT(struct RetainedSpanSpec {
+  const int* data SANDBOX_ELEM_SIZED_BY(len);
+  size_t len;
+  int weight;
+};)
+
+SANDBOX_OPAQUE_PTR struct RetainedSpanTable* create_retained_span_table(
+    const struct RetainedSpanSpec* specs SANDBOX_IN_PTR SANDBOX_ELEM_SIZED_BY(
+        count) SANDBOX_STRUCT_SYNC({specs->data, in_ptr,
+                                    retain_and_bind(SANDBOX_RETURN)}),
+    size_t count);
+
+int eval_retained_span_table(
+    struct RetainedSpanTable* table SANDBOX_OPAQUE_PTR);
+
+void destroy_retained_span_table(
+    struct RetainedSpanTable* table SANDBOX_OPAQUE_PTR SANDBOX_CLEAR_BINDINGS);
+
+int scale_payload_slice_arrays(
+    struct InnerPayloadSlice* byte_sized SANDBOX_INOUT_PTR
+        SANDBOX_BYTE_SIZED_BY(byte_sized_size),
+    size_t byte_sized_size, int ncid, int varid,
+    struct InnerPayloadSlice* elem_bound SANDBOX_INOUT_PTR
+        SANDBOX_ELEM_SIZED_BY_BINDING(sapi::lwbox::CompositeKey(ncid, varid),
+                                      $elem_count),
+    struct InnerPayloadSlice* byte_bound SANDBOX_INOUT_PTR
+        SANDBOX_BYTE_SIZED_BY_BINDING(sapi::lwbox::CompositeKey(ncid, varid),
+                                      $elem_count *
+                                          sizeof(struct InnerPayloadSlice)),
+    int scale);
+
+void inflate_payload_slice_lens(struct InnerPayloadSlice* slices
+                                    SANDBOX_INOUT_PTR
+                                        SANDBOX_ELEM_SIZED_BY(count),
+                                size_t count, size_t new_len);
+
+int finalize_memio_buffers(struct MemIoBuffer* out_memios SANDBOX_OUT_PTR
+                               SANDBOX_ELEM_SIZED_BY(count),
+                           size_t count, unsigned char fill_byte);
+
+SANDBOX_ANNOTATE_STRUCT(struct BoundHyperslabSlice {
+  int ncid;
+  int varid;
+  size_t rows;
+  int* out_data SANDBOX_ELEM_SIZED_BY_BINDING(
+      sapi::lwbox::CompositeKey(ncid, varid), rows * $elem_count);
+};)
+
+int fill_nested_hyperslab_request(struct NestedHyperslabRequest* req
+                                      SANDBOX_INOUT_PTR,
+                                  int ncid, size_t rows);
+
+int fill_hyperslab_slice_batch(struct BoundHyperslabSlice* slices
+                                   SANDBOX_INOUT_PTR
+                                       SANDBOX_ELEM_SIZED_BY(count),
+                               size_t count, int ncid, size_t rows);
 
 }  // extern "C"

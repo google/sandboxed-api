@@ -199,6 +199,19 @@ struct MemIoBuffer {
 int finalize_memio_buffer(size_t size, unsigned char fill_byte, int flags,
                           struct MemIoBuffer* out_memio);
 
+// Nested `SANDBOX_ANNOTATE_STRUCT` inline sub-struct and sized array of structs
+// (`Struct*` with `SANDBOX_ELEM_SIZED_BY(count)`) with inner pointer fields.
+struct InnerPayloadSlice {
+  int* values;
+  size_t len;
+};
+
+struct OuterPacketRecord {
+  const char* tag;
+  struct InnerPayloadSlice payload;
+  int checksum;
+};
+
 // Context binding with `SANDBOX_ELEM_SIZED_BY_BINDING`, `ContextKey`,
 // `CompositeKey`, and `Product` (modeled on NetCDF 2D hyperslab I/O).
 int register_hyperslab_var(int ncid, int varid, const size_t* counts,
@@ -253,6 +266,81 @@ double evaluate_ten_arg_float_callback(
 float evaluate_nine_float_callback(
     float base, float (*cb)(float f1, float f2, float f3, float f4, float f5,
                             float f6, float f7, float f8, float f9, int scale));
+
+// Clears `packets[i].payload.values` to `nullptr` (and `len = 0`) when
+// `packets[i].payload.len < min_len`, while scaling remaining elements in
+// place.
+int filter_or_scale_outer_packets(struct OuterPacketRecord* packets,
+                                  size_t count, size_t min_len, int scale);
+
+// Sized struct array with explicit `SANDBOX_STRUCT_SYNC` on an `inout_ptr`
+// null-terminated string and an `inout_ptr` element-sized buffer.
+struct MutableLabeledSlice {
+  char* label;
+  int* values;
+  size_t len;
+};
+
+int mutate_labeled_slices(struct MutableLabeledSlice* slices, size_t count,
+                          int clobber_sentinel, int delta);
+
+// Sized struct array with explicit `SANDBOX_STRUCT_SYNC` and per-element
+// `retain_and_bind(SANDBOX_RETURN)`.
+struct RetainedSpanSpec {
+  const int* data;
+  size_t len;
+  int weight;
+};
+
+struct RetainedSpanTable;
+
+// Returns `nullptr` if `count == 0` or if any `specs[i].weight` is negative.
+struct RetainedSpanTable* create_retained_span_table(
+    const struct RetainedSpanSpec* specs, size_t count);
+int eval_retained_span_table(struct RetainedSpanTable* table);
+void destroy_retained_span_table(struct RetainedSpanTable* table);
+
+// Multiplies the values of three sized struct arrays by `scale`, and returns
+// the number of scaled values. The arrays are sized by
+// `SANDBOX_BYTE_SIZED_BY(byte_sized_size)`, and by
+// `SANDBOX_ELEM_SIZED_BY_BINDING` and `SANDBOX_BYTE_SIZED_BY_BINDING` on the
+// `elem_count` that `register_hyperslab_var(ncid, varid, ...)` binds.
+int scale_payload_slice_arrays(struct InnerPayloadSlice* byte_sized,
+                               size_t byte_sized_size, int ncid, int varid,
+                               struct InnerPayloadSlice* elem_bound,
+                               struct InnerPayloadSlice* byte_bound, int scale);
+
+// Sets `slices[i].len = new_len` for each element, without changing the
+// buffers. A `new_len` above the caller's length emulates a compromised
+// sandboxee.
+void inflate_payload_slice_lens(struct InnerPayloadSlice* slices, size_t count,
+                                size_t new_len);
+
+// Calls `finalize_memio_buffer(2 * i, fill_byte + 16 * i, i, &out_memios[i])`
+// for each element of a sized struct array with `SANDBOX_LIFETIME_MALLOC`
+// members.
+int finalize_memio_buffers(struct MemIoBuffer* out_memios, size_t count,
+                           unsigned char fill_byte);
+
+// Nested struct and sized struct array whose member buffers use
+// `SANDBOX_ELEM_SIZED_BY_BINDING` referencing sibling struct fields.
+struct BoundHyperslabSlice {
+  int ncid;
+  int varid;
+  size_t rows;
+  int* out_data;
+};
+
+struct NestedHyperslabRequest {
+  int tag_id;
+  struct BoundHyperslabSlice slice;
+};
+
+int fill_nested_hyperslab_request(struct NestedHyperslabRequest* req, int ncid,
+                                  size_t rows);
+
+int fill_hyperslab_slice_batch(struct BoundHyperslabSlice* slices, size_t count,
+                               int ncid, size_t rows);
 
 }  // extern "C"
 

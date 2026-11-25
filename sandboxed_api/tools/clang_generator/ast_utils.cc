@@ -57,27 +57,45 @@
 namespace sapi::ast {
 
 std::optional<std::string> MemberNameOfAccessPath(absl::string_view path) {
-  size_t dot_pos = path.rfind('.');
-  if (dot_pos != absl::string_view::npos) {
+  size_t arrow_pos = path.find("->");
+  if (arrow_pos == absl::string_view::npos ||
+      path.find("->", arrow_pos + 2) != absl::string_view::npos) {
     return std::nullopt;
   }
-  size_t arrow_pos = path.rfind("->");
-  if (arrow_pos != absl::string_view::npos) {
-    return std::string(path.substr(arrow_pos + 2));
+  size_t first_dot = path.find('.');
+  if (first_dot != absl::string_view::npos && first_dot < arrow_pos) {
+    return std::nullopt;
   }
-  return std::nullopt;
+  size_t last_dot = path.rfind('.');
+  size_t split_end =
+      (last_dot != absl::string_view::npos && last_dot > arrow_pos + 1)
+          ? (last_dot + 1)
+          : (arrow_pos + 2);
+  if (split_end >= path.size()) {
+    return std::nullopt;
+  }
+  return std::string(path.substr(split_end));
 }
 
 std::optional<std::string> ParentPrefixOfAccessPath(absl::string_view path) {
-  size_t dot_pos = path.rfind('.');
-  if (dot_pos != absl::string_view::npos) {
+  size_t arrow_pos = path.find("->");
+  if (arrow_pos == absl::string_view::npos ||
+      path.find("->", arrow_pos + 2) != absl::string_view::npos) {
     return std::nullopt;
   }
-  size_t arrow_pos = path.rfind("->");
-  if (arrow_pos != absl::string_view::npos) {
-    return std::string(path.substr(0, arrow_pos + 2));
+  size_t first_dot = path.find('.');
+  if (first_dot != absl::string_view::npos && first_dot < arrow_pos) {
+    return std::nullopt;
   }
-  return std::nullopt;
+  size_t last_dot = path.rfind('.');
+  size_t split_end =
+      (last_dot != absl::string_view::npos && last_dot > arrow_pos + 1)
+          ? (last_dot + 1)
+          : (arrow_pos + 2);
+  if (split_end >= path.size()) {
+    return std::nullopt;
+  }
+  return std::string(path.substr(0, split_end));
 }
 
 namespace {

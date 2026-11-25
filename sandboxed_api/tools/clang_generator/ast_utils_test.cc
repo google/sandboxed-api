@@ -491,5 +491,41 @@ int counter SANDBOX_HOST_STATE_VAR = 7;
   EXPECT_EQ(source, "int counter  = 7");
 }
 
+TEST_F(AstCaptureTest,
+       PrefixStructMemberSizeExprSkipsDollarPlaceholdersAndScopeQualifiers) {
+  constexpr absl::string_view kCode = R"(
+struct HyperslabPacket {
+  int ncid;
+  int varid;
+  unsigned long rows;
+  unsigned long stride;
+  unsigned long n;
+};
+)";
+  ASSERT_THAT(RunOnDecl<clang::RecordDecl>(
+                  kCode, "HyperslabPacket",
+                  [&](const clang::RecordDecl* decl) {
+                    EXPECT_THAT(ast::ValidateStructMemberBinding(
+                                    *decl, "data",
+                                    "sapi::lwbox::CompositeKey(ncid, varid)",
+                                    "rows * $stride"),
+                                IsOk());
+                    EXPECT_EQ(ast::PrefixStructMemberSizeExpr(
+                                  *decl, "pkt->inner.", "rows * $stride + $n"),
+                              "pkt->inner.rows * $stride + $n");
+                    EXPECT_EQ(ast::PrefixStructMemberSizeExpr(
+                                  *decl, "pkts[sapi_i].",
+                                  "sapi::lwbox::CompositeKey(ncid, varid)"),
+                              "sapi::lwbox::CompositeKey(pkts[sapi_i].ncid, "
+                              "pkts[sapi_i].varid)");
+                    EXPECT_EQ(ast::PrefixStructMemberSizeExpr(
+                                  *decl, "pkts[sapi_i].",
+                                  "::sapi::lwbox::ContextKey(ncid)"),
+                              "::sapi::lwbox::ContextKey(pkts[sapi_i].ncid)");
+                    return absl::OkStatus();
+                  }),
+              IsOk());
+}
+
 }  // namespace
 }  // namespace sapi

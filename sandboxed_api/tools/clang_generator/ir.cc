@@ -573,6 +573,43 @@ absl::Status ValidateAndLinkParameter(Function& func, Parameter& param,
       ABSL_RETURN_IF_ERROR(ValidateAndLinkParameter(func, *buf->pointee,
                                                     /*is_top_level=*/false));
     }
+  } else if (const auto* sync = param.As<StructSyncParam>()) {
+    ABSL_RETURN_IF_ERROR(ValidateBufferBounds(
+        func.parameters, absl::StrCat("Function ", func.name), role,
+        sync->array_bounds));
+    bool invalid_bounds =
+        std::visit(absl::Overload{
+                       [](const bounds::ElemCount& elem) {
+                         return absl::StartsWith(
+                             absl::StripAsciiWhitespace(elem.size_expr), "*");
+                       },
+                       [](const bounds::ByteCount& byte) {
+                         return absl::StartsWith(
+                             absl::StripAsciiWhitespace(byte.size_expr), "*");
+                       },
+                       [](const bounds::ElemSizedByOutparam&) { return true; },
+                       [](const bounds::ByteSizedByOutparam&) { return true; },
+                       [](const auto&) { return false; },
+                   },
+                   sync->array_bounds);
+    if (invalid_bounds) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "Function $0 $1 does not support pointer-dereference or "
+          "outparam-sized array bounds on synchronized struct arrays.",
+          func.name, role));
+    }
+    // The struct-sync emitters copy the struct (or struct array) into sandbox
+    // memory that is freed when the call returns, and they do not bind it to a
+    // context. Reject the outer context bindings instead of ignoring them, so
+    // that the sandboxee cannot keep a dangling pointer to the struct array.
+    if (sync->context_bound.retain_and_bind.has_value() ||
+        sync->context_bound.copy_from_and_bind.has_value()) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "Function $0 $1 does not support retain_and_bind or "
+          "copy_from_and_bind_out_ptr on a synchronized struct pointer. Put "
+          "retain_and_bind on struct_sync members instead.",
+          func.name, role));
+    }
   } else if (const auto* opaque = param.As<OpaquePointerParam>()) {
     policy = &opaque->lifetime;
   } else if (const auto* cb = param.As<CallbackParam>()) {

@@ -498,7 +498,25 @@ int finalize_memio_buffer(size_t size, unsigned char fill_byte, int flags,
   return 0;
 }
 
+struct HyperslabEntry {
+  int ncid;
+  int varid;
+  size_t elems;
+  bool in_use;
+};
+
 static size_t g_hyperslab_elems = 0;
+static struct HyperslabEntry g_hyperslab_table[16];
+
+static size_t lookup_hyperslab_elems(int ncid, int varid) {
+  for (size_t i = 0; i < 16; ++i) {
+    if (g_hyperslab_table[i].in_use && g_hyperslab_table[i].ncid == ncid &&
+        g_hyperslab_table[i].varid == varid) {
+      return g_hyperslab_table[i].elems;
+    }
+  }
+  return 0;
+}
 
 int register_hyperslab_var(int ncid, int varid, const size_t* counts,
                            size_t ndims) {
@@ -510,6 +528,13 @@ int register_hyperslab_var(int ncid, int varid, const size_t* counts,
     prod *= counts[i];
   }
   g_hyperslab_elems = prod;
+  for (size_t i = 0; i < 16; ++i) {
+    if (!g_hyperslab_table[i].in_use || (g_hyperslab_table[i].ncid == ncid &&
+                                         g_hyperslab_table[i].varid == varid)) {
+      g_hyperslab_table[i] = {ncid, varid, prod, true};
+      break;
+    }
+  }
   return ncid + varid;
 }
 
@@ -689,6 +714,213 @@ ABSL_ATTRIBUTE_NO_SANITIZE_CFI float evaluate_nine_float_callback(
   }
   return cb(base + 1.0f, base + 2.0f, base + 3.0f, base + 4.0f, base + 5.0f,
             base + 6.0f, base + 7.0f, base + 8.0f, base + 9.0f, 2);
+}
+
+int filter_or_scale_outer_packets(struct OuterPacketRecord* packets,
+                                  size_t count, size_t min_len, int scale) {
+  if (packets == nullptr) {
+    return -1;
+  }
+  int kept = 0;
+  for (size_t i = 0; i < count; ++i) {
+    if (packets[i].payload.values == nullptr ||
+        packets[i].payload.len < min_len) {
+      packets[i].payload.values = nullptr;
+      packets[i].payload.len = 0;
+      packets[i].checksum = -1;
+      continue;
+    }
+    int sum = packets[i].tag != nullptr
+                  ? static_cast<int>(strlen(packets[i].tag))
+                  : 0;
+    for (size_t j = 0; j < packets[i].payload.len; ++j) {
+      packets[i].payload.values[j] *= scale;
+      sum += packets[i].payload.values[j];
+    }
+    packets[i].checksum = sum;
+    ++kept;
+  }
+  return kept;
+}
+
+int mutate_labeled_slices(struct MutableLabeledSlice* slices, size_t count,
+                          int clobber_sentinel, int delta) {
+  if (slices == nullptr) {
+    return -1;
+  }
+  int mutated = 0;
+  for (size_t i = 0; i < count; ++i) {
+    if (slices[i].label != nullptr) {
+      size_t n = strlen(slices[i].label);
+      for (size_t j = 0; j < n; ++j) {
+        if (slices[i].label[j] >= 'a' && slices[i].label[j] <= 'z') {
+          slices[i].label[j] =
+              static_cast<char>(slices[i].label[j] - 'a' + 'A');
+        }
+      }
+      if (clobber_sentinel != 0) {
+        slices[i].label[n] = '!';
+      }
+    }
+    if (slices[i].values != nullptr) {
+      for (size_t j = 0; j < slices[i].len; ++j) {
+        slices[i].values[j] += delta;
+      }
+    }
+    ++mutated;
+  }
+  return mutated;
+}
+
+struct RetainedSpanTable {
+  struct RetainedSpanSpec* specs;
+  size_t count;
+};
+
+struct RetainedSpanTable* create_retained_span_table(
+    const struct RetainedSpanSpec* specs, size_t count) {
+  if (specs == nullptr || count == 0) {
+    return nullptr;
+  }
+  for (size_t i = 0; i < count; ++i) {
+    if (specs[i].weight < 0) {
+      return nullptr;
+    }
+  }
+  auto* table = static_cast<struct RetainedSpanTable*>(
+      calloc(1, sizeof(struct RetainedSpanTable)));
+  if (table == nullptr) {
+    return nullptr;
+  }
+  table->specs =
+      static_cast<struct RetainedSpanSpec*>(calloc(count, sizeof(*specs)));
+  if (table->specs == nullptr) {
+    free(table);
+    return nullptr;
+  }
+  for (size_t i = 0; i < count; ++i) {
+    table->specs[i] = specs[i];
+  }
+  table->count = count;
+  return table;
+}
+
+int eval_retained_span_table(struct RetainedSpanTable* table) {
+  if (table == nullptr) {
+    return -1;
+  }
+  int total = 0;
+  for (size_t i = 0; i < table->count; ++i) {
+    if (table->specs[i].data == nullptr) {
+      continue;
+    }
+    for (size_t j = 0; j < table->specs[i].len; ++j) {
+      total += table->specs[i].weight * table->specs[i].data[j];
+    }
+  }
+  return total;
+}
+
+void destroy_retained_span_table(struct RetainedSpanTable* table) {
+  if (table != nullptr) {
+    free(table->specs);
+    free(table);
+  }
+}
+
+// Multiplies the values of `slices[0..count)` by `scale`, and returns the
+// number of scaled values.
+static size_t scale_payload_slices(struct InnerPayloadSlice* slices,
+                                   size_t count, int scale) {
+  size_t scaled = 0;
+  for (size_t i = 0; i < count; ++i) {
+    if (slices[i].values == nullptr) {
+      continue;
+    }
+    for (size_t j = 0; j < slices[i].len; ++j) {
+      slices[i].values[j] *= scale;
+    }
+    scaled += slices[i].len;
+  }
+  return scaled;
+}
+
+int scale_payload_slice_arrays(struct InnerPayloadSlice* byte_sized,
+                               size_t byte_sized_size, int ncid, int varid,
+                               struct InnerPayloadSlice* elem_bound,
+                               struct InnerPayloadSlice* byte_bound,
+                               int scale) {
+  if (byte_sized == nullptr || elem_bound == nullptr || byte_bound == nullptr) {
+    return -1;
+  }
+  const size_t bound_count = lookup_hyperslab_elems(ncid, varid);
+  return static_cast<int>(
+      scale_payload_slices(byte_sized, byte_sized_size / sizeof(*byte_sized),
+                           scale) +
+      scale_payload_slices(elem_bound, bound_count, scale) +
+      scale_payload_slices(byte_bound, bound_count, scale));
+}
+
+void inflate_payload_slice_lens(struct InnerPayloadSlice* slices, size_t count,
+                                size_t new_len) {
+  for (size_t i = 0; slices != nullptr && i < count; ++i) {
+    slices[i].len = new_len;
+  }
+}
+
+int finalize_memio_buffers(struct MemIoBuffer* out_memios, size_t count,
+                           unsigned char fill_byte) {
+  if (out_memios == nullptr) {
+    return -1;
+  }
+  for (size_t i = 0; i < count; ++i) {
+    const int status = finalize_memio_buffer(
+        2 * i, static_cast<unsigned char>(fill_byte + 16 * i),
+        static_cast<int>(i), &out_memios[i]);
+    if (status != 0) {
+      return status;
+    }
+  }
+  return 0;
+}
+
+int fill_nested_hyperslab_request(struct NestedHyperslabRequest* req, int ncid,
+                                  size_t rows) {
+  (void)ncid;
+  (void)rows;
+  if (req == nullptr || req->slice.out_data == nullptr) {
+    return -1;
+  }
+  size_t elem_count = lookup_hyperslab_elems(req->slice.ncid, req->slice.varid);
+  size_t total = req->slice.rows * elem_count;
+  for (size_t i = 0; i < total; ++i) {
+    req->slice.out_data[i] = req->tag_id * 100 + req->slice.ncid * 10 +
+                             req->slice.varid + static_cast<int>(i);
+  }
+  return static_cast<int>(total);
+}
+
+int fill_hyperslab_slice_batch(struct BoundHyperslabSlice* slices, size_t count,
+                               int ncid, size_t rows) {
+  (void)ncid;
+  (void)rows;
+  if (slices == nullptr) {
+    return -1;
+  }
+  size_t grand_total = 0;
+  for (size_t s = 0; s < count; ++s) {
+    if (slices[s].out_data == nullptr) {
+      continue;
+    }
+    size_t elem_count = lookup_hyperslab_elems(slices[s].ncid, slices[s].varid);
+    size_t total = slices[s].rows * elem_count;
+    for (size_t i = 0; i < total; ++i) {
+      slices[s].out_data[i] =
+          slices[s].ncid * 10 + slices[s].varid + static_cast<int>(i);
+    }
+    grand_total += total;
+  }
+  return static_cast<int>(grand_total);
 }
 
 }  // extern "C"

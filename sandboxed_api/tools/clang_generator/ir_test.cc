@@ -2371,7 +2371,47 @@ TEST_F(IrConvertTest, RejectsOutStructCallbackFieldWhoseTypedefHasNoReverse) {
                                  "callback, but it hands back a pointer")));
 }
 
-TEST_F(IrConvertTest, RejectsArrayOfStructsWithCallbackFields) {
+TEST_F(IrConvertTest, AcceptsSizedArrayOfStructsWithCallbackFields) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations hooks_ann{.name = "Hooks"};
+  hooks_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "cb",
+      .callback_typedef = "adder",
+  });
+  record_annotations["Hooks"] = std::move(hooks_ann);
+
+  const absl::flat_hash_map<std::string, CallbackTypedef> typedefs = {
+      {"adder",
+       CallbackTypedef{
+           .name = "adder",
+           .canonical_type = "int (int, int)",
+           .params = {{.name = "a"}, {.name = "b"}},
+       }},
+  };
+
+  absl::StatusOr<Function> ir = ConvertSnippetToIR(
+      R"(
+    struct Hooks {
+      int (*cb)(int, int);
+    };
+    extern "C" void update_hooks_array(
+        Hooks* h [[clang::annotate("sandbox", "inout_ptr")]]
+                 [[clang::annotate("sandbox", "elem_sized_by", "n")]],
+        unsigned long n);
+  )",
+      "update_hooks_array", record_annotations, typedefs);
+  ASSERT_THAT(ir, IsOk());
+  ASSERT_EQ(ir->parameters.size(), 2);
+  const auto* sync = ir->parameters[0].As<StructSyncParam>();
+  ASSERT_NE(sync, nullptr);
+  EXPECT_EQ(sync->direction, PointerDir::kInOut);
+  ASSERT_EQ(sync->callbacks.size(), 1);
+  EXPECT_EQ(sync->callbacks[0].member_name, "cb");
+  EXPECT_EQ(sync->callbacks[0].typedef_name, "adder");
+  EXPECT_TRUE(std::holds_alternative<bounds::ElemCount>(sync->array_bounds));
+}
+
+TEST_F(IrConvertTest, RejectsSizedByOutparamArrayOfStructsWithCallbackFields) {
   absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
   RecordAnnotations hooks_ann{.name = "Hooks"};
   hooks_ann.member_annotations.push_back(DataMemberAnnotations{
@@ -2394,15 +2434,16 @@ TEST_F(IrConvertTest, RejectsArrayOfStructsWithCallbackFields) {
     struct Hooks {
       int (*cb)(int, int);
     };
-    extern "C" void set_hooks_array(
-        const Hooks* h [[clang::annotate("sandbox", "in_ptr")]]
-                       [[clang::annotate("sandbox", "elem_sized_by", "n")]],
-        unsigned long n);
+    extern "C" void get_hooks_array(
+        Hooks* h [[clang::annotate("sandbox", "out_ptr")]]
+                 [[clang::annotate("sandbox", "elem_sized_by_outparam", "*out_n", "cap")]],
+        unsigned long cap,
+        unsigned long* out_n [[clang::annotate("sandbox", "out_ptr")]]);
   )",
-                         "set_hooks_array", record_annotations, typedefs),
+                         "get_hooks_array", record_annotations, typedefs),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("h: array of structs with callback fields is "
-                         "not supported")));
+               HasSubstr("argument h: sized_by_outparam is not supported on "
+                         "arrays of synchronized structs")));
 }
 
 TEST_F(IrConvertTest, RejectsUncallableReturnedCallbackSignature) {
@@ -3611,8 +3652,45 @@ TEST_F(IrConvertTest,
   )",
                                  "parse_mutable_opts", record_annotations),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("opts: array of struct pointers with "
-                                 "struct_sync is not supported")));
+                       HasSubstr("opts: null-terminated struct array with "
+                                 "struct_sync requires a const in_ptr struct "
+                                 "pointer")));
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    struct OptionConst {
+      const int* values;
+    };
+    extern "C" [[clang::annotate("sandbox", "sandbox_opaque_ptr")]] void*
+    parse_retained_opts(
+        const OptionConst* opts
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "null_terminated")]]
+            [[clang::annotate("sandbox", "struct_sync", "binding_3",
+                              "{opts->values", "in_ptr",
+                              "retain_and_bind(\"$return\")}", "$")]]);
+  )",
+                                 "parse_retained_opts", record_annotations),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("null-terminated struct array with "
+                                 "struct_sync does not support "
+                                 "retain_and_bind")));
+
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    extern "C" int read_outparam_struct_array(
+        OptionWithOutFlag* opts
+            [[clang::annotate("sandbox", "out_ptr")]]
+            [[clang::annotate("sandbox", "elem_sized_by_outparam", "*out_n",
+                              "16")]]
+            [[clang::annotate("sandbox", "struct_sync", "binding_4",
+                              "{opts->flag", "out_ptr}", "$")]],
+        unsigned long* out_n [[clang::annotate("sandbox", "out_ptr")]]);
+  )",
+                         "read_outparam_struct_array", record_annotations),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("argument opts: sized_by_outparam is not "
+                         "supported on arrays of synchronized "
+                         "structs")));
 
   // Without explicit `struct_sync`, auto-inference should fail on the
   // unannotated `flag` field and name `flag` (not `name`) in the error.
@@ -3639,6 +3717,24 @@ TEST_F(IrConvertTest,
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("callback cb pointer argument opts has "
                                  "unsupported pointee type")));
+}
+
+// An opaque pointer is a handle that only one side can dereference, so its
+// members cannot be synchronized.
+TEST_F(IrConvertTest, RejectsStructSyncOnOpaquePointer) {
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    struct Blob {
+      int* data;
+    };
+    extern "C" void use_blob(
+        Blob* b [[clang::annotate("sandbox", "sandbox_opaque_ptr")]]
+                [[clang::annotate("sandbox", "struct_sync", "b1",
+                                  "{b->data", "inout_ptr}", "$")]]);
+  )",
+                                 "use_blob"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("b: struct_sync cannot be combined with an "
+                                 "opaque pointer direction")));
 }
 
 // A buffer reached through a sized pointer member is copied as raw bytes, and
@@ -4413,6 +4509,303 @@ TEST_F(IrConvertTest, ConvertsElemSizedByBinding) {
       std::holds_alternative<bounds::SizedByBinding>(bound_buf->bounds));
   EXPECT_TRUE(
       std::get<bounds::SizedByBinding>(bound_buf->bounds).is_elem_sized);
+
+  Library lib{.name = "MyLib", .functions = {fn}};
+  EXPECT_THAT(ValidateAndLinkLibraryIR(lib), IsOk());
+}
+
+TEST_F(IrConvertTest, ConvertsNestedStructAnnotationsAndSizedStructArray) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations inner_ann{.name = "InnerSlice"};
+  inner_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "data",
+      .size_type = ElemSizedBy{"len"},
+  });
+  record_annotations["InnerSlice"] = std::move(inner_ann);
+
+  RecordAnnotations outer_ann{.name = "OuterPacket"};
+  outer_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "tag",
+      .size_type = NullTerminated{},
+  });
+  record_annotations["OuterPacket"] = std::move(outer_ann);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      const Function nested_fn,
+      ConvertSnippetToIR(R"(
+    struct InnerSlice {
+      int* data;
+      unsigned long len;
+    };
+    struct OuterPacket {
+      const char* tag;
+      InnerSlice inner;
+    };
+    extern "C" int process_packets(
+        OuterPacket* packets
+            [[clang::annotate("sandbox", "inout_ptr")]]
+            [[clang::annotate("sandbox", "elem_sized_by", "count")]],
+        unsigned long count);
+  )",
+                         "process_packets", record_annotations));
+
+  ASSERT_EQ(nested_fn.parameters.size(), 2u);
+  const auto* sync = nested_fn.parameters[0].As<StructSyncParam>();
+  ASSERT_NE(sync, nullptr);
+  EXPECT_EQ(sync->direction, PointerDir::kInOut);
+  ASSERT_TRUE(std::holds_alternative<bounds::ElemCount>(sync->array_bounds));
+  EXPECT_EQ(std::get<bounds::ElemCount>(sync->array_bounds).size_expr, "count");
+  ASSERT_EQ(sync->members.size(), 2u);
+  EXPECT_EQ(sync->members[0].access_path(), "packets->tag");
+  EXPECT_EQ(sync->members[0].direction, PointerDir::kIn);
+  EXPECT_EQ(sync->members[1].access_path(), "packets->inner.data");
+  EXPECT_EQ(sync->members[1].parent_prefix, "packets->inner.");
+  EXPECT_EQ(sync->members[1].member_name, "data");
+  EXPECT_EQ(sync->members[1].direction, PointerDir::kInOut);
+  ASSERT_TRUE(
+      std::holds_alternative<bounds::ElemCount>(sync->members[1].bounds));
+  EXPECT_EQ(std::get<bounds::ElemCount>(sync->members[1].bounds).size_expr,
+            "packets[sapi_i].inner.len");
+
+  Library lib{.name = "MyLib", .functions = {nested_fn}};
+  EXPECT_THAT(ValidateAndLinkLibraryIR(lib), IsOk());
+
+  Function deref_sized_fn = nested_fn;
+  deref_sized_fn.parameters[0].As<StructSyncParam>()->array_bounds =
+      bounds::ElemCount{.size_expr = "*count"};
+  Library deref_lib{.name = "MyLib", .functions = {deref_sized_fn}};
+  EXPECT_THAT(
+      ValidateAndLinkLibraryIR(deref_lib),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("does not support pointer-dereference or "
+                         "outparam-sized array bounds on synchronized struct "
+                         "arrays")));
+}
+
+TEST_F(IrConvertTest,
+       ExplicitStructSyncSupportsSizedArraysWithNullTerminatedAndRetain) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations inner_ann{.name = "InnerSpan"};
+  inner_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "data",
+      .size_type = ElemSizedBy{"len"},
+  });
+  record_annotations["InnerSpan"] = std::move(inner_ann);
+
+  RecordAnnotations outer_ann{.name = "MutablePacket"};
+  outer_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "label",
+      .size_type = NullTerminated{},
+  });
+  record_annotations["MutablePacket"] = std::move(outer_ann);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      const Function fn,
+      ConvertSnippetToIR(R"(
+    struct InnerSpan {
+      const int* data;
+      unsigned long len;
+    };
+    struct MutablePacket {
+      char* label;
+      InnerSpan inner;
+    };
+    extern "C" [[clang::annotate("sandbox", "sandbox_opaque_ptr")]] void*
+    register_packets(
+        MutablePacket* pkts
+            [[clang::annotate("sandbox", "inout_ptr")]]
+            [[clang::annotate("sandbox", "elem_sized_by", "count")]]
+            [[clang::annotate("sandbox", "struct_sync", "L1",
+                              "{pkts->label", "inout_ptr}",
+                              "{pkts->inner.data", "in_ptr",
+                              "retain_and_bind(\"$return\")}", "$")]],
+        unsigned long count,
+        const MutablePacket* byte_pkts
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "byte_sized_by", "byte_len")]]
+            [[clang::annotate("sandbox", "struct_sync", "L2",
+                              "{byte_pkts->label", "in_ptr}", "$")]],
+        unsigned long byte_len,
+        const MutablePacket* bound_pkts
+            [[clang::annotate("sandbox", "in_ptr")]]
+            [[clang::annotate("sandbox", "elem_sized_by_binding", "ctx",
+                              "$pkt_count")]]
+            [[clang::annotate("sandbox", "struct_sync", "L3",
+                              "{bound_pkts->label", "in_ptr}", "$")]],
+        void* ctx [[clang::annotate("sandbox", "sandbox_opaque_ptr")]]);
+  )",
+                         "register_packets", record_annotations));
+
+  ASSERT_EQ(fn.parameters.size(), 6u);
+  const auto* sync = fn.parameters[0].As<StructSyncParam>();
+  ASSERT_NE(sync, nullptr);
+  EXPECT_EQ(sync->direction, PointerDir::kInOut);
+  ASSERT_TRUE(std::holds_alternative<bounds::ElemCount>(sync->array_bounds));
+  EXPECT_EQ(std::get<bounds::ElemCount>(sync->array_bounds).size_expr, "count");
+  ASSERT_EQ(sync->members.size(), 2u);
+
+  EXPECT_EQ(sync->members[0].access_path(), "pkts->label");
+  EXPECT_EQ(sync->members[0].direction, PointerDir::kInOut);
+  EXPECT_TRUE(
+      std::holds_alternative<bounds::NullTerminated>(sync->members[0].bounds));
+
+  EXPECT_EQ(sync->members[1].access_path(), "pkts->inner.data");
+  EXPECT_EQ(sync->members[1].direction, PointerDir::kIn);
+  ASSERT_TRUE(
+      std::holds_alternative<bounds::ElemCount>(sync->members[1].bounds));
+  EXPECT_EQ(std::get<bounds::ElemCount>(sync->members[1].bounds).size_expr,
+            "pkts[sapi_i].inner.len");
+  ASSERT_TRUE(sync->members[1].context_bound.retain_and_bind.has_value());
+  EXPECT_EQ(sync->members[1].context_bound.retain_and_bind->context, "$return");
+
+  const auto* byte_sync = fn.parameters[2].As<StructSyncParam>();
+  ASSERT_NE(byte_sync, nullptr);
+  EXPECT_TRUE(
+      std::holds_alternative<bounds::ByteCount>(byte_sync->array_bounds));
+
+  const auto* bound_sync = fn.parameters[4].As<StructSyncParam>();
+  ASSERT_NE(bound_sync, nullptr);
+  EXPECT_TRUE(
+      std::holds_alternative<bounds::SizedByBinding>(bound_sync->array_bounds));
+
+  Library lib{.name = "MyLib", .functions = {fn}};
+  EXPECT_THAT(ValidateAndLinkLibraryIR(lib), IsOk());
+}
+
+TEST_F(IrConvertTest, RejectsOuterContextBindingsOnSynchronizedStructArray) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations span_ann{.name = "IntSpan"};
+  span_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "data",
+      .size_type = ElemSizedBy{"len"},
+  });
+  record_annotations["IntSpan"] = std::move(span_ann);
+
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      const Function fn, ConvertSnippetToIR(R"(
+    struct IntSpan {
+      int* data;
+      unsigned long len;
+    };
+    extern "C" int keep_spans(
+        void* ctx [[clang::annotate("sandbox", "sandbox_opaque_ptr")]],
+        IntSpan* spans
+            [[clang::annotate("sandbox", "inout_ptr")]]
+            [[clang::annotate("sandbox", "elem_sized_by", "count")]]
+            [[clang::annotate("sandbox", "retain_and_bind", "ctx", "b")]],
+        unsigned long count);
+  )",
+                                            "keep_spans", record_annotations));
+  ASSERT_TRUE(fn.parameters[1].Is<StructSyncParam>());
+  Library lib{.name = "MyLib", .functions = {fn}};
+  EXPECT_THAT(
+      ValidateAndLinkLibraryIR(lib),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("parameter spans does not support "
+                         "retain_and_bind or copy_from_and_bind_out_ptr "
+                         "on a synchronized struct pointer")));
+
+  Function copy_bound_fn = fn;
+  ContextBoundAnnotations& copy_bound =
+      copy_bound_fn.parameters[1].As<StructSyncParam>()->context_bound;
+  copy_bound.retain_and_bind.reset();
+  copy_bound.copy_from_and_bind =
+      CopyFromAndBindOutPtr{.context = "ctx", .binding_name = "b"};
+  Library copy_bound_lib{.name = "MyLib", .functions = {copy_bound_fn}};
+  EXPECT_THAT(ValidateAndLinkLibraryIR(copy_bound_lib),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("on a synchronized struct pointer")));
+}
+
+TEST_F(IrConvertTest,
+       PrefixesSizedByBindingExpressionsInNestedStructsAndSizedStructArrays) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations bound_ann{.name = "BoundSlice"};
+  bound_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "data",
+      .size_type =
+          SizedByBinding{
+              .context = "sapi::lwbox::CompositeKey(ncid, varid)",
+              .binding_expr = "rows * $elem_count",
+              .is_elem_sized = true,
+          },
+  });
+  bound_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "bare_buf",
+      .size_type =
+          SizedByBinding{
+              .context = "sapi::lwbox::ContextKey(ncid)",
+              .binding_expr = "elem_count",
+              .is_elem_sized = false,
+          },
+  });
+  record_annotations["BoundSlice"] = std::move(bound_ann);
+  record_annotations["OuterBoundPacket"] =
+      RecordAnnotations{.name = "OuterBoundPacket"};
+
+  SAPI_ASSERT_OK_AND_ASSIGN(
+      const Function fn,
+      ConvertSnippetToIR(R"(
+    struct BoundSlice {
+      int ncid;
+      int varid;
+      unsigned long rows;
+      unsigned long elem_count;
+      int* data;
+      char* bare_buf;
+    };
+    struct OuterBoundPacket {
+      BoundSlice inner;
+    };
+    extern "C" int read_bound_structs(
+        OuterBoundPacket* pkt [[clang::annotate("sandbox", "inout_ptr")]],
+        BoundSlice* slices
+            [[clang::annotate("sandbox", "inout_ptr")]]
+            [[clang::annotate("sandbox", "elem_sized_by", "count")]],
+        unsigned long count);
+  )",
+                         "read_bound_structs", record_annotations));
+
+  ASSERT_EQ(fn.parameters.size(), 3u);
+  const auto* single_sync = fn.parameters[0].As<StructSyncParam>();
+  ASSERT_NE(single_sync, nullptr);
+  ASSERT_EQ(single_sync->members.size(), 2u);
+
+  const auto* single_elem_binding =
+      std::get_if<bounds::SizedByBinding>(&single_sync->members[0].bounds);
+  ASSERT_NE(single_elem_binding, nullptr);
+  EXPECT_EQ(single_elem_binding->context_expr,
+            "sapi::lwbox::CompositeKey(pkt->inner.ncid, pkt->inner.varid)");
+  EXPECT_EQ(single_elem_binding->binding_name, "pkt->inner.rows * $elem_count");
+  EXPECT_TRUE(single_elem_binding->is_elem_sized);
+
+  const auto* single_bare_binding =
+      std::get_if<bounds::SizedByBinding>(&single_sync->members[1].bounds);
+  ASSERT_NE(single_bare_binding, nullptr);
+  EXPECT_EQ(single_bare_binding->context_expr,
+            "sapi::lwbox::ContextKey(pkt->inner.ncid)");
+  EXPECT_EQ(single_bare_binding->binding_name, "elem_count");
+  EXPECT_FALSE(single_bare_binding->is_elem_sized);
+
+  const auto* array_sync = fn.parameters[1].As<StructSyncParam>();
+  ASSERT_NE(array_sync, nullptr);
+  ASSERT_EQ(array_sync->members.size(), 2u);
+
+  const auto* array_elem_binding =
+      std::get_if<bounds::SizedByBinding>(&array_sync->members[0].bounds);
+  ASSERT_NE(array_elem_binding, nullptr);
+  EXPECT_EQ(
+      array_elem_binding->context_expr,
+      "sapi::lwbox::CompositeKey(slices[sapi_i].ncid, slices[sapi_i].varid)");
+  EXPECT_EQ(array_elem_binding->binding_name,
+            "slices[sapi_i].rows * $elem_count");
+
+  const auto* array_bare_binding =
+      std::get_if<bounds::SizedByBinding>(&array_sync->members[1].bounds);
+  ASSERT_NE(array_bare_binding, nullptr);
+  EXPECT_EQ(array_bare_binding->context_expr,
+            "sapi::lwbox::ContextKey(slices[sapi_i].ncid)");
+  EXPECT_EQ(array_bare_binding->binding_name, "elem_count");
 
   Library lib{.name = "MyLib", .functions = {fn}};
   EXPECT_THAT(ValidateAndLinkLibraryIR(lib), IsOk());
