@@ -692,15 +692,6 @@ bool PtraceMonitor::InitPtraceAttach() {
     return false;
   }
 
-  // With TSYNC, we can allow threads: seccomp applies to all threads.
-  if (tasks->size() > 1) {
-    LOG(WARNING) << "PID " << process_.main_pid << " has " << tasks->size()
-                 << " threads, at the time of call to SandboxMeHere(). If you "
-                    "are seeing more sandbox violations than expected, this "
-                    "might be the reason why"
-                 << ".";
-  }
-
   absl::flat_hash_set<int> tasks_attached;
   absl::Time deadline = absl::Now() + absl::Seconds(4);
 

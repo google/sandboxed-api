@@ -508,13 +508,18 @@ PolicyBuilder& PolicyBuilder::AllowTcMalloc() {
   allowed_complex_.tcmalloc = true;
   AllowTime();
   AllowRestartableSequences(kRequireFastFences);
+  // Used by absl::Mutex::AwaitWithTimeout() in ProcessBackgroundActions().
+  AllowFutexOp(FUTEX_WAIT_BITSET);
   AllowSleep();
   if (!mounts_.ResolvePath("/sys/devices/system/node").ok() &&
       IsDirectory("/sys/devices/system/node")) {
     AddDirectoryIfNamespaced("/sys/devices/system/node");
   }
+  // sched_getparam and sched_getscheduler are called via
+  // pthread_getschedparam() from absl::Mutex in ProcessBackgroundActions().
   AllowSyscalls({__NR_munmap, __NR_brk, __NR_mincore, __NR_membarrier,
-                 __NR_lseek, __NR_mbind});
+                 __NR_lseek, __NR_mbind, __NR_sched_getparam,
+                 __NR_sched_getscheduler});
   AllowLimitedMadvise();
   AllowPrctlSetVma();
   AllowPoll();
