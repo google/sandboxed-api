@@ -35,6 +35,12 @@ namespace sandbox2 {
 #define NT_ARM_SYSTEM_CALL 0x404
 #endif
 
+#if defined(SAPI_ARM)
+#ifndef PTRACE_SET_SYSCALL
+#define PTRACE_SET_SYSCALL 23
+#endif
+#endif
+
 #if defined(SAPI_RISCV64)
 #ifndef PTRACE_GET_SYSCALL_INFO
 #define PTRACE_GET_SYSCALL_INFO 0x420e
@@ -172,8 +178,17 @@ absl::Status Regs::SkipSyscallReturnValue(uintptr_t value) {
   syscall_number_ = -1;
   user_regs_.regs[0] = value;
 #elif defined(SAPI_ARM)
-  user_regs_.orig_x0 = -1;
-  user_regs_.regs[7] = value;
+  // On 32-bit ARM, modifying regs[7] does not change the syscall number
+  // dispatched by the kernel; cancel the pending syscall via
+  // PTRACE_SET_SYSCALL.
+  if (ptrace(static_cast<decltype(PTRACE_GETREGSET)>(PTRACE_SET_SYSCALL), pid_,
+             nullptr,
+             reinterpret_cast<void*>(static_cast<uintptr_t>(-1))) == -1L) {
+    return absl::ErrnoToStatus(
+        errno,
+        absl::StrCat("ptrace(PTRACE_SET_SYSCALL, pid=", pid_, ") failed"));
+  }
+  user_regs_.regs[0] = value;
 #elif defined(SAPI_RISCV64)
   user_regs_.a7 = -1;
   user_regs_.a0 = value;

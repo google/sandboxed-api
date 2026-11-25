@@ -1,5 +1,6 @@
 #include "sandboxed_api/sandbox2/regs.h"
 
+#include <fcntl.h>
 #include <linux/filter.h>
 #include <linux/seccomp.h>
 #include <sys/prctl.h>
@@ -28,6 +29,7 @@ namespace sandbox2 {
 namespace {
 
 using ::absl_testing::IsOk;
+using ::testing::Not;
 
 #define __WPTRACEEVENT(x) ((x & 0xff0000) >> 16)
 
@@ -96,6 +98,69 @@ TEST(RegsTest, SkipSyscallWorks) {
   ASSERT_EQ(waitpid(pid, &status, __WNOTHREAD | __WALL | WUNTRACED), pid);
   ASSERT_TRUE(WIFEXITED(status));
   EXPECT_EQ(WEXITSTATUS(status), 0);
+}
+
+TEST(RegsTest, SkipSyscallDoesNotExecuteSyscall) {
+  std::vector<sock_filter> policy = {
+      LOAD_SYSCALL_NR,
+      JEQ32(__NR_close, TRACE(0)),
+      ALLOW,
+  };
+  sock_fprog prog = {
+      .len = static_cast<uint16_t>(policy.size()),
+      .filter = policy.data(),
+  };
+  int sv[2];
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, sv), 0);
+  int test_pipe[2];
+  ASSERT_EQ(pipe(test_pipe), 0);
+  pid_t ppid = util::Syscall(__NR_gettid);
+  pid_t pid = fork();
+  ASSERT_NE(pid, -1);
+  char c = 'C';
+  if (pid == 0) {
+    sanitizer::WaitForSanitizer();
+    CHECK_EQ(prctl(PR_SET_DUMPABLE, 1), 0);
+    prctl(PR_SET_PTRACER, ppid);
+    CHECK_EQ(prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0), 0);
+    CHECK_EQ(prctl(PR_SET_KEEPCAPS, 0), 0);
+    CHECK_EQ(write(sv[0], &c, 1), 1);
+    CHECK_EQ(util::Syscall(__NR_seccomp, SECCOMP_SET_MODE_FILTER, 0,
+                           reinterpret_cast<uintptr_t>(&prog)),
+             0);
+    CHECK_EQ(read(sv[0], &c, 1), 1);
+    errno = 0;
+    int64_t ret = util::Syscall(__NR_close, test_pipe[0]);
+    int saved_errno = errno;
+    bool fd_still_open = fcntl(test_pipe[0], F_GETFD) != -1;
+    _Exit(ret == -1 && saved_errno == EPERM && fd_still_open ? 0 : 1);
+  }
+  ASSERT_EQ(read(sv[1], &c, 1), 1);
+  ASSERT_EQ(ptrace(PTRACE_SEIZE, pid, 0, PTRACE_O_TRACESECCOMP), 0);
+  ASSERT_EQ(write(sv[1], &c, 1), 1);
+  int status;
+  ASSERT_EQ(waitpid(pid, &status, __WNOTHREAD | __WALL | WUNTRACED), pid);
+  ASSERT_TRUE(WIFSTOPPED(status));
+  ASSERT_EQ(__WPTRACEEVENT(status), PTRACE_EVENT_SECCOMP);
+  Regs regs(pid);
+  ASSERT_THAT(regs.Fetch(), IsOk());
+  Syscall syscall = regs.ToSyscall(sapi::host_cpu::Architecture());
+  EXPECT_EQ(syscall.nr(), __NR_close);
+  EXPECT_EQ(syscall.args()[0], static_cast<uint64_t>(test_pipe[0]));
+  ASSERT_THAT(regs.SkipSyscallReturnValue(-EPERM), IsOk());
+  ASSERT_EQ(ptrace(PTRACE_DETACH, pid, 0, 0), 0);
+  ASSERT_EQ(waitpid(pid, &status, __WNOTHREAD | __WALL | WUNTRACED), pid);
+  ASSERT_TRUE(WIFEXITED(status));
+  EXPECT_EQ(WEXITSTATUS(status), 0);
+  close(test_pipe[0]);
+  close(test_pipe[1]);
+  close(sv[0]);
+  close(sv[1]);
+}
+
+TEST(RegsTest, SkipSyscallFailsForUntracedPid) {
+  Regs regs(0);
+  EXPECT_THAT(regs.SkipSyscallReturnValue(-EPERM), Not(IsOk()));
 }
 
 }  // namespace
