@@ -1041,6 +1041,21 @@ TEST(CommsTest, SendFdFailsOnNonSocket) {
   ASSERT_THAT(comms.SendFD(STDERR_FILENO), IsFalse());
 }
 
+TEST(CommsTest, NonCanonicalBoolFixed) {
+  auto a = [](Comms* comms) {
+    ASSERT_THAT(comms->SendTLV(Comms::kTagBool, 1, "\xba"), IsTrue());
+  };
+  auto b = [](Comms* comms) {
+    bool b;
+    ASSERT_THAT(comms->RecvBool(&b), IsTrue());
+    EXPECT_THAT(b, Eq(true));
+    uint8_t b_int;
+    std::memcpy(&b_int, &b, sizeof(b));
+    EXPECT_THAT(b_int, Eq(1));
+  };
+  HandleCommunication(a, b);
+}
+
 // Benchmarks RecvProtoBuf across a range of payload sizes. A sender thread
 // continuously transmits the proto so the loop measures RecvTLV + parsing.
 //

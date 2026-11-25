@@ -182,7 +182,15 @@ class Comms {
   bool SendUint64(uint64_t v) { return SendGeneric(v, kTagUint64); }
   bool RecvInt64(int64_t* v) { return RecvIntGeneric(v, kTagInt64); }
   bool SendInt64(int64_t v) { return SendGeneric(v, kTagInt64); }
-  bool RecvBool(bool* v) { return RecvIntGeneric(v, kTagBool); }
+  bool RecvBool(bool* v) {
+    uint8_t tmp;
+    static_assert(sizeof(bool) == sizeof(uint8_t));
+    if (!RecvIntGeneric(&tmp, kTagBool)) {
+      return false;
+    }
+    *v = tmp != 0;
+    return true;
+  }
   bool SendBool(bool v) { return SendGeneric(v, kTagBool); }
   bool RecvString(std::string* v);
   bool SendString(const std::string& v);
