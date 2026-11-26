@@ -427,6 +427,21 @@ TEST_P(SandboxTest, LongFunctionNameTruncation) {
                                HasSubstr("Function name is too long")));
 }
 
+// Calls a function with `FuncCall::kArgsMax` arguments, so every argument slot
+// of the call message carries a value.
+TEST_P(SandboxTest, CallWithMaxArgs) {
+  static_assert(FuncCall::kArgsMax == 16,
+                "Update weighted_sum16 to use every argument slot");
+  SapiTestSandbox sandbox(GetDefaultConfig());
+  ASSERT_THAT(sandbox.Init(), IsOk());
+  SapiTestApi api(&sandbox);
+
+  // 1*1 + 2*2 + ... + 16*16 = 1496.
+  EXPECT_THAT(
+      api.weighted_sum16(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16),
+      IsOkAndHolds(1496));
+}
+
 TEST_P(SandboxTest, AllocateAndTransferTestLarge) {
   const size_t kLargeSize = getpagesize() * (IOV_MAX + 1);
   const std::string test_string(kLargeSize, 'A');

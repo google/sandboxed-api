@@ -29,6 +29,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
   # sandboxed_api/examples/sum/lib:sum-sapi
   add_sapi_library(sapi_test-sapi
     FUNCTIONS accumulate
+              weighted_sum16
               clear_lenval
               compare_self_symbol
               call_callback

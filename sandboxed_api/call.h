@@ -66,7 +66,7 @@ struct FuncCall {
   // Used with HandleCallMsg:
   enum {
     kFuncNameMax = 256,
-    kArgsMax = 12,
+    kArgsMax = 16,
   };
 
   // Function to be called.
@@ -93,6 +93,12 @@ struct FuncCall {
   // Size of the auxiliary data (e.g. a structure the pointer points to).
   size_t aux_size[kArgsMax];
 };
+
+// The host sends the whole `FuncCall` to the sandboxee with every call, and
+// each argument slot adds 40 bytes on x86-64 and AArch64 (928 bytes in total
+// for 16 slots). If a larger `kArgsMax` needs more than 1 KiB, send only the
+// used argument slots instead.
+static_assert(sizeof(FuncCall) <= 1024, "FuncCall is sent with every call");
 
 struct FuncRet {
   static constexpr FuncRet FromError(Error error) {

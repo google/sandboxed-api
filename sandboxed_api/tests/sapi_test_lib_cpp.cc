@@ -34,6 +34,16 @@ extern "C" int accumulate(int* a, int* b, int* c, int* d, int* e, int* f,
   return sapi_test::accumulate({a, b, c, d, e, f, g, h});
 }
 
+// Takes `FuncCall::kArgsMax` (16) arguments. Each argument is weighted by its
+// position, so a dropped or reordered argument changes the result.
+extern "C" int weighted_sum16(int a1, int a2, int a3, int a4, int a5, int a6,
+                              int a7, int a8, int a9, int a10, int a11, int a12,
+                              int a13, int a14, int a15, int a16) {
+  return a1 + 2 * a2 + 3 * a3 + 4 * a4 + 5 * a5 + 6 * a6 + 7 * a7 + 8 * a8 +
+         9 * a9 + 10 * a10 + 11 * a11 + 12 * a12 + 13 * a13 + 14 * a14 +
+         15 * a15 + 16 * a16;
+}
+
 extern "C" bool compare_self_symbol(void* self) {
   return self == reinterpret_cast<void*>(&compare_self_symbol);
 }

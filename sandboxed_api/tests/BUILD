@@ -80,6 +80,7 @@ sapi_library(
     name = "sapi_test-sapi",
     functions = [
         "accumulate",
+        "weighted_sum16",
         "clear_lenval",
         "compare_self_symbol",
         "call_callback",
