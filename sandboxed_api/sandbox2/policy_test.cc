@@ -43,6 +43,7 @@
 #include "sandboxed_api/sandbox2/result.h"
 #include "sandboxed_api/sandbox2/sandbox2.h"
 #include "sandboxed_api/sandbox2/util/bpf_helper.h"
+#include "sandboxed_api/sandbox2/util/seccomp_unotify.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/util/path.h"
 
@@ -470,6 +471,24 @@ TEST_P(PolicyTest, SecondExecveatNotAllowedByDefault) {
   // The test binary should exit with success.
   ASSERT_THAT(result.final_status(), Eq(Result::OK));
   EXPECT_THAT(result.reason_code(), Eq(0));
+}
+
+TEST_P(PolicyTest, SecondExecveatWithMagicNotAllowedByDefault) {
+  if (GetParam() && !util::SeccompUnotify::IsContinueSupported()) {
+    GTEST_SKIP() << "SECCOMP_USER_NOTIF_FLAG_CONTINUE not supported";
+  }
+  const std::string path = GetTestSourcePath("sandbox2/testcases/execveat");
+
+  std::unique_ptr<Sandbox2> s2 = CreateTestSandbox(
+      {path, "3"},
+      CreateDefaultPermissiveTestPolicy(path).BlockSyscallWithErrno(
+          __NR_execveat, EPERM));
+  Result result = s2->Run();
+
+  ASSERT_THAT(result.final_status(), Eq(Result::VIOLATION));
+  EXPECT_THAT(result.reason_code(), Eq(Result::VIOLATION_SYSCALL));
+  ASSERT_TRUE(result.GetSyscall() != nullptr);
+  EXPECT_THAT(result.GetSyscall()->nr(), Eq(__NR_execveat));
 }
 
 TEST_P(PolicyTest, MmapWithoutExecWorksAsExpected) {

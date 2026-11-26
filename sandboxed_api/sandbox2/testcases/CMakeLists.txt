@@ -465,6 +465,7 @@ target_link_libraries(sandbox2_testcase_execveat PRIVATE
   sapi::base
   sandbox2::client
   sandbox2::comms
+  sandbox2::policy
   sandbox2::util
 )
 

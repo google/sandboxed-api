@@ -1254,6 +1254,7 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING)
     sandbox2::bpf_helper
     sapi::config
     sandbox2::sandbox2
+    sandbox2::seccomp_unotify
     sapi::testing
     sapi::test_main
   )

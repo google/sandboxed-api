@@ -16,11 +16,13 @@
 #include <syscall.h>
 
 #include <cerrno>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 
 #include "sandboxed_api/sandbox2/client.h"
 #include "sandboxed_api/sandbox2/comms.h"
+#include "sandboxed_api/sandbox2/policy.h"
 #include "sandboxed_api/sandbox2/util.h"
 
 int main(int argc, char** argv) {
@@ -30,8 +32,12 @@ int main(int argc, char** argv) {
     sandbox2::Client client(&comms);
     client.SandboxMeHere();
   }
-  int result =
-      sandbox2::util::Syscall(__NR_execveat, AT_EMPTY_PATH, 0, 0, 0, 0);
+  uintptr_t magic = (testno == 1 || testno == 3)
+                        ? sandbox2::policy_internal::kExecveMagic
+                        : 0;
+  int result = sandbox2::util::Syscall(
+      __NR_execveat, static_cast<uintptr_t>(-1),
+      reinterpret_cast<uintptr_t>(""), 0, 0, AT_EMPTY_PATH, magic);
   if (result != -1 || errno != EPERM) {
     printf("System call should have been blocked\n");
     return EXIT_FAILURE;

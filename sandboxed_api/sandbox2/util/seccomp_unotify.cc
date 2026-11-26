@@ -17,9 +17,11 @@
 #include <linux/audit.h>
 #include <linux/filter.h>
 #include <linux/seccomp.h>
+#include <signal.h>
 #include <sys/ioctl.h>
 #include <sys/prctl.h>
 #include <syscall.h>
+#include <unistd.h>
 
 #include <array>
 #include <cerrno>
@@ -80,12 +82,12 @@ class OsSeccompUnotify : public SeccompUnotify::SeccompUnotifyInterface {
     return seccomp(SECCOMP_GET_NOTIF_SIZES, 0, sizes);
   }
   int ReceiveNotification(int fd, seccomp_notif* req) override {
-    return ioctl(fd, SECCOMP_IOCTL_NOTIF_RECV,
-                 reinterpret_cast<uintptr_t>(req));
+    return TEMP_FAILURE_RETRY(
+        ioctl(fd, SECCOMP_IOCTL_NOTIF_RECV, reinterpret_cast<uintptr_t>(req)));
   }
   int SendResponse(int fd, const seccomp_notif_resp& resp) override {
-    return ioctl(fd, SECCOMP_IOCTL_NOTIF_SEND,
-                 reinterpret_cast<uintptr_t>(&resp));
+    return TEMP_FAILURE_RETRY(ioctl(fd, SECCOMP_IOCTL_NOTIF_SEND,
+                                    reinterpret_cast<uintptr_t>(&resp)));
   }
 };
 
@@ -118,7 +120,18 @@ bool TestUserNotifFlagContinueSupport() {
     }
     notify_fd = FDCloser(ret);
     std::move(cleanup).Invoke();
-    util::Syscall(kSpecialSyscall);
+    // Block maskable signals (e.g., SIGPROF) so they do not interrupt the probe
+    // syscall and cause the kernel to drop the pending notification (ENOENT).
+    sigset_t mask;
+    sigset_t old_mask;
+    sigfillset(&mask);
+    const bool masked = pthread_sigmask(SIG_BLOCK, &mask, &old_mask) == 0;
+    absl::Cleanup restore_mask = [masked, &old_mask] {
+      if (masked) {
+        pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
+      }
+    };
+    static_cast<void>(TEMP_FAILURE_RETRY(util::Syscall(kSpecialSyscall)));
   });
   absl::Cleanup join_thread = [&th] { th.Join(); };
   setup_done.WaitForNotification();
@@ -131,17 +144,32 @@ bool TestUserNotifFlagContinueSupport() {
     VLOG(3) << "Failed to init unotify: " << status;
     return false;
   }
-  absl::StatusOr<seccomp_notif> req = unotify.Receive();
-  if (!req.ok()) {
-    VLOG(3) << "Failed to receive unotify: " << req.status();
-    return false;
-  }
+  // Retry ENOENT in case an unblocked internal signal aborted the notification;
+  // unsupported SECCOMP_USER_NOTIF_FLAG_CONTINUE fails with EINVAL instead.
+  constexpr int kMaxAttempts = 10;
+  for (int attempt = 0; attempt < kMaxAttempts; ++attempt) {
+    absl::StatusOr<seccomp_notif> req = unotify.Receive();
+    if (!req.ok()) {
+      if (absl::IsNotFound(req.status())) {
+        VLOG(3) << "Unotify receive interrupted (ENOENT), retrying";
+        continue;
+      }
+      VLOG(3) << "Failed to receive unotify: " << req.status();
+      return false;
+    }
 
-  if (absl::Status status = unotify.RespondContinue(*req); !status.ok()) {
-    VLOG(3) << "Failed to respond continue: " << status;
-    return false;
+    if (absl::Status status = unotify.RespondContinue(*req); !status.ok()) {
+      if (absl::IsNotFound(status)) {
+        VLOG(3) << "Unotify respond continue interrupted (ENOENT), retrying";
+        continue;
+      }
+      VLOG(3) << "Failed to respond continue: " << status;
+      return false;
+    }
+    return true;
   }
-  return true;
+  VLOG(3) << "Failed to probe unotify continue support after retries";
+  return false;
 }
 }  // namespace
 

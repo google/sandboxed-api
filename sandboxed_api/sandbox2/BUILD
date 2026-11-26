@@ -1178,6 +1178,7 @@ cc_test(
         "//sandboxed_api/sandbox2/allowlists:speculative_store_bypass",
         "//sandboxed_api/sandbox2/allowlists:testonly_map_exec",
         "//sandboxed_api/sandbox2/util:bpf_helper",
+        "//sandboxed_api/sandbox2/util:seccomp_unotify",
         "//sandboxed_api/util:file_base",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:status_matchers",

@@ -376,6 +376,7 @@ cc_binary(
     deps = [
         "//sandboxed_api/sandbox2:client",
         "//sandboxed_api/sandbox2:comms",
+        "//sandboxed_api/sandbox2:policy",
         "//sandboxed_api/sandbox2:util",
     ],
 )
