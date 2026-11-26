@@ -95,3 +95,18 @@ config_setting(
     flag_values = {":sandboxing_test_mode": "unsandboxed"},
     visibility = ["//visibility:public"],
 )
+
+config_setting(
+    name = "opt_build",
+    values = {"compilation_mode": "opt"},
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "opt_strip_never",
+    values = {
+        "compilation_mode": "opt",
+        "strip": "never",
+    },
+    visibility = ["//visibility:public"],
+)

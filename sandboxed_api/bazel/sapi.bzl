@@ -344,7 +344,9 @@ def sapi_library(
       exec_properties: Dict of executable properties to be passed to the generated binary targets.
       sandbox_mode: Sandbox mode to use for the generated library. Either "sandbox2" (default) or "passthrough".
       strip_embedded_sandboxee: Whether to embed <name>.bin.stripped, without
-        debug info, instead of <name>.bin. Only applies when embed is True.
+        debug info, instead of <name>.bin in all compilation modes. Only applies
+        when embed is True. Otherwise, only opt builds embed <name>.bin.stripped,
+        unless --strip=never is set.
     """
 
     common = _common_kwargs(tags, visibility, compatible_with)
@@ -449,9 +451,19 @@ def sapi_library(
     if embed:
         embed_name = name
 
+        if strip_embedded_sandboxee:
+            embed_srcs = [":" + name + ".bin.stripped"]
+        else:
+            # Embed the sandboxee without debug info in opt builds, unless
+            # --strip=never asks to keep it (e.g. in sanitizer builds).
+            embed_srcs = select({
+                Label("//sandboxed_api/bazel:opt_strip_never"): [":" + name + ".bin"],
+                Label("//sandboxed_api/bazel:opt_build"): [":" + name + ".bin.stripped"],
+                "//conditions:default": [":" + name + ".bin"],
+            })
         sapi_cc_embed_data(
             name = name + "_embed",
-            srcs = [":" + name + (".bin.stripped" if strip_embedded_sandboxee else ".bin")],
+            srcs = embed_srcs,
             namespace = namespace,
             **common
         )
