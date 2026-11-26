@@ -659,9 +659,9 @@ std::vector<MapEntry> GetSortedEntries(const MountTree& tree) {
 }
 
 // Traverses the MountTree to create all required files and perform the mounts.
-void CreateMounts(const MountTree& tree, const std::string& root_path,
-                  const std::string& path, bool create_backing_files,
-                  bool allow_mount_propagation, bool allow_write_executable) {
+void CreateMounts(const MountTree& tree, const std::string& path,
+                  bool create_backing_files, bool allow_mount_propagation,
+                  bool allow_write_executable) {
   // First, create the backing files if needed.
   bool just_created_node = false;
   if (create_backing_files) {
@@ -690,12 +690,13 @@ void CreateMounts(const MountTree& tree, const std::string& root_path,
   }
 
   if (!just_created_node && IsSymlink(path)) {
-    std::string abs_path;
-    if (!file_util::fileops::ReadLinkAbsolute(path, &abs_path)) {
+    std::string link = file_util::fileops::ReadLink(path);
+    if (link.empty()) {
       LOG(WARNING) << "could not resolve mount target path " << path;
-    } else if (!absl::StartsWith(abs_path, absl::StrCat(root_path, "/"))) {
-      LOG(ERROR) << "Mount target not within chroot: " << path
-                 << " resolved to " << abs_path;
+    } else if (sapi::file::IsAbsolutePath(link)) {
+      LOG(ERROR)
+          << "Mount target is an absolute symlink (resolves outside chroot): "
+          << path << " -> " << link;
     }
   }
 
@@ -748,7 +749,7 @@ void CreateMounts(const MountTree& tree, const std::string& root_path,
   }
   for (const auto& [key, value] : GetSortedEntries(tree)) {
     std::string new_path = sapi::file::JoinPath(path, key);
-    CreateMounts(*value, root_path, new_path, create_backing_files,
+    CreateMounts(*value, new_path, create_backing_files,
                  allow_mount_propagation, allow_write_executable);
   }
 }
@@ -756,7 +757,7 @@ void CreateMounts(const MountTree& tree, const std::string& root_path,
 }  // namespace
 
 void Mounts::CreateMounts(const std::string& root_path) const {
-  sandbox2::CreateMounts(mount_specs_.mount_tree(), root_path, root_path, true,
+  sandbox2::CreateMounts(mount_specs_.mount_tree(), root_path, true,
                          mount_specs_.allow_mount_propagation(),
                          mount_specs_.allow_write_executable());
 }

@@ -51,7 +51,12 @@ namespace file_util = ::sapi::file_util;
 
 using ::sapi::file_util::fileops::FDCloser;
 
-static constexpr char kSandbox2ChrootPath[] = "/tmp/.sandbox2chroot";
+// Existing root-owned mountpoint overmounted transiently with tmpfs inside the
+// ForkServer's private initial mount namespace before pivot_root().
+static constexpr char kInitialPivotPath[] = "/proc";
+// Private mountpoint pre-created inside the ForkServer's initial tmpfs for
+// staging each sandboxee's rootfs without touching host /tmp.
+static constexpr char kNewRootPath[] = "/newroot";
 
 int MountFallbackToReadOnly(const char* source, const char* target,
                             const char* filesystem, uintptr_t flags,
@@ -69,22 +74,20 @@ int MountFallbackToReadOnly(const char* source, const char* target,
   return rv;
 }
 
-void PrepareChroot(const Mounts& mounts) {
-  // Create a tmpfs mount for the new rootfs.
-  SAPI_RAW_CHECK(
-      file_util::fileops::CreateDirectoryRecursively(kSandbox2ChrootPath, 0700),
-      "could not create directory for rootfs");
-  SAPI_RAW_PCHECK(mount("none", kSandbox2ChrootPath, "tmpfs", 0, nullptr) == 0,
-                  "mounting rootfs failed");
+void PrepareChroot(const Mounts& mounts, int newroot_fd) {
+  // Stage mounts inside the private tmpfs root referenced by newroot_fd while
+  // chrooted to /realroot so absolute source paths and symlinks resolve against
+  // the host root, while relative target paths stay inside newroot_fd.
+  SAPI_RAW_PCHECK(fchdir(newroot_fd) != -1, "fchdir to newroot failed");
 
   // Walk the tree and perform all the mount operations.
-  mounts.CreateMounts(kSandbox2ChrootPath);
+  mounts.CreateMounts(".");
 
   if (mounts.IsRootReadOnly()) {
     // Remount the chroot read-only
-    SAPI_RAW_PCHECK(mount(kSandbox2ChrootPath, kSandbox2ChrootPath, "",
-                          MS_BIND | MS_REMOUNT | MS_RDONLY, nullptr) == 0,
-                    "remounting chroot read-only failed");
+    SAPI_RAW_PCHECK(
+        mount(".", ".", "", MS_BIND | MS_REMOUNT | MS_RDONLY, nullptr) == 0,
+        "remounting chroot read-only failed");
   }
 }
 
@@ -299,11 +302,20 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid,
 
   Mounts mounts(request.mount_specs());
 
+  // Mount the per-sandboxee tmpfs onto the private /newroot mountpoint in the
+  // initial tmpfs (unreachable from /realroot and any sandboxee), and pin it
+  // with an O_PATH FD before chrooting to /realroot.
+  SAPI_RAW_PCHECK(mount("none", kNewRootPath, "tmpfs", 0, nullptr) == 0,
+                  "mounting rootfs failed");
+  FDCloser newroot_fd(TEMP_FAILURE_RETRY(
+      open(kNewRootPath, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)));
+  SAPI_RAW_PCHECK(newroot_fd.get() != -1, "opening newroot");
+
   // We want to bind-mount chrooted to real root, so that symlinks work.
   // Reference to main root is kept to escape later from the chroot
-  FDCloser root_fd =
-      file_util::fileops::FDCloser(TEMP_FAILURE_RETRY(open("/", O_PATH)));
-  SAPI_RAW_CHECK(root_fd.get() != -1, "creating fd for main root");
+  FDCloser root_fd(
+      TEMP_FAILURE_RETRY(open("/", O_PATH | O_DIRECTORY | O_CLOEXEC)));
+  SAPI_RAW_PCHECK(root_fd.get() != -1, "creating fd for main root");
 
   SAPI_RAW_PCHECK(chroot("/realroot") != -1, "chrooting to real root");
   SAPI_RAW_PCHECK(chdir("/") != -1, "chdir / after chrooting real root");
@@ -344,12 +356,13 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid,
         latency_stop_watch.LapTime());
   }
 
-  PrepareChroot(mounts);
+  PrepareChroot(mounts, newroot_fd.get());
   latency_breakdown.SetLatency(SetupLatencyBreakdown::kNsInitPrepareChroot,
                                latency_stop_watch.LapTime());
 
   // Keep a reference to /proc/self as it might not be mounted later
-  FDCloser proc_self_fd(TEMP_FAILURE_RETRY(open("/proc/self/", O_PATH)));
+  FDCloser proc_self_fd(
+      TEMP_FAILURE_RETRY(open("/proc/self/", O_PATH | O_CLOEXEC)));
   SAPI_RAW_PCHECK(proc_self_fd.get() != -1, "opening /proc/self");
 
   // Return to the main root
@@ -357,12 +370,13 @@ void Namespace::InitializeNamespaces(uid_t uid, gid_t gid,
   SAPI_RAW_PCHECK(chroot(".") != -1, "chrooting to main root");
   SAPI_RAW_PCHECK(chdir("/") != -1, "chdir / after chrooting main root");
 
-  // Get a refrence to /realroot to umount it later
-  FDCloser realroot_fd(TEMP_FAILURE_RETRY(open("/realroot", O_PATH)));
+  // Get a reference to /realroot to umount it later
+  FDCloser realroot_fd(
+      TEMP_FAILURE_RETRY(open("/realroot", O_PATH | O_DIRECTORY | O_CLOEXEC)));
+  SAPI_RAW_PCHECK(realroot_fd.get() != -1, "opening /realroot");
 
-  // Move the chroot out of realroot to /
-  std::string chroot_path = file::JoinPath("/realroot", kSandbox2ChrootPath);
-  SAPI_RAW_PCHECK(chdir(chroot_path.c_str()) != -1, "chdir to chroot");
+  // Move the chroot from the pinned newroot_fd to /
+  SAPI_RAW_PCHECK(fchdir(newroot_fd.get()) != -1, "fchdir to chroot");
   SAPI_RAW_PCHECK(mount(".", "/", "", MS_MOVE, nullptr) == 0,
                   "moving rootfs failed");
   SAPI_RAW_PCHECK(chroot(".") != -1, "chrooting moved chroot");
@@ -406,18 +420,20 @@ void Namespace::InitializeSharedPidNamespaces() {
 // clear that this does more than just namespaces in landlock mode.
 void Namespace::InitializeInitialNamespaces(uid_t uid, gid_t gid) {
   sandbox2::SetupIDMaps(uid, gid);
-  SAPI_RAW_CHECK(
-      file_util::fileops::CreateDirectoryRecursively(kSandbox2ChrootPath, 0700),
-      "could not create directory for rootfs");
-  SAPI_RAW_PCHECK(mount("none", kSandbox2ChrootPath, "tmpfs", 0, nullptr) == 0,
+  // Overmount an existing root-owned directory (/proc) inside this private
+  // mount namespace so we never create or resolve predictable paths in host
+  // /tmp. pivot_root() immediately detaches the tmpfs from /realroot/proc.
+  SAPI_RAW_PCHECK(mount("none", kInitialPivotPath, "tmpfs", 0, nullptr) == 0,
                   "mounting rootfs failed");
-  auto realroot_path = file::JoinPath(kSandbox2ChrootPath, "/realroot");
-  SAPI_RAW_CHECK(
-      file_util::fileops::CreateDirectoryRecursively(realroot_path, 0700),
-      "could not create directory for real root");
-  SAPI_RAW_PCHECK(syscall(__NR_pivot_root, kSandbox2ChrootPath,
-                          realroot_path.c_str()) != -1,
-                  "pivot root");
+  std::string realroot_path = file::JoinPath(kInitialPivotPath, "realroot");
+  SAPI_RAW_PCHECK(mkdir(realroot_path.c_str(), 0700) == 0,
+                  "could not create directory for real root");
+  std::string newroot_path = file::JoinPath(kInitialPivotPath, kNewRootPath);
+  SAPI_RAW_PCHECK(mkdir(newroot_path.c_str(), 0700) == 0,
+                  "could not create directory for new root");
+  SAPI_RAW_PCHECK(
+      syscall(__NR_pivot_root, kInitialPivotPath, realroot_path.c_str()) != -1,
+      "pivot root");
   SAPI_RAW_PCHECK(symlink("/realroot/proc", "/proc") != -1, "symlinking /proc");
   SAPI_RAW_PCHECK(
       mount("/", "/", "", MS_BIND | MS_REMOUNT | MS_RDONLY, nullptr) == 0,
