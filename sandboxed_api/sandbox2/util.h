@@ -113,18 +113,6 @@ absl::StatusOr<sapi::file_util::fileops::FDCloser> CreateMemFdWithSize(
     size_t size, const char* name = "buffer_file",
     uintptr_t flags = kMfdCloseOnExec | kMfdAllowSealing);
 
-[[deprecated("Use absl::StatusOr<FDCloser> version instead.")]]
-inline bool CreateMemFd(int* fd, const char* name = "buffer_file") {
-  absl::StatusOr<sapi::file_util::fileops::FDCloser> fd_closer =
-      CreateMemFd(name);
-  if (!fd_closer.ok()) {
-    LOG(ERROR) << "Could not create memfd: " << fd_closer.status();
-    return false;
-  }
-  *fd = fd_closer->Release();
-  return true;
-}
-
 // Executes a the program given by argv and the specified environment and
 // captures any output to stdout/stderr.
 absl::StatusOr<int> Communicate(const std::vector<std::string>& argv,
