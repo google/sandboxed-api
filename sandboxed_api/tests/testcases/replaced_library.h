@@ -26,7 +26,6 @@
 
 #include "absl/strings/string_view.h"
 #include "sandboxed_api/annotations.h"
-#include "sandboxed_api/annotations_unimplemented.h"
 #include "sandboxed_api/tests/testcases/replaced_library_enum.h"
 #include "sandboxed_api/tests/testcases/replaced_library_struct.h"
 
@@ -107,9 +106,11 @@ void mylib_unexpected_syscall2();
 void mylib_func_with_unsupported_arg(union mylib_union* arg);
 
 // This function has a SANDBOX_UNSUPPORTED annotation and should be ignored
-// without causing errors.
+// without causing errors, even though its parameter carries a sandbox
+// annotation that the generator does not know about.
 SANDBOX_UNSUPPORTED("This function is not supported for testing purposes.")
 void mylib_func_with_todo(
-    const char* arg SANDBOX_UNIMPLEMENTED_TEST SANDBOX_IN_PTR);
+    const char* arg
+    [[clang::annotate("sandbox", "unimplemented_test")]] SANDBOX_IN_PTR);
 
 #endif  // SANDBOXED_API_SANDBOX2_TESTCASES_REPLACED_LIBRARY_H_
