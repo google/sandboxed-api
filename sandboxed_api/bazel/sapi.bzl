@@ -306,7 +306,8 @@ def sapi_library(
         compatible_with = None,
         default_copts = [],
         exec_properties = {},
-        sandbox_mode = "sandbox2"):
+        sandbox_mode = "sandbox2",
+        strip_embedded_sandboxee = False):
     """Provides the implementation of a Sandboxed API library.
 
     Args:
@@ -342,6 +343,8 @@ def sapi_library(
         attribute since copts already has default value.
       exec_properties: Dict of executable properties to be passed to the generated binary targets.
       sandbox_mode: Sandbox mode to use for the generated library. Either "sandbox2" (default) or "passthrough".
+      strip_embedded_sandboxee: Whether to embed <name>.bin.stripped, without
+        debug info, instead of <name>.bin. Only applies when embed is True.
     """
 
     common = _common_kwargs(tags, visibility, compatible_with)
@@ -448,7 +451,7 @@ def sapi_library(
 
         sapi_cc_embed_data(
             name = name + "_embed",
-            srcs = [name + ".bin"],
+            srcs = [":" + name + (".bin.stripped" if strip_embedded_sandboxee else ".bin")],
             namespace = namespace,
             **common
         )
