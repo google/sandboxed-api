@@ -14,6 +14,7 @@
 
 #include "sandboxed_api/tools/clang_generator/generator.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <string>
@@ -23,6 +24,7 @@
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -44,6 +46,7 @@
 #include "clang/Tooling/Tooling.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/Casting.h"
+#include "sandboxed_api/tools/clang_generator/annotations.h"
 #include "sandboxed_api/tools/clang_generator/diagnostics.h"
 #include "sandboxed_api/tools/clang_generator/emitter_base.h"
 #include "sandboxed_api/tools/clang_generator/includes.h"
@@ -156,6 +159,14 @@ bool GeneratorASTVisitor::VisitTypeDecl(clang::TypeDecl* decl) {
   return true;
 }
 
+void GeneratorASTVisitor::CollectFunctionTypes(
+    const clang::FunctionDecl* decl) {
+  type_collector_.CollectRelatedTypes(decl->getDeclaredReturnType());
+  for (const clang::ParmVarDecl* param : decl->parameters()) {
+    type_collector_.CollectRelatedTypes(param->getType());
+  }
+}
+
 bool GeneratorASTVisitor::VisitFunctionDecl(clang::FunctionDecl* decl) {
   if (decl->isCXXClassMember() ||  // Skip classes
       decl->isTemplated()          // Skip function templates
@@ -189,8 +200,14 @@ bool GeneratorASTVisitor::VisitFunctionDecl(clang::FunctionDecl* decl) {
       source_manager.getExpansionLoc(decl->getBeginLoc());
 
   // Skip functions from system headers when all functions are requested. Like
-  // above, they can still explicitly be specified.
+  // above, they can still explicitly be specified. Libraries using Blaze
+  // `includes = [...]` expose their own headers via `-isystem`, so still record
+  // them as candidate thunk targets in sandboxed-library mode (they are only
+  // emitted if explicitly named by a `SANDBOX_*_THUNK` in the annotation file).
   if (sandbox_all_functions && source_manager.isInSystemHeader(decl_start)) {
+    if (options_.sandboxed_library_gen) {
+      included_header_functions_.push_back(decl);
+    }
     return true;
   }
 
@@ -198,6 +215,9 @@ bool GeneratorASTVisitor::VisitFunctionDecl(clang::FunctionDecl* decl) {
     const std::string filename(absl::StripPrefix(
         ToStringView(source_manager.getFilename(decl_start)), "./"));
     if (options_.limit_scan_depth && !options_.in_files.contains(filename)) {
+      if (options_.sandboxed_library_gen) {
+        included_header_functions_.push_back(decl);
+      }
       return true;
     }
   }
@@ -205,11 +225,7 @@ bool GeneratorASTVisitor::VisitFunctionDecl(clang::FunctionDecl* decl) {
   functions_.push_back(decl);
 
   // Store the return type and parameters for type collection.
-  type_collector_.CollectRelatedTypes(decl->getDeclaredReturnType());
-
-  for (const clang::ParmVarDecl* param : decl->parameters()) {
-    type_collector_.CollectRelatedTypes(param->getType());
-  }
+  CollectFunctionTypes(decl);
 
   return true;
 }
@@ -233,6 +249,77 @@ void GeneratorASTConsumer::HandleTranslationUnit(clang::ASTContext& context) {
     }
   }
 
+  // Identify thunk declarations and their normalized target names before
+  // collecting types so header-only thunk targets can contribute their
+  // parameter/return types to `type_collector_`.
+  auto normalize_target = [](absl::string_view raw) {
+    absl::string_view trimmed = absl::StripAsciiWhitespace(raw);
+    absl::ConsumePrefix(&trimmed, "::");
+    return std::string(absl::StripAsciiWhitespace(trimmed));
+  };
+
+  absl::flat_hash_set<std::string> thunk_targets;
+  absl::flat_hash_set<const clang::FunctionDecl*> seen_canonical_decls;
+  for (clang::FunctionDecl* func : visitor_.functions()) {
+    if (func->getIdentifier() != nullptr &&
+        func->getName().starts_with("sandbox_annotation_")) {
+      continue;
+    }
+    bool is_thunk = false;
+    auto check_one = [&](const clang::FunctionDecl* d) {
+      auto anns = GetSandboxAnnotations(d);
+      if (!anns.ok()) {
+        return;
+      }
+      for (const SandboxAnnotation& ann : *anns) {
+        if (ann.name == "host_thunk" || ann.name == "sandboxee_thunk") {
+          is_thunk = true;
+          if (!ann.args.empty()) {
+            thunk_targets.insert(normalize_target(ann.args[0]));
+          }
+        }
+      }
+    };
+    check_one(func);
+    for (const clang::FunctionDecl* redecl : func->redecls()) {
+      check_one(redecl);
+    }
+    if (!is_thunk) {
+      seen_canonical_decls.insert(func->getCanonicalDecl());
+    }
+  }
+
+  // Pull in included-header declarations only when a thunk in the input file
+  // explicitly targets them and the function was not already declared in an
+  // input file. Deduplicate repeated header declarations of one function,
+  // keeping the last declaration in the translation unit.
+  std::vector<clang::FunctionDecl*> matched_header_functions;
+  if (!thunk_targets.empty()) {
+    absl::flat_hash_set<const clang::FunctionDecl*> matched_canonicals;
+    const auto& header_funcs = visitor_.included_header_functions();
+    for (auto it = header_funcs.rbegin(); it != header_funcs.rend(); ++it) {
+      clang::FunctionDecl* func = *it;
+      const clang::FunctionDecl* canonical = func->getCanonicalDecl();
+      if (seen_canonical_decls.contains(canonical) ||
+          matched_canonicals.contains(canonical)) {
+        continue;
+      }
+      const bool matches =
+          thunk_targets.contains(func->getQualifiedNameAsString()) ||
+          (func->isExternC() &&
+           thunk_targets.contains(func->getNameAsString()));
+      if (matches) {
+        matched_canonicals.insert(canonical);
+        matched_header_functions.push_back(func);
+      }
+    }
+    std::reverse(matched_header_functions.begin(),
+                 matched_header_functions.end());
+    for (const clang::FunctionDecl* func : matched_header_functions) {
+      visitor_.CollectFunctionTypes(func);
+    }
+  }
+
   emitter_.AddTypeDeclarations(visitor_.type_collector().GetTypeDeclarations());
 
   for (clang::VarDecl* var : visitor_.vars()) {
@@ -251,6 +338,13 @@ void GeneratorASTConsumer::HandleTranslationUnit(clang::ASTContext& context) {
   for (clang::TypedefNameDecl* td : visitor_.typedefs()) {
     absl::Status status = emitter_.AddTypedef(td);
     ReportIfError(context, td->getBeginLoc(), status);
+  }
+
+  // `AddFunction` resolves a thunk target when it reaches the thunk, so add the
+  // matched header declarations before the input-file functions.
+  for (clang::FunctionDecl* func : matched_header_functions) {
+    absl::Status status = emitter_.AddFunction(func);
+    ReportIfError(context, func->getBeginLoc(), status);
   }
 
   for (clang::FunctionDecl* func : visitor_.functions()) {

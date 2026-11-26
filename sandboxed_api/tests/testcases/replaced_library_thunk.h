@@ -38,6 +38,10 @@ struct OneOrTwoBuffs {
 
 int sum_buffs(OneOrTwoBuffs* buff);
 
+// Intentionally unannotated and unused by `lwbox_thunk_sandbox.cc` to verify
+// that declared-only mode skips unreferenced header declarations by default.
+int unannotated_unused_thunk_header_api(int* raw_ptr);
+
 }  // extern "C"
 
 #endif  // SANDBOXED_API_TESTS_TESTCASES_REPLACED_LIBRARY_THUNK_H_

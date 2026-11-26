@@ -106,10 +106,17 @@ class GeneratorASTVisitor
   bool VisitFunctionDecl(clang::FunctionDecl* decl);
   bool VisitVarDecl(clang::VarDecl* decl);
 
+  // Records return and parameter types of `decl` in `type_collector_`.
+  void CollectFunctionTypes(const clang::FunctionDecl* decl);
+
   TypeCollector& type_collector() { return type_collector_; }
 
   const std::vector<clang::FunctionDecl*>& functions() const {
     return functions_;
+  }
+
+  const std::vector<clang::FunctionDecl*>& included_header_functions() const {
+    return included_header_functions_;
   }
 
   const std::vector<clang::TypedefNameDecl*>& typedefs() const {
@@ -121,6 +128,11 @@ class GeneratorASTVisitor
  private:
   TypeCollector type_collector_;
   std::vector<clang::FunctionDecl*> functions_;
+  // Header declarations skipped by `limit_scan_depth` or `isInSystemHeader` in
+  // `sandboxed_library_gen` mode, retained so `SANDBOX_HOST_THUNK` and
+  // `SANDBOX_SANDBOXEE_THUNK` targets declared only in included headers can
+  // still be resolved without redundant redeclarations.
+  std::vector<clang::FunctionDecl*> included_header_functions_;
   std::vector<clang::TypedefNameDecl*> typedefs_;
   std::vector<clang::VarDecl*> vars_;
   const GeneratorOptions& options_;

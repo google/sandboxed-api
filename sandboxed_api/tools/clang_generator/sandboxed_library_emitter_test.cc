@@ -21,6 +21,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_macros.h"
 #include "absl/status/status_matchers.h"
@@ -125,6 +126,193 @@ TEST_F(SandboxedLibraryEmitterTest, SandboxeeAndHostThunkWithoutExternC) {
   EXPECT_THAT(*host_src,
               HasSubstr("api.sapi_wrapper_func_with_thunk_sandbox("));
   EXPECT_THAT(*host_src, Not(HasSubstr("unlisted_func")));
+}
+
+TEST_F(SandboxedLibraryEmitterTest,
+       DeclaredOnlyModeSkipsUnannotatedIncludedHeaderFunctions) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  options.out_file = "my_lib.sapi.h";
+  options.sandboxed_library_gen = true;
+  options.limit_scan_depth = true;
+  options.in_files = {"annotations.cc"};
+  options.library_headers = {"lib.h"};
+
+  SandboxedLibraryEmitter emitter;
+  const absl::flat_hash_map<std::string, std::string> vfs = {
+      {"lib.h", R"cc(
+         extern "C" int used_api(int* out);
+         extern "C" int unused_unannotated_api(int* raw_ptr);
+         extern "C" int unused_plain_api(int x);
+       )cc"},
+      {"annotations.cc", R"cc(
+#include "lib.h"
+         extern "C" int used_api(int* out
+                                 [[clang::annotate("sandbox", "out_ptr")]]);
+       )cc"},
+  };
+
+  ASSERT_THAT(
+      RunClangTool({"tool", "-fsyntax-only", "-xc++", "--std=c++20", "-I.",
+                    "-Wno-error", "annotations.cc"},
+                   vfs, std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+  ASSERT_THAT(emitter.PostParseAllFiles(), IsOk());
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string host_src, emitter.EmitHostSrc(options));
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string sandboxee_src,
+                            emitter.EmitSandboxeeSrc(options));
+
+  EXPECT_THAT(host_src, HasSubstr("extern \"C\" int used_api("));
+  EXPECT_THAT(sandboxee_src, HasSubstr("sapi_wrapper_used_api("));
+  EXPECT_THAT(host_src, Not(HasSubstr("unused_unannotated_api")));
+  EXPECT_THAT(host_src, Not(HasSubstr("unused_plain_api")));
+  EXPECT_THAT(sandboxee_src, Not(HasSubstr("unused_unannotated_api")));
+  EXPECT_THAT(sandboxee_src, Not(HasSubstr("unused_plain_api")));
+}
+
+TEST_F(SandboxedLibraryEmitterTest,
+       DeclaredOnlyModeResolvesThunkTargetsInIncludedAndSystemHeaders) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  options.out_file = "my_lib.sapi.h";
+  options.sandboxed_library_gen = true;
+  options.limit_scan_depth = true;
+  options.in_files = {"annotations.cc"};
+  options.library_headers = {"lib.h", "sys_inc/sys_lib.h"};
+
+  SandboxedLibraryEmitter emitter;
+  const absl::flat_hash_map<std::string, std::string> vfs = {
+      {"lib.h", R"cc(
+         struct HeaderOnlyResult {
+           int code;
+         };
+         extern "C" HeaderOnlyResult thunked_local(int raw);
+         extern "C" int skipped_local(int* raw);
+       )cc"},
+      {"sys_inc/sys_lib.h", R"cc(
+         extern "C" void sys_free(int handle);
+         extern "C" int skipped_sys(int* raw);
+       )cc"},
+      {"annotations.cc", R"cc(
+#include "lib.h"
+#include "sys_lib.h"
+
+         [[clang::annotate("sandbox", "sandboxee_thunk", "thunked_local")]]
+         HeaderOnlyResult thunked_local_sandbox(int x) {
+           return thunked_local(x);
+         }
+
+         [[clang::annotate("sandbox", "host_thunk", "thunked_local")]]
+         HeaderOnlyResult thunked_local_host(int raw) {
+           return thunked_local_sandbox(raw);
+         }
+
+         [[clang::annotate("sandbox", "host_thunk", "sys_free")]]
+         void sys_free_host(int handle) {
+           (void)handle;
+         }
+       )cc"},
+  };
+
+  ASSERT_THAT(
+      RunClangTool({"tool", "-fsyntax-only", "-xc++", "--std=c++20", "-I.",
+                    "-isystem", "sys_inc", "-Wno-error", "annotations.cc"},
+                   vfs, std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+  ASSERT_THAT(emitter.PostParseAllFiles(), IsOk());
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string host_src, emitter.EmitHostSrc(options));
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string sandboxee_src,
+                            emitter.EmitSandboxeeSrc(options));
+
+  EXPECT_THAT(host_src,
+              HasSubstr("extern \"C\" HeaderOnlyResult thunked_local("));
+  EXPECT_THAT(host_src, HasSubstr("extern \"C\" void sys_free(int handle)"));
+  EXPECT_THAT(sandboxee_src, HasSubstr("sapi_wrapper_thunked_local_sandbox("));
+  EXPECT_THAT(host_src, Not(HasSubstr("skipped_local")));
+  EXPECT_THAT(host_src, Not(HasSubstr("skipped_sys")));
+}
+
+TEST_F(SandboxedLibraryEmitterTest,
+       DeclaredOnlyModePrefersAnnotationRedeclarationForThunkTarget) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  options.out_file = "my_lib.sapi.h";
+  options.sandboxed_library_gen = true;
+  options.limit_scan_depth = true;
+  options.in_files = {"annotations.cc"};
+  options.library_headers = {"lib.h"};
+
+  SandboxedLibraryEmitter emitter;
+  const absl::flat_hash_map<std::string, std::string> vfs = {
+      {"lib.h", R"cc(
+         extern "C" int adjust(int* val);
+       )cc"},
+      {"annotations.cc", R"cc(
+#include "lib.h"
+         extern "C" int adjust(int* val
+                               [[clang::annotate("sandbox", "in_ptr")]]);
+
+         [[clang::annotate("sandbox", "sandboxee_thunk", "adjust")]]
+         int adjust_sandbox(int* val [[clang::annotate("sandbox", "in_ptr")]]) {
+           return adjust(val) + 1;
+         }
+       )cc"},
+  };
+
+  ASSERT_THAT(
+      RunClangTool({"tool", "-fsyntax-only", "-xc++", "--std=c++20", "-I.",
+                    "-Wno-error", "annotations.cc"},
+                   vfs, std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+  ASSERT_THAT(emitter.PostParseAllFiles(), IsOk());
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string host_src, emitter.EmitHostSrc(options));
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string sandboxee_src,
+                            emitter.EmitSandboxeeSrc(options));
+
+  EXPECT_THAT(host_src, HasSubstr("extern \"C\" int adjust("));
+  EXPECT_THAT(sandboxee_src, HasSubstr("sapi_wrapper_adjust_sandbox("));
+  EXPECT_THAT(sandboxee_src, HasSubstr("adjust_sandbox("));
+}
+
+TEST_F(SandboxedLibraryEmitterTest,
+       DeclaredOnlyModeDoesNotPullUnrelatedNamespaceForThunkTarget) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  options.out_file = "my_lib.sapi.h";
+  options.sandboxed_library_gen = true;
+  options.limit_scan_depth = true;
+  options.in_files = {"annotations.cc"};
+  options.library_headers = {"lib.h"};
+
+  SandboxedLibraryEmitter emitter;
+  const absl::flat_hash_map<std::string, std::string> vfs = {
+      {"lib.h", R"cc(
+         extern "C" int target_fn(int raw);
+         namespace other {
+         int target_fn(int* unrelated_unannotated_ptr);
+         }  // namespace other
+       )cc"},
+      {"annotations.cc", R"cc(
+#include "lib.h"
+
+         [[clang::annotate("sandbox", "host_thunk", "target_fn")]]
+         int target_fn_host(int raw) {
+           return raw;
+         }
+       )cc"},
+  };
+
+  ASSERT_THAT(
+      RunClangTool({"tool", "-fsyntax-only", "-xc++", "--std=c++20", "-I.",
+                    "-Wno-error", "annotations.cc"},
+                   vfs, std::make_unique<GeneratorAction>(&emitter, &options)),
+      IsOk());
+  ASSERT_THAT(emitter.PostParseAllFiles(), IsOk());
+  SAPI_ASSERT_OK_AND_ASSIGN(std::string host_src, emitter.EmitHostSrc(options));
+
+  EXPECT_THAT(host_src, HasSubstr("extern \"C\" int target_fn("));
+  EXPECT_THAT(host_src, Not(HasSubstr("unrelated_unannotated_ptr")));
+  EXPECT_THAT(host_src, Not(HasSubstr("other::target_fn")));
 }
 
 TEST_F(SandboxedLibraryEmitterTest, StdStringPointerSupport) {
