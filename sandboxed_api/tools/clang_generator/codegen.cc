@@ -5276,6 +5276,20 @@ absl::StatusOr<std::string> EmitHostSrc(
                                 "reinterpret_cast<uintptr_t>(sapi_tmp_$0."
                                 "GetRemote())",
                                 alias->host_param_name);
+                  // Validation lets a byte-like return pointer alias a `void*`
+                  // or another byte-like buffer (`IsCompatibleAliasPointee` in
+                  // ir.cc). C++ does not convert these pointer types
+                  // implicitly, so cast the host pointer to the return type.
+                  std::string host_ptr = alias->host_param_name;
+                  if (host_param != nullptr &&
+                      host_param->type.unqualified_pointee_type_name() !=
+                          func->return_value->type
+                              .unqualified_pointee_type_name()) {
+                    host_ptr = absl::Substitute(
+                        "reinterpret_cast<$0>($1)",
+                        func->return_value->type.canonical_name,
+                        alias->host_param_name);
+                  }
                   absl::SubstituteAndAppend(
                       &out,
                       "  if (sapi_ret_arg.GetValue() != nullptr) {\n"
@@ -5285,7 +5299,7 @@ absl::StatusOr<std::string> EmitHostSrc(
                       "             $1);\n"
                       "  }\n"
                       "  return sapi_ret_arg.GetValue() ? $0 : nullptr;\n",
-                      alias->host_param_name, expected_remote);
+                      host_ptr, expected_remote);
                 } else if (const auto* alias_cb =
                                std::get_if<ir::lifetime::AliasCallbackReturn>(
                                    &ret_buf.lifetime)) {

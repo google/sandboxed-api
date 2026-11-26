@@ -56,46 +56,41 @@
 
 namespace sapi::ast {
 
-std::optional<std::string> MemberNameOfAccessPath(absl::string_view path) {
+std::optional<AccessPathParts> SplitAccessPath(absl::string_view path) {
   size_t arrow_pos = path.find("->");
-  if (arrow_pos == absl::string_view::npos ||
+  if (arrow_pos == 0 || arrow_pos == absl::string_view::npos ||
       path.find("->", arrow_pos + 2) != absl::string_view::npos) {
     return std::nullopt;
   }
-  size_t first_dot = path.find('.');
-  if (first_dot != absl::string_view::npos && first_dot < arrow_pos) {
+  if (size_t first_dot = path.find('.');
+      first_dot != absl::string_view::npos && first_dot <= arrow_pos + 1) {
     return std::nullopt;
   }
-  size_t last_dot = path.rfind('.');
-  size_t split_end =
-      (last_dot != absl::string_view::npos && last_dot > arrow_pos + 1)
-          ? (last_dot + 1)
-          : (arrow_pos + 2);
-  if (split_end >= path.size()) {
+  absl::string_view rhs = path.substr(arrow_pos + 2);
+  if (rhs.empty()) {
     return std::nullopt;
   }
-  return std::string(path.substr(split_end));
-}
-
-std::optional<std::string> ParentPrefixOfAccessPath(absl::string_view path) {
-  size_t arrow_pos = path.find("->");
-  if (arrow_pos == absl::string_view::npos ||
-      path.find("->", arrow_pos + 2) != absl::string_view::npos) {
-    return std::nullopt;
+  // Reject empty segments in nested dot chains (e.g., `"foo->.baz"`,
+  // `"foo->bar..baz"`, or `"foo->bar."`).
+  size_t seg_start = 0;
+  while (true) {
+    size_t dot = rhs.find('.', seg_start);
+    if (dot == absl::string_view::npos) {
+      if (seg_start >= rhs.size()) {
+        return std::nullopt;
+      }
+      break;
+    }
+    if (dot == seg_start) {
+      return std::nullopt;
+    }
+    seg_start = dot + 1;
   }
-  size_t first_dot = path.find('.');
-  if (first_dot != absl::string_view::npos && first_dot < arrow_pos) {
-    return std::nullopt;
-  }
-  size_t last_dot = path.rfind('.');
-  size_t split_end =
-      (last_dot != absl::string_view::npos && last_dot > arrow_pos + 1)
-          ? (last_dot + 1)
-          : (arrow_pos + 2);
-  if (split_end >= path.size()) {
-    return std::nullopt;
-  }
-  return std::string(path.substr(0, split_end));
+  size_t split_end = arrow_pos + 2 + seg_start;
+  return AccessPathParts{
+      .parent_prefix = path.substr(0, split_end),
+      .member_name = path.substr(split_end),
+  };
 }
 
 namespace {

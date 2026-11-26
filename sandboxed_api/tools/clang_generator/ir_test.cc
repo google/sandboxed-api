@@ -14,6 +14,7 @@
 
 #include "sandboxed_api/tools/clang_generator/ir.h"
 
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <string>
@@ -40,6 +41,7 @@
 #include "clang/Frontend/FrontendAction.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
+#include "sandboxed_api/call.h"
 #include "sandboxed_api/testing.h"
 #include "sandboxed_api/tools/clang_generator/annotations.h"
 #include "sandboxed_api/tools/clang_generator/arg_converter.h"
@@ -2663,7 +2665,7 @@ TEST_F(IrConvertTest,
         const SyncedOuter* o
         [[clang::annotate("sandbox", "in_ptr")]]
         [[clang::annotate("sandbox", "struct_sync", "b1",
-                          "{o->name, in_ptr}", "$")]]);
+                          "{o->name", "in_ptr}", "$")]]);
   )",
                          "set_synced_outer", record_annotations, typedefs),
       StatusIs(absl::StatusCode::kInvalidArgument,
@@ -4809,6 +4811,818 @@ TEST_F(IrConvertTest,
 
   Library lib{.name = "MyLib", .functions = {fn}};
   EXPECT_THAT(ValidateAndLinkLibraryIR(lib), IsOk());
+}
+
+TEST_F(IrConvertTest,
+       RejectsMalformedStructSyncDirectionAccessPathAndContextBindings) {
+  // 1. Missing direction inside `{...}` in `struct_sync`.
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    struct Packet { const char* name; };
+    extern "C" void missing_dir(
+        const Packet* pkt [[clang::annotate("sandbox", "in_ptr")]]
+        [[clang::annotate("sandbox", "struct_sync", "b1", "{pkt->name}", "$")]]);
+  )",
+                                 "missing_dir"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("requires a pointer direction")));
+
+  // 2. Duplicate direction inside `{...}` in `struct_sync`.
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    struct Packet2 { char* name; };
+    extern "C" void dup_dir(
+        Packet2* pkt [[clang::annotate("sandbox", "inout_ptr")]]
+        [[clang::annotate("sandbox", "struct_sync", "b1",
+                          "{pkt->name", "in_ptr", "out_ptr}", "$")]]);
+  )",
+                                 "dup_dir"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("cannot have multiple pointer direction "
+                                 "annotations")));
+
+  // 3. Malformed empty segment in `struct_sync` access path (`pkt->.name`) and
+  //    mismatched parameter prefix (`other->name` on parameter `pkt`).
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    struct Packet3 { const char* name; };
+    extern "C" void empty_seg(
+        const Packet3* pkt [[clang::annotate("sandbox", "in_ptr")]]
+        [[clang::annotate("sandbox", "struct_sync", "b1",
+                          "{pkt->.name", "in_ptr}", "$")]]);
+  )",
+                                 "empty_seg"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("access path format pkt->.name is not "
+                                 "supported")));
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    struct Packet4 { const char* name; };
+    extern "C" void wrong_prefix(
+        const Packet4* pkt [[clang::annotate("sandbox", "in_ptr")]]
+        [[clang::annotate("sandbox", "struct_sync", "b1",
+                          "{other->name", "in_ptr}", "$")]]);
+  )",
+                                 "wrong_prefix"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("must start with 'pkt->'")));
+
+  // 4. Order-independent rejection when `alias_ptr` precedes `sandbox_opaque`
+  //    on a return value (`explicit_ptr_dir` check).
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    extern "C" [[clang::annotate("sandbox", "alias_ptr", "p")]]
+    [[clang::annotate("sandbox", "sandbox_opaque_ptr")]]
+    void* reversed_return_opaque(
+        void* p [[clang::annotate("sandbox", "in_ptr")]]);
+  )",
+                                 "reversed_return_opaque"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("alias_ptr implies out_ptr")));
+
+  // 5. `sized_by_outparam` combined with context-binding annotations.
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    extern "C" void outparam_and_retain(
+        void* ctx [[clang::annotate("sandbox", "sandbox_opaque_ptr")]],
+        int* buf [[clang::annotate("sandbox", "out_ptr")]]
+                 [[clang::annotate("sandbox", "elem_sized_by_outparam",
+                                   "*out_n", "64")]]
+                 [[clang::annotate("sandbox", "retain_and_bind", "ctx", "b")]],
+        unsigned long* out_n [[clang::annotate("sandbox", "out_ptr")]]);
+  )",
+                                 "outparam_and_retain"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("sized_by_outparam cannot be combined with "
+                                 "context-binding annotations")));
+
+  // 6. Context-binding annotations on either an inline callback's parameter or
+  //    the callback parameter itself are rejected.
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    extern "C" void cb_with_retain(
+        void (*cb)(void* ctx [[clang::annotate("sandbox", "host_opaque_ptr")]],
+                   const char* buf
+                       [[clang::annotate("sandbox", "in_ptr")]]
+                       [[clang::annotate("sandbox", "byte_sized_by", "4")]]
+                       [[clang::annotate("sandbox", "retain_and_bind", "ctx",
+                                         "b")]]));
+  )",
+                                 "cb_with_retain"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("context-binding annotations are not "
+                                 "supported on callback parameters")));
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    extern "C" void clear_bindings_on_cb(
+        [[clang::annotate("sandbox", "clear_bindings")]]
+        void (*cb)(int x));
+  )",
+                                 "clear_bindings_on_cb"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("clear_bindings cannot be placed on a "
+                                 "callback parameter")));
+
+  // 7. Order-independent direction validation for `copy_from_and_bind_out_ptr`
+  //    on parameters and pointee typedefs.
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    extern "C" void in_then_copy_bind(
+        void* ctx [[clang::annotate("sandbox", "sandbox_opaque_ptr")]],
+        int* buf [[clang::annotate("sandbox", "in_ptr")]]
+                 [[clang::annotate("sandbox", "elem_sized_by", "4")]]
+                 [[clang::annotate("sandbox", "copy_from_and_bind_out_ptr",
+                                   "ctx", "b")]]);
+  )",
+                                 "in_then_copy_bind"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("copy_from_and_bind_out_ptr implies out_ptr "
+                                 "and conflicts with explicit pointer "
+                                 "direction")));
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    extern "C" void copy_bind_then_in(
+        void* ctx [[clang::annotate("sandbox", "sandbox_opaque_ptr")]],
+        int* buf [[clang::annotate("sandbox", "copy_from_and_bind_out_ptr",
+                                   "ctx", "b")]]
+                 [[clang::annotate("sandbox", "elem_sized_by", "4")]]
+                 [[clang::annotate("sandbox", "in_ptr")]]);
+  )",
+                                 "copy_bind_then_in"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("copy_from_and_bind_out_ptr implies out_ptr "
+                                 "and conflicts with explicit pointer "
+                                 "direction")));
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    typedef char* bound_str_pointee
+        [[clang::annotate("sandbox", "copy_from_and_bind_out_ptr", "ctx", "s")]]
+        [[clang::annotate("sandbox", "null_terminated")]]
+        [[clang::annotate("sandbox", "out_ptr")]];
+    extern "C" void copy_bind_then_out(
+        void* ctx [[clang::annotate("sandbox", "sandbox_opaque_ptr")]],
+        bound_str_pointee* out_str
+            [[clang::annotate("sandbox", "out_ptr")]]);
+  )",
+                                 "copy_bind_then_out"),
+              IsOk());
+
+  // 8. Explicit `struct_sync` must reject missing members and non-trivially-
+  //    copyable member pointees (e.g. structs containing raw host pointers).
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    struct PlainBox {
+      int* data;
+    };
+    extern "C" void sync_missing(
+        PlainBox* b [[clang::annotate("sandbox", "inout_ptr")]]
+                    [[clang::annotate("sandbox", "struct_sync", "L1",
+                                      "{b->nonexistent", "inout_ptr}")]]);
+  )",
+                                 "sync_missing"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("struct 'PlainBox' has no member "
+                                 "'nonexistent'")));
+
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    struct InnerPtrHolder {
+      int* leaked_host_ptr;
+    };
+    struct OuterSyncBox {
+      InnerPtrHolder* inner;
+    };
+    extern "C" void sync_uncopyable_member(
+        OuterSyncBox* b [[clang::annotate("sandbox", "inout_ptr")]]
+                        [[clang::annotate("sandbox", "struct_sync", "L1",
+                                          "{b->inner", "inout_ptr}")]]);
+  )",
+                                 "sync_uncopyable_member"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("struct_sync access path b->inner has "
+                                 "unsupported pointee type")));
+}
+
+TEST_F(IrConvertTest, UnionSoundnessAndAnonymousNestedRecordValidation) {
+  // Union with SANDBOX_OPAQUE_PTR + scalar arm is safe (raw untrusted bytes).
+  RecordAnnotations safe_union{
+      .name = "SafeTokenUnion",
+      .member_annotations =
+          {
+              DataMemberAnnotations{
+                  .name = "remote_handle",
+                  .ptr_dir = PointerDir::kSandboxOpaque,
+              },
+          },
+  };
+  set_input_file("safe_union.cc");
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    union SafeTokenUnion {
+      void* remote_handle;
+      unsigned long id;
+    };
+    extern "C" void pass_union(
+        SafeTokenUnion* u [[clang::annotate("sandbox", "inout_ptr")]]);
+  )",
+                         "pass_union", {{"SafeTokenUnion", safe_union}}),
+      IsOk());
+
+  // Union with sized buffer arm is rejected in ParseRecordAnnotations.
+  set_input_file("bad_synced_union.cc");
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    union BadSyncedUnion {
+      int* ptr;
+      unsigned long len;
+    };
+    inline void sandbox_annotation_1() {
+      union BadSyncedUnion {
+        int* ptr [[clang::annotate("sandbox", "elem_sized_by", "len")]];
+        unsigned long len;
+      };
+    }
+    extern "C" void use_bad_union(
+        BadSyncedUnion* u [[clang::annotate("sandbox", "inout_ptr")]]);
+  )",
+                                 "use_bad_union"),
+              StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("union")));
+
+  // Anonymous nested struct/union with sandbox annotations is rejected.
+  set_input_file("anon_nested.cc");
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    struct HasAnon {
+      int len;
+      struct {
+        int* ptr;
+      };
+    };
+    inline void sandbox_annotation_1() {
+      struct HasAnon {
+        int len;
+        struct {
+          int* ptr [[clang::annotate("sandbox", "elem_sized_by", "len")]];
+        };
+      };
+    }
+    extern "C" void use_anon(
+        HasAnon* h [[clang::annotate("sandbox", "inout_ptr")]]);
+  )",
+                         "use_anon"),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("anonymous")));
+}
+
+TEST_F(IrConvertTest, LookupRecordAnnotationsUsesQualifiedNameOnly) {
+  RecordAnnotations ns1_ann{
+      .name = "ns1::Box",
+      .member_annotations =
+          {
+              DataMemberAnnotations{
+                  .name = "ptr",
+                  .ptr_dir = PointerDir::kSandboxOpaque,
+              },
+          },
+  };
+
+  // `ns1::Box` matches `"ns1::Box"`, whereas `ns2::Box` does NOT inherit
+  // `ns1::Box`'s annotations and is rejected for having an unannotated pointer.
+  set_input_file("ns_ok.cc");
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    namespace ns1 { struct Box { void* ptr; }; }
+    namespace ns2 { struct Box { void* ptr; }; }
+    extern "C" void ok_ns1(
+        ns1::Box* b [[clang::annotate("sandbox", "inout_ptr")]]);
+  )",
+                                 "ok_ns1", {{"ns1::Box", ns1_ann}}),
+              IsOk());
+
+  set_input_file("ns_bad.cc");
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    namespace ns1 { struct Box { void* ptr; }; }
+    namespace ns2 { struct Box { void* ptr; }; }
+    extern "C" void bad_ns2(
+        ns2::Box* b [[clang::annotate("sandbox", "inout_ptr")]]);
+  )",
+                                 "bad_ns2", {{"ns1::Box", ns1_ann}}),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST_F(IrConvertTest, AnnotateStructInNamespaceAppliesToQualifiedRecordOnly) {
+  // The shadow declaration in `ns1` registers its annotations as `ns1::Box`.
+  // `ns2::Box` has the same unqualified name, but does not get them.
+  set_input_file("ns_annotate_struct.cc");
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    namespace ns1 {
+    struct Box { void* ptr; };
+    inline void sandbox_annotation_1() {
+      struct Box {
+        void* ptr [[clang::annotate("sandbox", "sandbox_opaque_ptr")]];
+      };
+    }
+    }  // namespace ns1
+    namespace ns2 { struct Box { void* ptr; }; }
+    extern "C" void use_ns1(
+        ns1::Box* b [[clang::annotate("sandbox", "inout_ptr")]]);
+    extern "C" void use_ns2(
+        ns2::Box* b [[clang::annotate("sandbox", "inout_ptr")]]);
+  )",
+                                 "use_ns1"),
+              IsOk());
+  EXPECT_THAT(ConvertSnippetToIR("", "use_ns2"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("field ptr of 'ns2::Box'")));
+}
+
+TEST_F(IrConvertTest, AnonymousMemberCheckAppliesToShadowDeclarationOnly) {
+  // The real struct has an anonymous union with a plain callback typedef. A
+  // shadow that omits the union can annotate an unrelated field.
+  set_input_file("anon_member_omitted.cc");
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    typedef void (*event_cb)(int);
+    struct Session {
+      void* handle;
+      union {
+        event_cb on_event;
+        long raw;
+      };
+    };
+    inline void sandbox_annotation_1() {
+      struct Session {
+        void* handle [[clang::annotate("sandbox", "sandbox_opaque_ptr")]];
+      };
+    }
+    extern "C" void close_session(
+        Session* s [[clang::annotate("sandbox", "sandbox_opaque_ptr")]]);
+  )",
+                                 "close_session"),
+              IsOk());
+
+  // A shadow that keeps the union is rejected: like a named field, the field
+  // with the callback typedef asks for a callback, but the generator does not
+  // translate callbacks inside anonymous members.
+  set_input_file("anon_member_kept.cc");
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    typedef void (*event_cb)(int);
+    struct Session {
+      void* handle;
+      union {
+        event_cb on_event;
+        long raw;
+      };
+    };
+    inline void sandbox_annotation_1() {
+      struct Session {
+        void* handle [[clang::annotate("sandbox", "sandbox_opaque_ptr")]];
+        union {
+          event_cb on_event;
+          long raw;
+        };
+      };
+    }
+    extern "C" void close_session(
+        Session* s [[clang::annotate("sandbox", "sandbox_opaque_ptr")]]);
+  )",
+                         "close_session"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("anonymous struct or union member 'on_event'")));
+}
+
+TEST_F(IrConvertTest, RejectsUnsupportedBuiltinTypesAndExcessLoweredRpcArgs) {
+  set_input_file("builtin_i128.cc");
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    extern "C" void pass_i128(__int128 x);
+  )",
+                                 "pass_i128"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+
+  set_input_file("builtin_complex.cc");
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    extern "C" void pass_complex(_Complex double z);
+  )",
+                                 "pass_complex"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+
+  // ValidateAndLinkLibraryIR accepts at most FuncCall::kArgsMax lowered RPC
+  // arguments. A non-void return value uses one of them.
+  constexpr size_t kMaxArgs = FuncCall::kArgsMax;
+  auto int_params = [](size_t count) {
+    std::string params;
+    for (size_t i = 0; i < count; ++i) {
+      absl::StrAppend(&params, i == 0 ? "" : ", ", "int a", i);
+    }
+    return params;
+  };
+  auto validate = [&](absl::string_view code,
+                      absl::string_view name) -> absl::Status {
+    absl::StatusOr<Function> func = ConvertSnippetToIR(code, name);
+    if (!func.ok()) {
+      return func.status();
+    }
+    Library lib{.name = "L", .functions = {*std::move(func)}};
+    return ValidateAndLinkLibraryIR(lib);
+  };
+  set_input_file("rpc_arg_limit.cc");
+  EXPECT_THAT(
+      validate(
+          absl::StrCat(
+              "extern \"C\" void void_at_limit(", int_params(kMaxArgs), ");\n",
+              "extern \"C\" int int_at_limit(", int_params(kMaxArgs - 1),
+              ");\n", "extern \"C\" void void_over_limit(",
+              int_params(kMaxArgs + 1), ");\n",
+              "extern \"C\" int int_over_limit(", int_params(kMaxArgs), ");\n"),
+          "void_at_limit"),
+      IsOk());
+  EXPECT_THAT(validate("", "int_at_limit"), IsOk());
+  const std::string over_limit =
+      absl::StrCat("lowers to ", kMaxArgs + 1, " RPC arguments");
+  EXPECT_THAT(
+      validate("", "void_over_limit"),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr(over_limit)));
+  EXPECT_THAT(
+      validate("", "int_over_limit"),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr(over_limit)));
+
+  // A `std::string_view` lowers to two RPC arguments, so kArgsMax / 2 + 1 of
+  // them exceed the limit.
+  Function many_views{.name = "too_many_views"};
+  for (size_t i = 0; i < kMaxArgs / 2 + 1; ++i) {
+    many_views.parameters.push_back(Parameter{
+        .name = absl::StrCat("s", i),
+        .type = TypeInfo{.kind = TypeKind::kString,
+                         .canonical_name = "std::string_view"},
+        .payload = CppStringParam{.form = CppStringParam::Form::kView},
+    });
+  }
+  Library lib_views{.name = "L", .functions = {many_views}};
+  EXPECT_THAT(
+      ValidateAndLinkLibraryIR(lib_views),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("RPC argument")));
+}
+
+TEST(IrTest, ValidateSkipsRpcArgLimitForFunctionsWithSandboxeeThunk) {
+  // SANDBOX_HOST_THUNK and SANDBOX_SANDBOXEE_THUNK replace the generated RPC
+  // wrappers, so the wrapped function can take more than FuncCall::kArgsMax
+  // arguments.
+  constexpr size_t kMaxArgs = FuncCall::kArgsMax;
+  Function wide{.name = "wide"};
+  for (size_t i = 0; i < kMaxArgs + 1; ++i) {
+    wide.parameters.push_back(Parameter{
+        .name = absl::StrCat("a", i),
+        .type = TypeInfo{.kind = TypeKind::kScalar, .canonical_name = "int"},
+        .payload = ScalarParam{},
+    });
+  }
+  Library plain{.name = "L", .functions = {wide}};
+  EXPECT_THAT(
+      ValidateAndLinkLibraryIR(plain),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("RPC arguments")));
+
+  wide.host_thunk = ThunkOverride{.function_name = "wide_host"};
+  wide.sandboxee_thunk = ThunkOverride{.function_name = "wide_sandbox"};
+  Library thunked{.name = "L", .functions = {wide}};
+  EXPECT_THAT(ValidateAndLinkLibraryIR(thunked), IsOk());
+}
+
+TEST_F(IrConvertTest, ValidatesAliasPtrAndAliasCallbackReturnSoundness) {
+  // Regular parameter cannot carry SANDBOX_ALIAS_PTR.
+  set_input_file("alias_param.cc");
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    extern "C" void alias_on_param(
+        char* a [[clang::annotate("sandbox", "inout_ptr")]],
+        char* b [[clang::annotate("sandbox", "out_ptr")]]
+                [[clang::annotate("sandbox", "alias_ptr", "a")]]);
+  )",
+                         "alias_on_param"),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("alias_ptr")));
+
+  // AliasHostPtr rejects const-widening (`const char*` param -> `char*` ret).
+  set_input_file("alias_const_widen.cc");
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function const_widen_fn,
+                            ConvertSnippetToIR(R"(
+    extern "C"
+    [[clang::annotate("sandbox", "alias_ptr", "src")]]
+    char* strip_const(const char* src [[clang::annotate("sandbox", "in_ptr")]]
+                      [[clang::annotate("sandbox", "null_terminated")]]);
+  )",
+                                               "strip_const"));
+  Library lib_const{.name = "L", .functions = {const_widen_fn}};
+  EXPECT_THAT(ValidateAndLinkLibraryIR(lib_const),
+              StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("const")));
+
+  // AliasHostPtr rejects aliasing an OpaquePointerParam.
+  set_input_file("alias_opaque.cc");
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function opaque_alias_fn,
+                            ConvertSnippetToIR(R"(
+    extern "C"
+    [[clang::annotate("sandbox", "alias_ptr", "tok")]]
+    int* alias_opaque(
+        void* tok [[clang::annotate("sandbox", "sandbox_opaque_ptr")]]);
+  )",
+                                               "alias_opaque"));
+  Library lib_opaque{.name = "L", .functions = {opaque_alias_fn}};
+  EXPECT_THAT(ValidateAndLinkLibraryIR(lib_opaque),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("synchronized buffer or struct parameter")));
+
+  // AliasCallbackReturn rejects incompatible pointee types (`BigStruct*`
+  // aliasing a callback returning `char*`).
+  set_input_file("alias_cb_mismatch.cc");
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function bad_cb_alias_fn,
+                            ConvertSnippetToIR(R"(
+    struct BigStruct { long a[8]; };
+    [[clang::annotate("sandbox", "lifetime_outer_call")]]
+    [[clang::annotate("sandbox", "byte_sized_by", "sz")]]
+    typedef char* (*alloc_cb_t)(unsigned long sz);
+
+    extern "C"
+    [[clang::annotate("sandbox", "alias_callback_return", "alloc_cb")]]
+    BigStruct* bad_cb_alias(alloc_cb_t alloc_cb);
+  )",
+                                               "bad_cb_alias"));
+  Library lib_cb{.name = "L", .functions = {bad_cb_alias_fn}};
+  EXPECT_THAT(
+      ValidateAndLinkLibraryIR(lib_cb),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("pointee")));
+}
+
+TEST_F(IrConvertTest, AliasPtrAcceptsByteLikeAndVoidPointeeAliases) {
+  // A byte-like return pointer can alias a `void*` or another byte-like buffer.
+  // Other pointee types must match.
+  set_input_file("alias_byte_like.cc");
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function from_void,
+                            ConvertSnippetToIR(R"(
+    extern "C" [[clang::annotate("sandbox", "alias_ptr", "buf")]]
+    char* from_void(void* buf [[clang::annotate("sandbox", "inout_ptr")]]
+                    [[clang::annotate("sandbox", "byte_sized_by", "n")]],
+                    unsigned long n);
+    extern "C" [[clang::annotate("sandbox", "alias_ptr", "buf")]]
+    char* from_uchar(unsigned char* buf [[clang::annotate("sandbox", "inout_ptr")]]
+                     [[clang::annotate("sandbox", "elem_sized_by", "n")]],
+                     unsigned long n);
+    extern "C" [[clang::annotate("sandbox", "alias_ptr", "buf")]]
+    int* from_char(char* buf [[clang::annotate("sandbox", "inout_ptr")]]
+                   [[clang::annotate("sandbox", "elem_sized_by", "n")]],
+                   unsigned long n);
+  )",
+                                               "from_void"));
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function from_uchar,
+                            ConvertSnippetToIR("", "from_uchar"));
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function from_char,
+                            ConvertSnippetToIR("", "from_char"));
+  Library byte_like{.name = "L", .functions = {from_void, from_uchar}};
+  EXPECT_THAT(ValidateAndLinkLibraryIR(byte_like), IsOk());
+  Library mismatch{.name = "L", .functions = {from_char}};
+  EXPECT_THAT(ValidateAndLinkLibraryIR(mismatch),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("return pointee 'int' is incompatible with "
+                                 "parameter buf pointee 'char'")));
+}
+
+TEST_F(IrConvertTest, RejectsNestedStructCallbackFieldsInsideUnions) {
+  absl::flat_hash_map<std::string, RecordAnnotations> record_annotations;
+  RecordAnnotations hooks_ann{.name = "Hooks"};
+  hooks_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "cb",
+      .callback_typedef = "adder",
+  });
+  record_annotations["Hooks"] = std::move(hooks_ann);
+
+  RecordAnnotations outer_ann{.name = "OuterWithUnion"};
+  outer_ann.member_annotations.push_back(DataMemberAnnotations{
+      .name = "buf",
+      .size_type = ElemSizedBy{"len"},
+  });
+  record_annotations["OuterWithUnion"] = std::move(outer_ann);
+
+  const absl::flat_hash_map<std::string, CallbackTypedef> typedefs = {
+      {"adder",
+       CallbackTypedef{
+           .name = "adder",
+           .canonical_type = "int (int, int)",
+           .params = {{.name = "a"}, {.name = "b"}},
+       }},
+  };
+
+  // Direct pointer to a union whose arm is a struct with a callback typedef.
+  set_input_file("union_nested_cb_direct.cc");
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    struct Hooks {
+      int (*cb)(int, int);
+    };
+    union PayloadUnion {
+      Hooks hooks;
+      unsigned long raw;
+    };
+    extern "C" void pass_union_cb(
+        PayloadUnion* u [[clang::annotate("sandbox", "inout_ptr")]]);
+  )",
+                         "pass_union_cb", record_annotations, typedefs),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("callback fields in unions are not supported")));
+
+  // Inferred `struct_sync` on a struct containing a union arm with a callback.
+  set_input_file("union_nested_cb_inferred.cc");
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    struct Hooks {
+      int (*cb)(int, int);
+    };
+    union PayloadUnion {
+      Hooks hooks;
+      unsigned long raw;
+    };
+    struct OuterWithUnion {
+      int* buf;
+      int len;
+      PayloadUnion u;
+    };
+    extern "C" void pass_outer_inferred(
+        OuterWithUnion* o [[clang::annotate("sandbox", "inout_ptr")]]);
+  )",
+                         "pass_outer_inferred", record_annotations, typedefs),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("callback fields in unions are not supported")));
+
+  // Explicit `struct_sync` skips `IsDeeplyTriviallyCopyableType`, exercising
+  // `collect_callbacks` propagation into a nested struct inside a named union.
+  set_input_file("union_nested_cb_explicit.cc");
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    struct Hooks {
+      int (*cb)(int, int);
+    };
+    union PayloadUnion {
+      Hooks hooks;
+      unsigned long raw;
+    };
+    struct OuterWithUnion {
+      int* buf;
+      int len;
+      PayloadUnion u;
+    };
+    extern "C" void pass_outer_explicit(
+        OuterWithUnion* o [[clang::annotate("sandbox", "inout_ptr")]]
+                          [[clang::annotate("sandbox", "struct_sync", "L1",
+                                            "{o->buf", "inout_ptr}")]]);
+  )",
+                         "pass_outer_explicit", record_annotations, typedefs),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("callback fields in unions are not supported")));
+
+  // `shallow_struct_sync` with an anonymous union containing `Hooks`.
+  set_input_file("union_nested_cb_anon.cc");
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    struct Hooks {
+      int (*cb)(int, int);
+    };
+    struct AnonUnionOuter {
+      union {
+        Hooks hooks;
+        unsigned long raw;
+      };
+    };
+    extern "C" void pass_anon_union_shallow(
+        AnonUnionOuter* o [[clang::annotate("sandbox", "inout_ptr")]]
+                          [[clang::annotate("sandbox", "shallow_struct_sync")]]);
+  )",
+                         "pass_anon_union_shallow", record_annotations,
+                         typedefs),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("callback fields in unions are not supported")));
+}
+
+TEST_F(IrConvertTest, ValidatesStructSyncTargetsAndShadowRecordTags) {
+  // SANDBOX_STRUCT_SYNC directly on a union pointer.
+  set_input_file("struct_sync_union_param.cc");
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    union Packet {
+      char* text;
+      long raw;
+    };
+    extern "C" void sync_union(
+        Packet* p [[clang::annotate("sandbox", "inout_ptr")]]
+                  [[clang::annotate("sandbox", "struct_sync", "L1",
+                                    "{p->text", "inout_ptr}", "$")]]);
+  )",
+                                 "sync_union"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("struct_sync annotation should only be used "
+                                 "for pointers to structs")));
+
+  // A struct_sync member must be a data pointer, not a scalar or a function
+  // pointer.
+  set_input_file("struct_sync_non_data_ptr.cc");
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    struct Job {
+      int count;
+      void (*done)(int);
+    };
+    extern "C" void sync_scalar(
+        Job* j [[clang::annotate("sandbox", "inout_ptr")]]
+               [[clang::annotate("sandbox", "struct_sync", "L1",
+                                 "{j->count", "inout_ptr}", "$")]]);
+    extern "C" void sync_fn_ptr(
+        Job* j [[clang::annotate("sandbox", "inout_ptr")]]
+               [[clang::annotate("sandbox", "struct_sync", "L1",
+                                 "{j->done", "inout_ptr}", "$")]]);
+  )",
+                                 "sync_scalar"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("member 'count' of 'Job' must be a data "
+                                 "pointer")));
+  EXPECT_THAT(ConvertSnippetToIR("", "sync_fn_ptr"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("member 'done' of 'Job' must be a data "
+                                 "pointer")));
+
+  // A struct_sync group with lifetime_malloc and no direction is out_ptr.
+  set_input_file("struct_sync_malloc_implies_out.cc");
+  SAPI_ASSERT_OK_AND_ASSIGN(const Function fill,
+                            ConvertSnippetToIR(R"(
+    struct Blob {
+      char* data;
+      unsigned long len;
+    };
+    inline void sandbox_annotation_1() {
+      struct Blob {
+        char* data [[clang::annotate("sandbox", "elem_sized_by", "len")]];
+        unsigned long len;
+      };
+    }
+    extern "C" void fill_blob(
+        Blob* b [[clang::annotate("sandbox", "out_ptr")]]
+                [[clang::annotate("sandbox", "struct_sync", "L1",
+                                  "{b->data", "lifetime_malloc}", "$")]]);
+  )",
+                                               "fill_blob"));
+  ASSERT_EQ(fill.parameters.size(), 1);
+  const auto* sync = fill.parameters[0].As<StructSyncParam>();
+  ASSERT_NE(sync, nullptr);
+  ASSERT_EQ(sync->members.size(), 1);
+  EXPECT_EQ(sync->members[0].direction, PointerDir::kOut);
+  EXPECT_TRUE(
+      std::holds_alternative<lifetime::Malloc>(sync->members[0].lifetime));
+
+  // The shadow declaration and the real record must agree on union vs struct.
+  set_input_file("shadow_tag_mismatch.cc");
+  EXPECT_THAT(ConvertSnippetToIR(R"(
+    struct Token {
+      void* handle;
+      long id;
+    };
+    inline void sandbox_annotation_1() {
+      union Token {
+        void* handle [[clang::annotate("sandbox", "sandbox_opaque_ptr")]];
+      };
+    }
+    extern "C" void use_token(
+        Token* t [[clang::annotate("sandbox", "sandbox_opaque_ptr")]]);
+  )",
+                                 "use_token"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Tag mismatch for record Token")));
+}
+
+TEST_F(IrConvertTest, RejectsStructSyncAccessPathsTraversingNestedUnions) {
+  // Direct union member (`o->u.ptr`).
+  set_input_file("struct_sync_nested_union.cc");
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    union NestedUnion {
+      int* ptr;
+      unsigned long raw;
+    };
+    struct Outer {
+      NestedUnion u;
+    };
+    extern "C" void sync_union_arm(
+        Outer* o [[clang::annotate("sandbox", "inout_ptr")]]
+                 [[clang::annotate("sandbox", "struct_sync", "L1",
+                                   "{o->u.ptr", "inout_ptr}")]]);
+  )",
+                         "sync_union_arm"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("field 'u' of 'Outer' is a union; members inside "
+                         "unions cannot be synchronized")));
+
+  // Struct nested inside a union member (`o->u.inner.ptr`).
+  set_input_file("struct_sync_struct_in_union.cc");
+  EXPECT_THAT(
+      ConvertSnippetToIR(R"(
+    struct InnerSlice {
+      int* ptr;
+    };
+    union NestedUnion {
+      InnerSlice inner;
+      unsigned long raw;
+    };
+    struct Outer {
+      NestedUnion u;
+    };
+    extern "C" void sync_struct_in_union(
+        Outer* o [[clang::annotate("sandbox", "inout_ptr")]]
+                 [[clang::annotate("sandbox", "struct_sync", "L1",
+                                   "{o->u.inner.ptr", "inout_ptr}")]]);
+  )",
+                         "sync_struct_in_union"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("field 'u' of 'Outer' is a union; members inside "
+                         "unions cannot be synchronized")));
 }
 
 }  // namespace

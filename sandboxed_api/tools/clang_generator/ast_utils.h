@@ -27,21 +27,19 @@
 
 namespace sapi::ast {
 
-// Given an access path like "foo->baz", returns the member name "baz".
-// If there is no "->", returns std::nullopt.
-//
-// TODO(b/491717148): For now, we don't handle expressions with "." and return
-// std::nullopt as well. For example, like "foo->bar.baz" or "foo.bar->baz",
-// since we are getting the struct type from "foo", not "foo->bar" or "foo.bar"
-// (see `GetStructTypeName`).
-std::optional<std::string> MemberNameOfAccessPath(absl::string_view path);
+// Decomposed struct-sync access path such as `"foo->baz"` (`parent_prefix` =
+// `"foo->"`, `member_name` = `"baz"`) or `"foo->bar.baz"` (`parent_prefix` =
+// `"foo->bar."`, `member_name` = `"baz"`).
+struct AccessPathParts {
+  absl::string_view parent_prefix;
+  absl::string_view member_name;
+};
 
-// Given an access path like "foo->baz", returns the parent prefix "foo->".
-// If there is no "->", returns std::nullopt.
-//
-// TODO(b/491717148): For now, we don't handle expressions with "." and return
-// std::nullopt as well.
-std::optional<std::string> ParentPrefixOfAccessPath(absl::string_view path);
+// Splits a struct-sync access path with a single `"->"` (and optional nested
+// value-struct `"."` steps after `"->"`) into `{parent_prefix, member_name}`.
+// Returns `std::nullopt` if `path` has zero or multiple `"->"` operators, a
+// `"."` before `"->"`, or any empty segment.
+std::optional<AccessPathParts> SplitAccessPath(absl::string_view path);
 
 // Returns true if `name` names a non-static data member of `record_decl`
 // (including fields of anonymous nested structs/unions and C++ base classes).

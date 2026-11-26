@@ -207,6 +207,15 @@ bool IsCallback(AnnotationSite site, clang::QualType type) {
 // supported on a callback pointer itself, or `std::nullopt` if none is present.
 std::optional<absl::string_view> FindUnsupportedCallbackAnnotation(
     const Annotations& annotations) {
+  // Check context-bound annotations before `ptr_dir`: `copy_from_and_bind` and
+  // `retain_and_bind` set an implicit `ptr_dir` during parsing, so checking
+  // them first reports the actual offending annotation name.
+  if (annotations.context_bound.copy_from_and_bind.has_value()) {
+    return "copy_from_and_bind_out_ptr";
+  }
+  if (annotations.context_bound.retain_and_bind.has_value()) {
+    return "retain_and_bind";
+  }
   // Data-buffer direction annotations (`kIn`, `kOut`, `kInOut`) are invalid on
   // the callback parameter itself; opaque pointer annotations remain valid
   // because they describe the callback handle.
@@ -321,7 +330,10 @@ absl::Status CheckStructSyncAnnotations(absl::string_view name,
       clang::isa<clang::PointerType>(type) &&
       clang::isa<clang::RecordType>(type->getPointeeType().getCanonicalType());
   if (!annotations.struct_sync.empty()) {
-    if (!is_struct_ptr) {
+    const clang::RecordDecl* pointee_record =
+        is_struct_ptr ? type->getPointeeType()->getAsRecordDecl() : nullptr;
+    if (!is_struct_ptr ||
+        (pointee_record != nullptr && pointee_record->isUnion())) {
       return absl::InvalidArgumentError(
           absl::Substitute("$0: struct_sync annotation should only be used "
                            "for pointers to structs",
@@ -461,6 +473,18 @@ absl::Status CheckParsedAnnotations(absl::string_view name,
   return CheckReturnBufferAnnotations(name, annotations, site, type);
 }
 
+absl::Status SetPointerDir(std::optional<PointerDir>& dst,
+                           absl::string_view site_label, absl::string_view name,
+                           absl::string_view ann_name, PointerDir dir) {
+  if (dst.has_value()) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "$0 $1: cannot have multiple pointer direction annotations ($2)",
+        site_label, name, ann_name));
+  }
+  dst = dir;
+  return absl::OkStatus();
+}
+
 absl::Status ParseStructSyncAccessPathAnnotations(
     const std::vector<std::string>& annotation_args, Annotations& annotations) {
   if (annotation_args.empty()) {
@@ -497,17 +521,12 @@ absl::Status ParseStructSyncAccessPathAnnotations(
       return absl::InvalidArgumentError(
           "struct_sync access path cannot be empty");
     }
-    std::optional<std::string> parent_prefix =
-        ast::ParentPrefixOfAccessPath(sync.access_path);
-    std::optional<std::string> member =
-        ast::MemberNameOfAccessPath(sync.access_path);
-    if (!parent_prefix.has_value() || !member.has_value()) {
+    if (!ast::SplitAccessPath(sync.access_path).has_value()) {
       return absl::InvalidArgumentError(
           absl::Substitute("struct_sync access path format $0 is not supported",
                            sync.access_path));
     }
-    // Parse any annotations (pointer direction, binding, etc.)
-    // for this access path.
+    std::optional<PointerDir> parsed_dir;
     while (!group_ends) {
       if (i >= annotation_args.size()) {
         return absl::InvalidArgumentError(
@@ -524,15 +543,24 @@ absl::Status ParseStructSyncAccessPathAnnotations(
         annotation.pop_back();
       }
 
-      // Parse a few annotations. Others we expect to be annotated
-      // at the struct level (see ParseRecordAnnotations).
       if (annotation == "in_ptr") {
-        sync.ptr_dir = PointerDir::kIn;
+        ABSL_RETURN_IF_ERROR(
+            SetPointerDir(parsed_dir, "struct_sync access path",
+                          sync.access_path, annotation, PointerDir::kIn));
       } else if (annotation == "out_ptr") {
-        sync.ptr_dir = PointerDir::kOut;
+        ABSL_RETURN_IF_ERROR(
+            SetPointerDir(parsed_dir, "struct_sync access path",
+                          sync.access_path, annotation, PointerDir::kOut));
       } else if (annotation == "inout_ptr") {
-        sync.ptr_dir = PointerDir::kInOut;
+        ABSL_RETURN_IF_ERROR(
+            SetPointerDir(parsed_dir, "struct_sync access path",
+                          sync.access_path, annotation, PointerDir::kInOut));
       } else if (annotation == "lifetime_malloc") {
+        if (!std::holds_alternative<std::monostate>(sync.lifetime)) {
+          return absl::InvalidArgumentError(
+              "Cannot have multiple lifetime annotations: lifetime_malloc and "
+              "other");
+        }
         sync.lifetime = MallocLifetime{};
       } else if (absl::StartsWith(annotation, "retain_and_bind(")) {
         absl::string_view annotation_view = annotation;
@@ -560,6 +588,17 @@ absl::Status ParseStructSyncAccessPathAnnotations(
                              annotation));
       }
     }
+    if (!parsed_dir.has_value()) {
+      if (std::holds_alternative<MallocLifetime>(sync.lifetime)) {
+        parsed_dir = PointerDir::kOut;
+      } else {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "struct_sync access path $0 requires a pointer direction "
+            "(in_ptr, out_ptr, or inout_ptr)",
+            sync.access_path));
+      }
+    }
+    sync.ptr_dir = *parsed_dir;
     annotations.struct_sync.push_back(std::move(sync));
   }
   return absl::OkStatus();
@@ -575,6 +614,9 @@ absl::StatusOr<Annotations> ParseReturnDeclAnnotations(
   Annotations annotations;
   ABSL_ASSIGN_OR_RETURN(auto parsed_annotations, GetSandboxAnnotations(decl));
 
+  std::optional<PointerDir> explicit_ptr_dir;
+  bool implies_out = false;
+
   for (const auto& ann : parsed_annotations) {
     size_t expected_args = 0;
 
@@ -583,9 +625,12 @@ absl::StatusOr<Annotations> ParseReturnDeclAnnotations(
     // opaque handle, or it is a pointer to some sandbox structure that needs
     // copying back to the host.
     if (ann.name == "sandbox_opaque_ptr") {
-      annotations.ptr_dir = PointerDir::kSandboxOpaque;
+      ABSL_RETURN_IF_ERROR(SetPointerDir(explicit_ptr_dir, "function return",
+                                         name, ann.name,
+                                         PointerDir::kSandboxOpaque));
     } else if (ann.name == "out_ptr") {
-      annotations.ptr_dir = PointerDir::kOut;
+      ABSL_RETURN_IF_ERROR(SetPointerDir(explicit_ptr_dir, "function return",
+                                         name, ann.name, PointerDir::kOut));
     } else if (ann.name == "sandboxee_thunk" || ann.name == "host_thunk") {
       // Ignore these here, they are handled in AddFunction.
       expected_args = 1;  // (func_name)
@@ -637,9 +682,7 @@ absl::StatusOr<Annotations> ParseReturnDeclAnnotations(
       ABSL_RETURN_IF_ERROR(annotations.SetSandboxGlobalLifetime());
     } else if (ann.name == "lifetime_malloc") {
       ABSL_RETURN_IF_ERROR(annotations.SetMallocLifetime());
-      if (!annotations.ptr_dir.has_value()) {
-        annotations.ptr_dir = PointerDir::kOut;
-      }
+      implies_out = true;
     } else if (ann.name == "alias_ptr") {
       expected_args = 1;
       if (ann.args.size() != 1) {
@@ -647,13 +690,7 @@ absl::StatusOr<Annotations> ParseReturnDeclAnnotations(
             "function return $0: alias_ptr requires a parameter name", name));
       }
       ABSL_RETURN_IF_ERROR(annotations.SetAliasHostPtrLifetime(ann.args[0]));
-      if (annotations.ptr_dir.has_value()) {
-        return absl::InvalidArgumentError(
-            absl::Substitute("function return $0: alias_ptr implies out_ptr, "
-                             "so no direction needs to be specified",
-                             name));
-      }
-      annotations.ptr_dir = PointerDir::kOut;
+      implies_out = true;
     } else if (ann.name == "alias_callback_return") {
       expected_args = 1;
       if (ann.args.size() != 1) {
@@ -664,14 +701,7 @@ absl::StatusOr<Annotations> ParseReturnDeclAnnotations(
       }
       ABSL_RETURN_IF_ERROR(
           annotations.SetAliasCallbackReturnLifetime(ann.args[0]));
-      if (annotations.ptr_dir.has_value() &&
-          annotations.ptr_dir != PointerDir::kOut) {
-        return absl::InvalidArgumentError(
-            absl::Substitute("function return $0: alias_callback_return implies"
-                             " out_ptr, so no direction needs to be specified",
-                             name));
-      }
-      annotations.ptr_dir = PointerDir::kOut;
+      implies_out = true;
     } else if (ann.name == "lifetime_outer_call") {
       // Only meaningful on a callback typedef, where the declared entity is
       // what the callback returns. `CheckParsedAnnotations` rejects it on a
@@ -705,7 +735,7 @@ absl::StatusOr<Annotations> ParseReturnDeclAnnotations(
                              name));
       }
       expected_args = 2;
-      annotations.ptr_dir = PointerDir::kOut;
+      implies_out = true;
       annotations.context_bound.copy_from_and_bind = CopyFromAndBindOutPtr{
           StripQuotes(ann.args[0]), StripQuotes(ann.args[1])};
     } else if (ann.name == "uninitialized") {
@@ -728,6 +758,33 @@ absl::StatusOr<Annotations> ParseReturnDeclAnnotations(
           "function return $0: invalid sandbox annotation $1", name, ann.name));
     }
   }
+  // Validate direction conflicts independent of attribute declaration order.
+  if (std::holds_alternative<AliasHostPtrLifetime>(annotations.lifetime) &&
+      explicit_ptr_dir.has_value()) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "function return $0: alias_ptr implies out_ptr, so no direction needs "
+        "to be specified",
+        name));
+  }
+  if (std::holds_alternative<AliasCallbackReturnLifetime>(
+          annotations.lifetime) &&
+      explicit_ptr_dir.has_value() && *explicit_ptr_dir != PointerDir::kOut) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "function return $0: alias_callback_return implies out_ptr, so no "
+        "direction needs to be specified",
+        name));
+  }
+  if (implies_out && explicit_ptr_dir.has_value() &&
+      *explicit_ptr_dir != PointerDir::kOut) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "function return $0: conflicting pointer direction annotations", name));
+  }
+  if (explicit_ptr_dir.has_value()) {
+    annotations.ptr_dir = *explicit_ptr_dir;
+  } else if (implies_out) {
+    annotations.ptr_dir = PointerDir::kOut;
+  }
+
   ABSL_RETURN_IF_ERROR(
       CheckParsedAnnotations(name, annotations, site, return_type));
   return annotations;
@@ -773,18 +830,26 @@ absl::StatusOr<Annotations> ParseParamOrPointeeAnnotations(
   // etc).
   ABSL_ASSIGN_OR_RETURN(auto parsed_annotations, GetSandboxAnnotations(decl));
 
+  std::optional<PointerDir> explicit_ptr_dir;
+  bool implies_out = false;
+
   for (const auto& ann : parsed_annotations) {
     size_t expected_args = 0;
     if (ann.name == "in_ptr") {
-      annotations.ptr_dir = PointerDir::kIn;
+      ABSL_RETURN_IF_ERROR(SetPointerDir(explicit_ptr_dir, "param", name,
+                                         ann.name, PointerDir::kIn));
     } else if (ann.name == "out_ptr") {
-      annotations.ptr_dir = PointerDir::kOut;
+      ABSL_RETURN_IF_ERROR(SetPointerDir(explicit_ptr_dir, "param", name,
+                                         ann.name, PointerDir::kOut));
     } else if (ann.name == "inout_ptr") {
-      annotations.ptr_dir = PointerDir::kInOut;
+      ABSL_RETURN_IF_ERROR(SetPointerDir(explicit_ptr_dir, "param", name,
+                                         ann.name, PointerDir::kInOut));
     } else if (ann.name == "sandbox_opaque_ptr") {
-      annotations.ptr_dir = PointerDir::kSandboxOpaque;
+      ABSL_RETURN_IF_ERROR(SetPointerDir(explicit_ptr_dir, "param", name,
+                                         ann.name, PointerDir::kSandboxOpaque));
     } else if (ann.name == "host_opaque_ptr") {
-      annotations.ptr_dir = PointerDir::kHostOpaque;
+      ABSL_RETURN_IF_ERROR(SetPointerDir(explicit_ptr_dir, "param", name,
+                                         ann.name, PointerDir::kHostOpaque));
     } else if (ann.name == "elem_sized_by") {
       if (ann.args.size() != 1) {
         return absl::InvalidArgumentError(
@@ -864,7 +929,7 @@ absl::StatusOr<Annotations> ParseParamOrPointeeAnnotations(
                              name));
       }
       expected_args = 2;
-      annotations.ptr_dir = PointerDir::kOut;
+      implies_out = true;
       annotations.context_bound.copy_from_and_bind = CopyFromAndBindOutPtr{
           StripQuotes(ann.args[0]), StripQuotes(ann.args[1])};
     } else if (ann.name == "retain_and_bind") {
@@ -912,6 +977,20 @@ absl::StatusOr<Annotations> ParseParamOrPointeeAnnotations(
           "arg $0: invalid sandbox annotation $1", name, ann.name));
     }
   }
+
+  if (implies_out && explicit_ptr_dir.has_value() &&
+      *explicit_ptr_dir != PointerDir::kOut) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "param $0: copy_from_and_bind_out_ptr implies out_ptr and conflicts "
+        "with explicit pointer direction",
+        name));
+  }
+  if (explicit_ptr_dir.has_value()) {
+    annotations.ptr_dir = *explicit_ptr_dir;
+  } else if (implies_out) {
+    annotations.ptr_dir = PointerDir::kOut;
+  }
+
   ABSL_RETURN_IF_ERROR(CheckParsedAnnotations(
       name, annotations, AnnotationSite::kParameter, type));
   return annotations;
@@ -1003,12 +1082,59 @@ bool TypesMatchModuloShadowRecord(clang::QualType shadow_type,
   return false;
 }
 
+// Rejects sandbox annotations and callback typedefs inside the anonymous struct
+// or union members of a `SANDBOX_ANNOTATE_STRUCT` shadow declaration. The
+// generator only reads them on named fields, so it would silently ignore them
+// here. The callback check is the same as for named shadow fields. Members that
+// the shadow omits are not checked, like omitted named fields.
+absl::Status CheckNoAnnotatedAnonymousRecordFields(
+    const clang::RecordDecl& record, absl::string_view outer_name) {
+  for (const clang::FieldDecl* field : record.fields()) {
+    const clang::RecordDecl* anon_rec = field->getType()->getAsRecordDecl();
+    if (anon_rec == nullptr ||
+        (!field->isAnonymousStructOrUnion() && !field->getName().empty())) {
+      continue;
+    }
+    if (const clang::RecordDecl* def = anon_rec->getDefinition()) {
+      anon_rec = def;
+    }
+    auto check_inner = [&](auto& self,
+                           const clang::RecordDecl& inner) -> absl::Status {
+      for (const clang::FieldDecl* inner_field : inner.fields()) {
+        ABSL_ASSIGN_OR_RETURN(std::vector<SandboxAnnotation> anns,
+                              GetSandboxAnnotations(inner_field));
+        const clang::TypedefNameDecl* cb_td = FindCallbackTypedef(
+            inner.getASTContext().getBaseElementType(inner_field->getType()));
+        if (!anns.empty() || cb_td != nullptr) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "record $0: anonymous struct or union member '$1' cannot carry "
+              "sandbox annotations or callback typedefs",
+              outer_name, inner_field->getNameAsString()));
+        }
+        const clang::RecordDecl* nested_anon =
+            inner_field->getType()->getAsRecordDecl();
+        if (nested_anon != nullptr &&
+            (inner_field->isAnonymousStructOrUnion() ||
+             inner_field->getName().empty())) {
+          if (const clang::RecordDecl* def = nested_anon->getDefinition()) {
+            nested_anon = def;
+          }
+          ABSL_RETURN_IF_ERROR(self(self, *nested_anon));
+        }
+      }
+      return absl::OkStatus();
+    };
+    ABSL_RETURN_IF_ERROR(check_inner(check_inner, *anon_rec));
+  }
+  return absl::OkStatus();
+}
+
 // Check that the shadow record declaration with annotations matches a real
 // record declaration. This is a real record declaration has the same name,
 // but should be declared in a parent declaration context.
 absl::Status CheckShadowRecordMatchesRealRecord(
     const clang::RecordDecl& shadow_decl,
-    const RecordAnnotations& record_annotations) {
+    RecordAnnotations& record_annotations) {
   llvm::StringRef record_name = shadow_decl.getName();
   clang::ASTContext& ast_ctx = shadow_decl.getASTContext();
   clang::IdentifierInfo& id_info = ast_ctx.Idents.get(record_name);
@@ -1043,6 +1169,30 @@ absl::Status CheckShadowRecordMatchesRealRecord(
     return absl::NotFoundError(absl::Substitute(
         "Real struct $0 is declared but not defined", record_name.str()));
   }
+
+  if (shadow_decl.isUnion() != real_record->isUnion()) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "Tag mismatch for record $0: shadow declaration and real definition "
+        "disagree on union vs struct/class",
+        record_name.str()));
+  }
+
+  if (real_record->isUnion()) {
+    for (const DataMemberAnnotations& member :
+         record_annotations.member_annotations) {
+      if (member.callback_typedef.has_value() ||
+          !std::holds_alternative<std::monostate>(member.size_type) ||
+          !std::holds_alternative<std::monostate>(member.lifetime) ||
+          member.ptr_dir != PointerDir::kSandboxOpaque) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "union $0 field $1: union members only support sandbox_opaque_ptr "
+            "annotations",
+            record_name.str(), member.name));
+      }
+    }
+  }
+
+  record_annotations.name = real_record->getQualifiedNameAsString();
 
   auto real_it = real_record->fields().begin();
   auto real_end = real_record->fields().end();
@@ -1111,6 +1261,9 @@ absl::StatusOr<RecordAnnotations> ParseRecordAnnotations(
   RecordAnnotations record_annotations;
   record_annotations.name = record_name;
 
+  ABSL_RETURN_IF_ERROR(
+      CheckNoAnnotatedAnonymousRecordFields(decl, record_name));
+
   for (const clang::FieldDecl* field : decl.fields()) {
     ABSL_ASSIGN_OR_RETURN(std::vector<SandboxAnnotation> annotations,
                           GetSandboxAnnotations(field));
@@ -1133,12 +1286,25 @@ absl::StatusOr<RecordAnnotations> ParseRecordAnnotations(
     }
     for (const auto& ann : annotations) {
       if (ann.name == "sandbox_opaque_ptr") {
+        if (!ann.args.empty()) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "field $0: sandbox_opaque_ptr annotation takes no arguments",
+              member.name));
+        }
+        if (member.ptr_dir.has_value()) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "field $0: duplicate pointer direction annotation", member.name));
+        }
         member.ptr_dir = PointerDir::kSandboxOpaque;
       } else if (ann.name == "elem_sized_by") {
         if (ann.args.size() != 1) {
           return absl::InvalidArgumentError(absl::Substitute(
               "field $0: elem_sized_by annotation requires a size expression",
               member.name));
+        }
+        if (!std::holds_alternative<std::monostate>(member.size_type)) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "field $0: duplicate size annotation", member.name));
         }
         member.size_type = ElemSizedBy{ann.args[0]};
       } else if (ann.name == "byte_sized_by") {
@@ -1147,14 +1313,31 @@ absl::StatusOr<RecordAnnotations> ParseRecordAnnotations(
               "field $0: byte_sized_by annotation requires a size expression",
               member.name));
         }
+        if (!std::holds_alternative<std::monostate>(member.size_type)) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "field $0: duplicate size annotation", member.name));
+        }
         member.size_type = ByteSizedBy{ann.args[0]};
       } else if (ann.name == "null_terminated") {
+        if (!ann.args.empty()) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "field $0: null_terminated annotation takes no arguments",
+              member.name));
+        }
+        if (!std::holds_alternative<std::monostate>(member.size_type)) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "field $0: duplicate size annotation", member.name));
+        }
         member.size_type = NullTerminated{};
       } else if (ann.name == "sized_by_binding") {
         if (ann.args.size() != 2) {
           return absl::InvalidArgumentError(absl::Substitute(
               "field $0: sized_by_binding annotation requires two arguments",
               member.name));
+        }
+        if (!std::holds_alternative<std::monostate>(member.size_type)) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "field $0: duplicate size annotation", member.name));
         }
         member.size_type =
             SizedByBinding{StripQuotes(ann.args[0]), StripQuotes(ann.args[1]),
@@ -1166,10 +1349,23 @@ absl::StatusOr<RecordAnnotations> ParseRecordAnnotations(
                                "requires two arguments",
                                member.name));
         }
+        if (!std::holds_alternative<std::monostate>(member.size_type)) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "field $0: duplicate size annotation", member.name));
+        }
         member.size_type =
             SizedByBinding{StripQuotes(ann.args[0]), StripQuotes(ann.args[1]),
                            /*is_elem_sized=*/true};
       } else if (ann.name == "lifetime_malloc") {
+        if (!ann.args.empty()) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "field $0: lifetime_malloc annotation takes no arguments",
+              member.name));
+        }
+        if (!std::holds_alternative<std::monostate>(member.lifetime)) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "field $0: duplicate lifetime annotation", member.name));
+        }
         member.lifetime = MallocLifetime{};
       } else {
         return absl::InvalidArgumentError(absl::Substitute(
@@ -1218,6 +1414,17 @@ absl::StatusOr<RecordAnnotations> ParseRecordAnnotations(
           "field $0: only no pointer direction, or kSandboxOpaque, is supported"
           " for record members",
           member.name));
+    }
+
+    if (decl.isUnion() &&
+        (member.callback_typedef.has_value() ||
+         !std::holds_alternative<std::monostate>(member.size_type) ||
+         !std::holds_alternative<std::monostate>(member.lifetime) ||
+         member.ptr_dir != PointerDir::kSandboxOpaque)) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "union $0 field $1: union members only support sandbox_opaque_ptr "
+          "annotations",
+          record_name.str(), member.name));
     }
 
     record_annotations.member_annotations.push_back(std::move(member));

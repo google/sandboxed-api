@@ -51,6 +51,74 @@
 namespace sapi {
 namespace {
 
+// Returns true if `type` is a standard C/C++ scalar builtin type supported by
+// SAPI's host/sandboxee ABI marshaling (excluding `__int128`, `_BitInt`,
+// `_Complex`, and extended floating-point types such as `_Float16`, `__bf16`,
+// and `__float128`).
+bool IsSupportedArithmeticType(clang::QualType type) {
+  const auto* builtin = type->getAs<clang::BuiltinType>();
+  if (builtin == nullptr) {
+    return false;
+  }
+  switch (builtin->getKind()) {
+    case clang::BuiltinType::Bool:
+    case clang::BuiltinType::Char_U:
+    case clang::BuiltinType::UChar:
+    case clang::BuiltinType::WChar_U:
+    case clang::BuiltinType::Char8:
+    case clang::BuiltinType::Char16:
+    case clang::BuiltinType::Char32:
+    case clang::BuiltinType::Char_S:
+    case clang::BuiltinType::SChar:
+    case clang::BuiltinType::WChar_S:
+    case clang::BuiltinType::Short:
+    case clang::BuiltinType::UShort:
+    case clang::BuiltinType::Int:
+    case clang::BuiltinType::UInt:
+    case clang::BuiltinType::Long:
+    case clang::BuiltinType::ULong:
+    case clang::BuiltinType::LongLong:
+    case clang::BuiltinType::ULongLong:
+    case clang::BuiltinType::Float:
+    case clang::BuiltinType::Double:
+    case clang::BuiltinType::LongDouble:
+      return true;
+    default:
+      return false;
+  }
+}
+
+// Looks up `SANDBOX_ANNOTATE_STRUCT` metadata strictly by the named record's
+// fully qualified name (without falling back to unqualified tag names).
+const RecordAnnotations* LookupRecordAnnotations(
+    const clang::RecordDecl& record_decl, const ConversionContext& conv_ctx) {
+  if (record_decl.getIdentifier() == nullptr || record_decl.getName().empty()) {
+    return nullptr;
+  }
+  auto it =
+      conv_ctx.record_annotations.find(record_decl.getQualifiedNameAsString());
+  return it != conv_ctx.record_annotations.end() ? &it->second : nullptr;
+}
+
+bool HasUnsoundUnionMemberAnnotations(const RecordAnnotations* rec_ann,
+                                      std::string* bad_field) {
+  if (rec_ann == nullptr) {
+    return false;
+  }
+  for (const DataMemberAnnotations& member : rec_ann->member_annotations) {
+    if (member.callback_typedef.has_value() ||
+        !std::holds_alternative<std::monostate>(member.size_type) ||
+        !std::holds_alternative<std::monostate>(member.lifetime) ||
+        member.ptr_dir != PointerDir::kSandboxOpaque) {
+      if (bad_field != nullptr) {
+        *bad_field = member.name;
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
 // Describes a non-record type that is not deeply trivially copyable, as a
 // phrase that reads after "unsupported pointee type: ".
 std::string DescribeUncopyableType(clang::QualType type) {
@@ -66,6 +134,11 @@ std::string DescribeUncopyableType(clang::QualType type) {
   if (type->isPointerType()) {
     return absl::Substitute("'$0' is a pointer", type.getAsString());
   }
+  if (type->isArithmeticType() || type->isAnyComplexType() ||
+      type->isBitIntType()) {
+    return absl::Substitute("'$0' is not a supported scalar ABI type",
+                            type.getAsString());
+  }
   return absl::Substitute("'$0' is not trivially copyable", type.getAsString());
 }
 
@@ -75,19 +148,21 @@ std::string DescribeUncopyableType(clang::QualType type) {
 // When it returns false and `reason` is non-null, `*reason` is set to a phrase
 // naming the field that is actually at fault. `*reason` is left untouched when
 // the answer is true.
-bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
-                                   clang::QualType type,
-                                   const ConversionContext& conv_ctx,
-                                   std::string* reason = nullptr,
-                                   bool in_array = false,
-                                   bool in_callback = false) {
+//
+// `in_union` is set while checking a union arm or a record nested in one.
+// Union arms share storage, so callback fields are rejected at any depth below
+// a union.
+bool IsDeeplyTriviallyCopyableType(
+    const clang::ASTContext& context, clang::QualType type,
+    const ConversionContext& conv_ctx, std::string* reason = nullptr,
+    bool in_array = false, bool in_callback = false, bool in_union = false) {
   if (type.isNull()) {
     if (reason != nullptr) {
       *reason = "the type is not known here";
     }
     return false;
   }
-  if (type->isArithmeticType() || type->isEnumeralType()) {
+  if (IsSupportedArithmeticType(type) || type->isEnumeralType()) {
     return true;
   }
 
@@ -101,10 +176,18 @@ bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
   if (auto* const_array_type = context.getAsConstantArrayType(type)) {
     return IsDeeplyTriviallyCopyableType(
         context, const_array_type->getElementType(), conv_ctx, reason,
-        /*in_array=*/true, in_callback);
+        /*in_array=*/true, in_callback, in_union);
   }
 
   if (auto* record_decl = type->getAsRecordDecl(); record_decl != nullptr) {
+    const clang::RecordDecl* def = record_decl->getDefinition();
+    if (def == nullptr) {
+      if (reason != nullptr) {
+        *reason =
+            absl::Substitute("'$0' is an incomplete type", type.getAsString());
+      }
+      return false;
+    }
     if (!type.isTriviallyCopyableType(context)) {
       if (reason != nullptr) {
         *reason = absl::Substitute("'$0' is not trivially copyable",
@@ -112,7 +195,7 @@ bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
       }
       return false;
     }
-    if (record_decl->hasFlexibleArrayMember()) {
+    if (def->hasFlexibleArrayMember()) {
       if (reason != nullptr) {
         *reason = absl::Substitute("'$0' has a flexible array member",
                                    type.getAsString());
@@ -120,20 +203,31 @@ bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
       return false;
     }
 
-    const RecordAnnotations* rec_ann = nullptr;
-    auto it = conv_ctx.record_annotations.find(record_decl->getName());
-    if (it != conv_ctx.record_annotations.end()) {
-      rec_ann = &it->second;
+    const RecordAnnotations* rec_ann = LookupRecordAnnotations(*def, conv_ctx);
+    std::string bad_union_field;
+    if (def->isUnion() &&
+        HasUnsoundUnionMemberAnnotations(rec_ann, &bad_union_field)) {
+      if (reason != nullptr) {
+        *reason = absl::Substitute(
+            "union '$0' field $1 cannot carry synchronized buffer, malloc, or "
+            "callback annotations",
+            type.getAsString(), bad_union_field);
+      }
+      return false;
     }
 
-    for (const clang::FieldDecl* field : record_decl->fields()) {
+    // Union arms share storage, and the generated code cannot know which arm
+    // is active. Thus, the fields of a union and of all records nested in a
+    // union cannot carry callbacks.
+    const bool fields_in_union = in_union || def->isUnion();
+    for (const clang::FieldDecl* field : def->fields()) {
       // If the field is annotated as sandbox_opaque_ptr or names a callback
-      // typedef (outside an array or callback parameter), we'll treat it as
-      // allowed in the struct copy.
+      // typedef (outside an array, a union, or a callback parameter), we'll
+      // treat it as allowed in the struct copy.
       llvm::StringRef field_name = field->getName();
       bool is_opaque = false;
       bool has_callback_typedef = false;
-      if (rec_ann != nullptr) {
+      if (rec_ann != nullptr && !field_name.empty()) {
         for (const auto& member_ann : rec_ann->member_annotations) {
           if (member_ann.name == field_name) {
             is_opaque = (member_ann.ptr_dir == PointerDir::kSandboxOpaque);
@@ -146,6 +240,14 @@ bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
         continue;
       }
       if (has_callback_typedef) {
+        if (fields_in_union) {
+          if (reason != nullptr) {
+            *reason = absl::Substitute(
+                "field $0 of '$1': callback fields in unions are not supported",
+                std::string(field_name), type.getAsString());
+          }
+          return false;
+        }
         if (in_array || in_callback) {
           if (reason != nullptr) {
             *reason = absl::Substitute(
@@ -162,12 +264,15 @@ bool IsDeeplyTriviallyCopyableType(const clang::ASTContext& context,
 
       std::string field_reason;
       if (!IsDeeplyTriviallyCopyableType(context, field->getType(), conv_ctx,
-                                         &field_reason, in_array,
-                                         in_callback)) {
+                                         &field_reason, in_array, in_callback,
+                                         fields_in_union)) {
         if (reason != nullptr) {
-          *reason =
-              absl::Substitute("field $0 of '$1': $2", std::string(field_name),
-                               type.getAsString(), field_reason);
+          *reason = field_name.empty()
+                        ? absl::Substitute("anonymous member of '$0': $1",
+                                           type.getAsString(), field_reason)
+                        : absl::Substitute("field $0 of '$1': $2",
+                                           std::string(field_name),
+                                           type.getAsString(), field_reason);
         }
         return false;
       }
@@ -196,7 +301,8 @@ bool IsSupportedNullTerminatedGlobalStringType(clang::QualType type) {
 // floating-point and `_Complex` types, whose `-0.0` and padding-byte
 // representations do not match zero-byte sentinel scanning).
 bool IsIntegerOrEnumType(clang::QualType type) {
-  return type->isIntegerType() || type->isEnumeralType();
+  return (IsSupportedArithmeticType(type) && type->isIntegerType()) ||
+         type->isEnumeralType();
 }
 
 // Returns true if the type is a supported NullTerminated input pointer type
@@ -294,10 +400,22 @@ absl::Status CheckCallbackParamAnnotations(const clang::ASTContext& context,
                                            Annotations& annotations,
                                            clang::QualType cb_param_type,
                                            const ConversionContext& conv_ctx) {
+  if (annotations.context_bound.retain_and_bind.has_value() ||
+      annotations.context_bound.copy_from_and_bind.has_value() ||
+      !annotations.context_bound.bind_data.empty() ||
+      annotations.context_bound.clear_bindings) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "callback $0 parameter $1: context-binding annotations are not "
+        "supported on callback parameters",
+        cb_name, cb_param_name));
+  }
   // The callback trampolines support integral, enumeration, float/double,
   // or pointer types as arguments.
-  if (cb_param_type->isIntegralOrEnumerationType() ||
-      (cb_param_type->isRealFloatingType() &&
+  if (((IsSupportedArithmeticType(cb_param_type) &&
+        cb_param_type->isIntegralType(context)) ||
+       cb_param_type->isEnumeralType()) ||
+      (IsSupportedArithmeticType(cb_param_type) &&
+       cb_param_type->isRealFloatingType() &&
        context.getTypeSize(cb_param_type) <= 64)) {
     if (!std::holds_alternative<std::monostate>(annotations.size_type)) {
       return absl::InvalidArgumentError(absl::Substitute(
@@ -583,8 +701,12 @@ absl::StatusOr<ir::TypeInfo> QualTypeToTypeInfo(clang::QualType type) {
           "unsupported reference type: $0", info.canonical_name));
     }
 
-    if (type->isArithmeticType() || type->isEnumeralType()) {
+    if (IsSupportedArithmeticType(type) || type->isEnumeralType()) {
       info.kind = ir::TypeKind::kScalar;
+    } else if (type->isArithmeticType() || type->isAnyComplexType() ||
+               type->isBitIntType()) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "unsupported arithmetic type: $0", info.canonical_name));
     } else if (type->isFunctionPointerType() ||
                ast::GetFunctorUnderlyingFunctionType(type, template_name) !=
                    nullptr) {
@@ -836,6 +958,14 @@ absl::Status ValidateParamAnnotations(absl::string_view name,
     }
   }
 
+  if (!is_return_value && !is_callback_param && !is_pointee_contract &&
+      std::holds_alternative<AliasHostPtrLifetime>(ann.lifetime)) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "pointer argument $0: alias_ptr is only supported on function return "
+        "values and host_opaque_ptr callback parameters",
+        name));
+  }
+
   if (std::holds_alternative<MallocLifetime>(ann.lifetime)) {
     if (ann.ptr_dir != PointerDir::kOut) {
       return absl::InvalidArgumentError(absl::Substitute(
@@ -874,6 +1004,15 @@ absl::Status ValidateParamAnnotations(absl::string_view name,
           "byte_sized_by_outparam",
           name));
     }
+  }
+
+  if (HasSizedByOutparam(ann.size_type) &&
+      (ann.context_bound.retain_and_bind.has_value() ||
+       ann.context_bound.copy_from_and_bind.has_value())) {
+    return absl::InvalidArgumentError(absl::Substitute(
+        "pointer argument $0: sized_by_outparam cannot be combined with "
+        "context-binding annotations",
+        name));
   }
 
   if (std::holds_alternative<NullTerminated>(ann.size_type)) {
@@ -1266,26 +1405,62 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
            is_single_struct_ptr) &&
           ann.struct_sync.empty() && !ann.shallow_struct_sync) {
         if (const auto* record_decl = type->getPointeeType()->getAsRecordDecl();
-            record_decl != nullptr &&
+            record_decl != nullptr && record_decl->getDefinition() != nullptr &&
             type->getPointeeType().isTriviallyCopyableType(context) &&
-            !record_decl->hasFlexibleArrayMember()) {
+            !record_decl->getDefinition()->hasFlexibleArrayMember()) {
           std::vector<StructSync> inferred_syncs;
           auto infer_record_syncs =
               [&](auto& self, const clang::RecordDecl* cur_record,
                   absl::string_view access_prefix) -> bool {
+            if (cur_record == nullptr) {
+              return false;
+            }
+            cur_record = cur_record->getDefinition();
             if (cur_record == nullptr || cur_record->hasFlexibleArrayMember()) {
               return false;
             }
-            const RecordAnnotations* rec_ann = nullptr;
-            if (auto rec_it =
-                    conv_ctx.record_annotations.find(cur_record->getName());
-                rec_it != conv_ctx.record_annotations.end()) {
-              rec_ann = &rec_it->second;
+            const RecordAnnotations* rec_ann =
+                LookupRecordAnnotations(*cur_record, conv_ctx);
+            std::string bad_union_field;
+            if (cur_record->isUnion()) {
+              if (HasUnsoundUnionMemberAnnotations(rec_ann, &bad_union_field)) {
+                copyability_reason = absl::Substitute(
+                    "union '$0' field $1 cannot carry synchronized buffer, "
+                    "malloc, or callback annotations",
+                    cur_record->getNameAsString(), bad_union_field);
+                return false;
+              }
+              for (const clang::FieldDecl* ufield : cur_record->fields()) {
+                bool is_opaque = false;
+                if (rec_ann != nullptr && !ufield->getName().empty()) {
+                  for (const auto& member_ann : rec_ann->member_annotations) {
+                    if (member_ann.name == ufield->getName()) {
+                      is_opaque =
+                          (member_ann.ptr_dir == PointerDir::kSandboxOpaque);
+                      break;
+                    }
+                  }
+                }
+                if (is_opaque) {
+                  continue;
+                }
+                std::string field_reason;
+                if (!IsDeeplyTriviallyCopyableType(
+                        context, ufield->getType(), conv_ctx, &field_reason,
+                        /*in_array=*/false, /*in_callback=*/false,
+                        /*in_union=*/true)) {
+                  copyability_reason = absl::Substitute(
+                      "field $0 of '$1': $2", ufield->getNameAsString(),
+                      cur_record->getNameAsString(), field_reason);
+                  return false;
+                }
+              }
+              return true;
             }
             for (const clang::FieldDecl* field : cur_record->fields()) {
               llvm::StringRef field_name = field->getName();
               const DataMemberAnnotations* matched_member = nullptr;
-              if (rec_ann != nullptr) {
+              if (rec_ann != nullptr && !field_name.empty()) {
                 for (const auto& member_ann : rec_ann->member_annotations) {
                   if (member_ann.name == field_name) {
                     matched_member = &member_ann;
@@ -1376,7 +1551,7 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
               }
               if (const auto* nested_record =
                       field->getType()->getAsRecordDecl();
-                  nested_record != nullptr &&
+                  nested_record != nullptr && !field_name.empty() &&
                   field->getType().isTriviallyCopyableType(context)) {
                 if (self(self, nested_record,
                          absl::StrCat(access_prefix, field->getNameAsString(),
@@ -1388,9 +1563,15 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
               std::string field_reason;
               if (!IsDeeplyTriviallyCopyableType(context, field->getType(),
                                                  conv_ctx, &field_reason)) {
-                copyability_reason = absl::Substitute(
-                    "field $0 of '$1': $2", std::string(field_name),
-                    type->getPointeeType().getAsString(), field_reason);
+                copyability_reason =
+                    field_name.empty()
+                        ? absl::Substitute("anonymous member of '$0': $1",
+                                           type->getPointeeType().getAsString(),
+                                           field_reason)
+                        : absl::Substitute("field $0 of '$1': $2",
+                                           std::string(field_name),
+                                           type->getPointeeType().getAsString(),
+                                           field_reason);
                 return false;
               }
             }
@@ -1435,7 +1616,7 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
             copyability_reason));
       }
     } else if (is_return_value &&
-               !(type->getPointeeType()->isArithmeticType() ||
+               !(IsSupportedArithmeticType(type->getPointeeType()) ||
                  type->getPointeeType()->isEnumeralType()) &&
                !std::holds_alternative<AliasHostPtrLifetime>(ann.lifetime) &&
                !std::holds_alternative<AliasCallbackReturnLifetime>(
@@ -1688,19 +1869,38 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
   if (type->isPointerType() && !is_callback_param) {
     if (const auto* top_record = type->getPointeeType()->getAsRecordDecl();
         top_record != nullptr) {
-      auto collect_callbacks =
-          [&](auto& self, const clang::RecordDecl& record_decl,
-              absl::string_view prefix, bool in_array) -> absl::Status {
-        const RecordAnnotations* rec_ann = nullptr;
-        auto it = conv_ctx.record_annotations.find(record_decl.getName());
-        if (it != conv_ctx.record_annotations.end()) {
-          rec_ann = &it->second;
+      auto collect_callbacks = [&](auto& self,
+                                   const clang::RecordDecl& record_decl,
+                                   absl::string_view prefix, bool in_array,
+                                   bool in_union) -> absl::Status {
+        const clang::RecordDecl* def = record_decl.getDefinition();
+        if (def == nullptr) {
+          return absl::OkStatus();
         }
-        for (const clang::FieldDecl* field : record_decl.fields()) {
+        const RecordAnnotations* rec_ann =
+            LookupRecordAnnotations(*def, conv_ctx);
+        std::string bad_union_field;
+        if (def->isUnion() &&
+            HasUnsoundUnionMemberAnnotations(rec_ann, &bad_union_field)) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "pointer argument $0 has unsupported pointee type: union '$1' "
+              "field $2 cannot carry synchronized buffer, malloc, or callback "
+              "annotations",
+              name, def->getNameAsString(), bad_union_field));
+        }
+        const bool fields_in_union = in_union || def->isUnion();
+        for (const clang::FieldDecl* field : def->fields()) {
           const bool field_in_array =
               in_array || field->getType()->isArrayType();
           clang::QualType base_field_type =
               field->getASTContext().getBaseElementType(field->getType());
+          if (field->isAnonymousStructOrUnion() || field->getName().empty()) {
+            if (const auto* anon_rec = base_field_type->getAsRecordDecl()) {
+              ABSL_RETURN_IF_ERROR(self(self, *anon_rec, prefix, field_in_array,
+                                        fields_in_union));
+            }
+            continue;
+          }
           std::string member_path =
               absl::StrCat(prefix, field->getNameAsString());
           bool is_opaque_member = false;
@@ -1714,7 +1914,13 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                   has_callback_typedef = true;
                   std::string field_label = absl::Substitute(
                       "field $0 of '$1'", field->getNameAsString(),
-                      record_decl.getNameAsString());
+                      def->getNameAsString());
+                  if (fields_in_union) {
+                    return absl::InvalidArgumentError(absl::Substitute(
+                        "pointer argument $0: $1: callback fields in unions "
+                        "are not supported",
+                        name, field_label));
+                  }
                   if (field_in_array) {
                     return absl::InvalidArgumentError(absl::Substitute(
                         "$0: callback fields inside an array are not supported",
@@ -1766,20 +1972,21 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
             return absl::InvalidArgumentError(absl::Substitute(
                 "pointer argument $0 has unsupported pointee type: field $1 of "
                 "'$2': $3",
-                name, field->getNameAsString(), record_decl.getNameAsString(),
+                name, field->getNameAsString(), def->getNameAsString(),
                 DescribeUncopyableType(base_field_type)));
           }
           if (const auto* nested_record = base_field_type->getAsRecordDecl();
               nested_record != nullptr) {
             ABSL_RETURN_IF_ERROR(self(self, *nested_record,
                                       absl::StrCat(member_path, "."),
-                                      field_in_array));
+                                      field_in_array, fields_in_union));
           }
         }
         return absl::OkStatus();
       };
       ABSL_RETURN_IF_ERROR(collect_callbacks(collect_callbacks, *top_record, "",
-                                             /*in_array=*/false));
+                                             /*in_array=*/false,
+                                             /*in_union=*/false));
     }
   }
 
@@ -1821,11 +2028,9 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
 
     sync_param.members.reserve(ann.struct_sync.size());
     for (const auto& sync : ann.struct_sync) {
-      std::optional<std::string> member_name =
-          ast::MemberNameOfAccessPath(sync.access_path);
-      std::optional<std::string> parent_prefix =
-          ast::ParentPrefixOfAccessPath(sync.access_path);
-      if (!member_name.has_value() || !parent_prefix.has_value()) {
+      std::optional<ast::AccessPathParts> parts =
+          ast::SplitAccessPath(sync.access_path);
+      if (!parts.has_value()) {
         return absl::InvalidArgumentError(absl::Substitute(
             "struct_sync access path format $0 is not supported",
             sync.access_path));
@@ -1833,41 +2038,84 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
       Annotations sync_a;
       sync_a.lifetime = sync.lifetime;
       ir::StructMemberSync ir_sync{
-          .member_name = std::move(*member_name),
-          .parent_prefix = std::move(*parent_prefix),
+          .member_name = std::string(parts->member_name),
+          .parent_prefix = std::string(parts->parent_prefix),
           .direction = sync.ptr_dir,
           .context_bound = sync.context_bound,
           .lifetime = AnnotationsToLifetimePolicy(sync_a),
       };
-      const clang::RecordDecl* owner_record = top_record;
-      std::string top_arrow = absl::StrCat(name, "->");
+      const std::string top_arrow = absl::StrCat(name, "->");
       absl::string_view nested_chain = ir_sync.parent_prefix;
-      if (absl::ConsumePrefix(&nested_chain, top_arrow)) {
-        while (!nested_chain.empty() && owner_record != nullptr) {
-          size_t dot_pos = nested_chain.find('.');
-          if (dot_pos == absl::string_view::npos) {
+      if (!absl::ConsumePrefix(&nested_chain, top_arrow)) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "argument $0: struct_sync access path '$1' must start with '$0->'",
+            name, sync.access_path));
+      }
+      const clang::RecordDecl* owner_record = top_record;
+      if (owner_record != nullptr && owner_record->getDefinition() != nullptr) {
+        owner_record = owner_record->getDefinition();
+      }
+      // Union arms share storage, so synchronizing a pointer inside any union
+      // along the access path lets another arm alias or corrupt the pointer.
+      if (owner_record != nullptr && owner_record->isUnion()) {
+        return absl::InvalidArgumentError(absl::Substitute(
+            "struct_sync access path $0: members inside unions cannot be "
+            "synchronized",
+            sync.access_path));
+      }
+      while (!nested_chain.empty() && owner_record != nullptr) {
+        size_t dot_pos = nested_chain.find('.');
+        if (dot_pos == absl::string_view::npos) {
+          break;
+        }
+        absl::string_view step_field = nested_chain.substr(0, dot_pos);
+        nested_chain.remove_prefix(dot_pos + 1);
+        const clang::RecordDecl* next_record = nullptr;
+        for (const clang::FieldDecl* f : owner_record->fields()) {
+          if (absl::string_view(f->getName().data(), f->getName().size()) ==
+              step_field) {
+            next_record = f->getType()->getAsRecordDecl();
+            if (next_record != nullptr &&
+                next_record->getDefinition() != nullptr) {
+              next_record = next_record->getDefinition();
+            }
             break;
           }
-          absl::string_view step_field = nested_chain.substr(0, dot_pos);
-          nested_chain.remove_prefix(dot_pos + 1);
-          const clang::RecordDecl* next_record = nullptr;
-          for (const clang::FieldDecl* f : owner_record->fields()) {
-            if (absl::string_view(f->getName().data(), f->getName().size()) ==
-                step_field) {
-              next_record = f->getType()->getAsRecordDecl();
-              break;
-            }
+        }
+        if (next_record == nullptr) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "struct_sync access path $0: field '$1' of '$2' is missing or "
+              "not a struct",
+              sync.access_path, step_field, owner_record->getNameAsString()));
+        }
+        if (next_record->isUnion()) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "struct_sync access path $0: field '$1' of '$2' is a union; "
+              "members inside unions cannot be synchronized",
+              sync.access_path, step_field, owner_record->getNameAsString()));
+        }
+        owner_record = next_record;
+      }
+      const clang::FieldDecl* synced_field = nullptr;
+      if (owner_record != nullptr && owner_record->getDefinition() != nullptr) {
+        for (const clang::FieldDecl* f : owner_record->fields()) {
+          if (absl::string_view(f->getName().data(), f->getName().size()) ==
+              ir_sync.member_name) {
+            synced_field = f;
+            break;
           }
-          owner_record = next_record;
+        }
+        if (synced_field == nullptr) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "struct_sync access path $0: struct '$1' has no member '$2'",
+              sync.access_path, owner_record->getNameAsString(),
+              ir_sync.member_name));
         }
       }
-      const RecordAnnotations* rec_ann = nullptr;
-      if (owner_record != nullptr) {
-        if (auto it = conv_ctx.record_annotations.find(owner_record->getName());
-            it != conv_ctx.record_annotations.end()) {
-          rec_ann = &it->second;
-        }
-      }
+      const RecordAnnotations* rec_ann =
+          owner_record != nullptr
+              ? LookupRecordAnnotations(*owner_record, conv_ctx)
+              : nullptr;
       if (rec_ann != nullptr) {
         for (const auto& member_ann : rec_ann->member_annotations) {
           if (member_ann.name == ir_sync.member_name) {
@@ -1898,53 +2146,28 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
                 binding->binding_name = ast::PrefixStructMemberBindingExpr(
                     *owner_record, size_expr_prefix, binding->binding_name);
               } else if (std::holds_alternative<ir::bounds::NullTerminated>(
-                             ir_sync.bounds)) {
-                const clang::FieldDecl* synced_field = nullptr;
-                for (const clang::FieldDecl* f : owner_record->fields()) {
-                  if (absl::string_view(f->getName().data(),
-                                        f->getName().size()) ==
-                      ir_sync.member_name) {
-                    synced_field = f;
-                    break;
-                  }
+                             ir_sync.bounds) &&
+                         synced_field != nullptr) {
+                clang::QualType ftype = synced_field->getType();
+                const bool is_const_struct_in =
+                    ir_sync.direction == PointerDir::kIn &&
+                    ftype->isPointerType() &&
+                    ftype->getPointeeType()->isRecordType() &&
+                    ftype->getPointeeType().isConstQualified();
+                if (!ftype->isPointerType() ||
+                    !(IsIntegerOrEnumType(ftype->getPointeeType()) ||
+                      is_const_struct_in)) {
+                  return absl::InvalidArgumentError(absl::Substitute(
+                      "struct_sync access path $0: null_terminated member "
+                      "must point to an integer, enum, or const struct type",
+                      sync.access_path));
                 }
-                if (synced_field != nullptr) {
-                  clang::QualType ftype = synced_field->getType();
-                  const bool is_const_struct_in =
-                      ir_sync.direction == PointerDir::kIn &&
-                      ftype->isPointerType() &&
-                      ftype->getPointeeType()->isRecordType() &&
-                      ftype->getPointeeType().isConstQualified();
-                  if (!ftype->isPointerType() ||
-                      !(IsIntegerOrEnumType(ftype->getPointeeType()) ||
-                        is_const_struct_in)) {
-                    return absl::InvalidArgumentError(absl::Substitute(
-                        "struct_sync access path $0: null_terminated member "
-                        "must point to an integer, enum, or const struct type",
-                        sync.access_path));
-                  }
-                  if (ir_sync.direction == PointerDir::kInOut &&
-                      ftype->getPointeeType().isConstQualified()) {
-                    return absl::InvalidArgumentError(absl::Substitute(
-                        "struct_sync access path $0: inout_ptr null_terminated "
-                        "member cannot have a const pointee",
-                        sync.access_path));
-                  }
-                  if (is_const_struct_in) {
-                    // The pointed-to null-terminated struct array is copied as
-                    // raw bytes, without translating nested pointers or
-                    // registering callback trampolines.
-                    std::string pointee_reason;
-                    if (!IsDeeplyTriviallyCopyableType(
-                            synced_field->getASTContext(),
-                            ftype->getPointeeType(), conv_ctx, &pointee_reason,
-                            /*in_array=*/true)) {
-                      return absl::InvalidArgumentError(absl::Substitute(
-                          "struct_sync access path $0 has unsupported pointee "
-                          "type: $1",
-                          sync.access_path, pointee_reason));
-                    }
-                  }
+                if (ir_sync.direction == PointerDir::kInOut &&
+                    ftype->getPointeeType().isConstQualified()) {
+                  return absl::InvalidArgumentError(absl::Substitute(
+                      "struct_sync access path $0: inout_ptr null_terminated "
+                      "member cannot have a const pointee",
+                      sync.access_path));
                 }
               }
             }
@@ -1954,6 +2177,34 @@ absl::StatusOr<ir::Parameter> ConvertParameterToIR(
               ir_sync.lifetime = ir::lifetime::Malloc{};
             }
             break;
+          }
+        }
+      }
+      if (synced_field != nullptr &&
+          ir_sync.direction != PointerDir::kSandboxOpaque) {
+        clang::QualType ftype = synced_field->getType();
+        if (!ftype->isPointerType() || ftype->isFunctionPointerType()) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "struct_sync access path $0: member '$1' of '$2' must be a data "
+              "pointer",
+              sync.access_path, ir_sync.member_name,
+              owner_record->getNameAsString()));
+        }
+        const auto* binding_bounds =
+            std::get_if<ir::bounds::SizedByBinding>(&ir_sync.bounds);
+        const bool is_void_byte_sized =
+            ftype->getPointeeType()->isVoidType() &&
+            (std::holds_alternative<ir::bounds::ByteCount>(ir_sync.bounds) ||
+             (binding_bounds != nullptr && !binding_bounds->is_elem_sized));
+        if (!is_void_byte_sized) {
+          std::string pointee_reason;
+          if (!IsDeeplyTriviallyCopyableType(synced_field->getASTContext(),
+                                             ftype->getPointeeType(), conv_ctx,
+                                             &pointee_reason,
+                                             /*in_array=*/true)) {
+            return absl::InvalidArgumentError(absl::Substitute(
+                "struct_sync access path $0 has unsupported pointee type: $1",
+                sync.access_path, pointee_reason));
           }
         }
       }

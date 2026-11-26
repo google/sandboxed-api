@@ -121,6 +121,7 @@ else()
 endif()
 target_link_libraries(sapi_generator PUBLIC
   sapi::base
+  sapi::call
   absl::btree
   absl::check
   absl::cord

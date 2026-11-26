@@ -1380,10 +1380,10 @@ TEST_F(SandboxedLibraryEmitterErrorTest,
             struct Payload {
               const char* msg;
             };
-            typedef void (*payload_cb)(
-                Payload* p
-                [[clang::annotate("sandbox", "in_ptr")]] [[clang::annotate(
-                    "sandbox", "struct_sync", "b1", "{p->msg, in_ptr}", "$")]]);
+            typedef void (*payload_cb)(Payload* p [[clang::annotate(
+                "sandbox",
+                "in_ptr")]] [[clang::annotate("sandbox", "struct_sync", "b1",
+                                              "{p->msg", "in_ptr}", "$")]]);
             struct Holder {
               payload_cb cb;
             };
@@ -1611,6 +1611,34 @@ TEST_F(SandboxedLibraryEmitterTest,
           ContainsRegex(
               R"(sapi::lwbox::CompositeKey\(\s*single_pkt->bound\.ncid,\s*single_pkt->bound\.varid\))"),
           HasSubstr("single_pkt->bound.rows")));
+}
+
+TEST_F(SandboxedLibraryEmitterTest,
+       RejectsDuplicateRecordMemberAnnotationsInParseRecordAnnotations) {
+  GeneratorOptions options;
+  options.name = "MyLib";
+  options.sandboxed_library_gen = true;
+  SandboxedLibraryEmitter emitter;
+
+  EXPECT_THAT(
+      RunFrontendAction(
+          R"cc(
+            struct DupRec {
+              char* buf;
+              int len;
+            };
+            inline void sandbox_annotation_1() {
+              struct DupRec {
+                char* buf [[clang::annotate(
+                    "sandbox", "byte_sized_by",
+                    "len")]] [[clang::annotate("sandbox", "null_terminated")]];
+                int len;
+              };
+            }
+          )cc",
+          std::make_unique<GeneratorAction>(&emitter, &options)),
+      StatusIs(absl::StatusCode::kUnknown,
+               HasSubstr("Tool invocation failed")));
 }
 
 }  // namespace

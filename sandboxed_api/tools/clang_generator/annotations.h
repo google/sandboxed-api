@@ -128,7 +128,7 @@ struct ContextBoundAnnotations {
 // `RecordAnnotations`).
 struct StructSync {
   std::string access_path;
-  PointerDir ptr_dir;
+  PointerDir ptr_dir = PointerDir::kIn;
   ContextBoundAnnotations context_bound;
   PointerLifetime lifetime;
 };

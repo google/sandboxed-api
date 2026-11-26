@@ -817,6 +817,44 @@ TEST(EmitHostSrcTest, AliasedReturnPointerReturnsOriginalHostPointer) {
               HasSubstr("return sapi_ret_arg.GetValue() ? out_buf : nullptr;"));
 }
 
+// Validation lets a byte-like return pointer alias a `void*` or another
+// byte-like buffer. C++ does not convert these pointer types implicitly, so
+// the shim must cast the host pointer to the return type.
+TEST(EmitHostSrcTest, AliasedReturnPointerCastsByteLikeAndVoidPointees) {
+  for (const ir::TypeInfo& buf_pointee :
+       {VoidType(), ScalarType("unsigned char")}) {
+    absl::StatusOr<std::string> src = HostSrc(ir::Function{
+        .name = "fill_and_return_buf",
+        .return_value =
+            ir::Parameter{
+                .name = "sapi_ret_arg",
+                .type = PointerTo(ScalarType("char")),
+                .is_return_value = true,
+                .payload =
+                    ir::BufferParam{
+                        .direction = PointerDir::kOut,
+                        .bounds = ir::bounds::Singleton{},
+                        .lifetime =
+                            ir::lifetime::AliasHostPtr{.host_param_name =
+                                                           "buf"},
+                    },
+            },
+        .parameters =
+            {
+                BufferArg("buf", buf_pointee, PointerDir::kInOut,
+                          ByteCount("n")),
+                ScalarArg("n", "size_t"),
+            },
+    });
+    ASSERT_THAT(src, IsOk());
+    EXPECT_THAT(
+        *src,
+        ContainsRegex(
+            R"(return\s+sapi_ret_arg\.GetValue\(\)\s*\?\s*reinterpret_cast<char\s*\*>\(buf\)\s*:\s*nullptr;)"))
+        << buf_pointee.canonical_name;
+  }
+}
+
 // C libraries frequently return a `const char*` pointing to a static string
 // literal in the library's read-only data segment — e.g. Cairo's
 // cairo_status_to_string(cairo_status_t), zlib's zError(int), or libopus's

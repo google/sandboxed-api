@@ -256,9 +256,9 @@
 // One may omit irrelevant struct data members. However, the members that are
 // copied over must have the same names and types as in the original struct.
 //
-// One should only annotate properties that are always true, regardless of
-// context, such as size annotations. It does not make sense for annotations
-// that are context-dependent, such as parameter pointer direction or lifetimes.
+// Annotate struct-level invariants that hold across call sites (member sizes,
+// `SANDBOX_OPAQUE_PTR`, `SANDBOX_LIFETIME_MALLOC`, or callback typedefs), not
+// call-site-specific directions (`SANDBOX_IN_PTR`, `SANDBOX_OUT_PTR`).
 //
 // Note: The entire `struct Name { ... };` definition (including the `struct`
 // keyword and trailing semicolon) must be passed inside the macro parentheses.
@@ -523,7 +523,6 @@
 // would have returned null in that case too).
 //
 // - context: the pointer to the object to bind the host copy to.
-// - name: the name of the binding, e.g. "buffer".
 //
 // We also require the pointer to have a size annotation, e.g.
 // SANDBOX_BYTE_SIZED_BY, SANDBOX_NULL_TERMINATED, or
@@ -534,7 +533,7 @@
 // For example (continuing from the `create_image` of SANDBOX_BIND_DATA):
 //
 //   SANDBOX_COPY_FROM_AND_BIND_OUT_PTR(context)
-//   SANDBOX_BYTE_SIZED_BY_BINDING(context, "$size"))
+//   SANDBOX_BYTE_SIZED_BY_BINDING(context, "$size")
 //   char* get_image_buffer(Image* context SANDBOX_OPAQUE_PTR);
 #define SANDBOX_COPY_FROM_AND_BIND_OUT_PTR(context)           \
   [[clang::annotate("sandbox", "copy_from_and_bind_out_ptr",  \

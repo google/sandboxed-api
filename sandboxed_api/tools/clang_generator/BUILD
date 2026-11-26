@@ -57,6 +57,7 @@ cc_library(
     ],
     copts = sapi_platform_copts(),
     deps = [
+        "//sandboxed_api:call",
         "//sandboxed_api/util:file_base",
         "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/container:flat_hash_map",
@@ -106,6 +107,7 @@ cc_test(
     ],
     deps = [
         ":generator",
+        "//sandboxed_api:call",
         "//sandboxed_api:testing",
         "//sandboxed_api/util:file_base",
         "//sandboxed_api/util:file_helpers",

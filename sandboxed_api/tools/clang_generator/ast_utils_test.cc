@@ -527,5 +527,27 @@ struct HyperslabPacket {
               IsOk());
 }
 
+TEST(SplitAccessPathTest, ParsesValidPathsAndRejectsMalformedOnes) {
+  auto direct = ast::SplitAccessPath("pkt->data");
+  ASSERT_TRUE(direct.has_value());
+  EXPECT_EQ(direct->parent_prefix, "pkt->");
+  EXPECT_EQ(direct->member_name, "data");
+
+  auto nested = ast::SplitAccessPath("pkt->slice.inner.data");
+  ASSERT_TRUE(nested.has_value());
+  EXPECT_EQ(nested->parent_prefix, "pkt->slice.inner.");
+  EXPECT_EQ(nested->member_name, "data");
+
+  EXPECT_FALSE(ast::SplitAccessPath("").has_value());
+  EXPECT_FALSE(ast::SplitAccessPath("pkt.data").has_value());
+  EXPECT_FALSE(ast::SplitAccessPath("->data").has_value());
+  EXPECT_FALSE(ast::SplitAccessPath("pkt->").has_value());
+  EXPECT_FALSE(ast::SplitAccessPath("pkt->a->b").has_value());
+  EXPECT_FALSE(ast::SplitAccessPath("pkt.sub->data").has_value());
+  EXPECT_FALSE(ast::SplitAccessPath("pkt->.data").has_value());
+  EXPECT_FALSE(ast::SplitAccessPath("pkt->sub..data").has_value());
+  EXPECT_FALSE(ast::SplitAccessPath("pkt->sub.").has_value());
+}
+
 }  // namespace
 }  // namespace sapi

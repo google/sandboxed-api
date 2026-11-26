@@ -31,6 +31,7 @@
 #include "absl/strings/strip.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
+#include "sandboxed_api/call.h"
 #include "sandboxed_api/tools/clang_generator/annotations.h"
 
 namespace sapi {
@@ -453,6 +454,40 @@ absl::Status ValidateCallbackScope(absl::string_view cb_param_name,
   return absl::OkStatus();
 }
 
+bool IsByteLikePointee(absl::string_view type_name) {
+  return type_name == "char" || type_name == "unsigned char" ||
+         type_name == "signed char";
+}
+
+bool IsCompatibleAliasPointee(absl::string_view ret_pointee,
+                              absl::string_view src_pointee) {
+  if (ret_pointee == src_pointee || ret_pointee == "void") {
+    return true;
+  }
+  return IsByteLikePointee(ret_pointee) &&
+         (src_pointee == "void" || IsByteLikePointee(src_pointee));
+}
+
+size_t CountLoweredRpcArgs(const Function& func) {
+  size_t count = 0;
+  for (const Parameter& p : func.parameters) {
+    if (const auto* str = p.As<CppStringParam>()) {
+      if (str->form == CppStringParam::Form::kView ||
+          str->form == CppStringParam::Form::kValue ||
+          (str->form == CppStringParam::Form::kReference && str->is_const)) {
+        count += 2;
+        continue;
+      }
+    }
+    count += 1;
+  }
+  if (func.return_value.has_value() &&
+      func.return_value->type.kind != TypeKind::kVoid) {
+    count += 1;
+  }
+  return count;
+}
+
 // Resolves the cross-parameter references on `param` against `func`. Rules
 // that concern a single parameter in isolation are enforced by the frontend
 // when the IR is built (see arg_converter.cc); everything here needs the whole
@@ -623,6 +658,12 @@ absl::Status ValidateAndLinkParameter(Function& func, Parameter& param,
             [](const lifetime::SandboxGlobal&) { return absl::OkStatus(); },
             [](const lifetime::Malloc&) { return absl::OkStatus(); },
             [&](const lifetime::AliasHostPtr& alias) -> absl::Status {
+              if (!param.is_return_value) {
+                return absl::InvalidArgumentError(absl::Substitute(
+                    "Function $0 $1: alias_ptr is only supported on function "
+                    "return values and host_opaque_ptr callback parameters.",
+                    func.name, role));
+              }
               const Parameter* host_param =
                   func.FindParameter(alias.host_param_name);
               if (!host_param || !host_param->type.is_pointer()) {
@@ -631,9 +672,49 @@ absl::Status ValidateAndLinkParameter(Function& func, Parameter& param,
                     "non-pointer parameter $2.",
                     func.name, role, alias.host_param_name));
               }
+              const auto* host_buf = host_param->As<BufferParam>();
+              const auto* host_sync = host_param->As<StructSyncParam>();
+              if ((host_buf == nullptr && host_sync == nullptr) ||
+                  (host_buf != nullptr &&
+                   (host_buf->pointee != nullptr ||
+                    host_buf->context_bound.copy_from_and_bind.has_value() ||
+                    !std::holds_alternative<lifetime::ScopedCall>(
+                        host_buf->lifetime)))) {
+                return absl::InvalidArgumentError(absl::Substitute(
+                    "Function $0 $1 alias_ptr parameter $2 must be a "
+                    "single-level synchronized buffer or struct parameter.",
+                    func.name, role, alias.host_param_name));
+              }
+              if (host_param->type.pointee != nullptr &&
+                  host_param->type.pointee->is_const &&
+                  param.type.pointee != nullptr &&
+                  !param.type.pointee->is_const) {
+                return absl::InvalidArgumentError(absl::Substitute(
+                    "Function $0 $1 alias_ptr cannot return non-const pointer "
+                    "'$2' aliasing const parameter $3 ('$4').",
+                    func.name, role, param.type.canonical_name,
+                    alias.host_param_name, host_param->type.canonical_name));
+              }
+              const std::string ret_pointee =
+                  param.type.unqualified_pointee_type_name();
+              const std::string host_pointee =
+                  host_param->type.unqualified_pointee_type_name();
+              if (!IsCompatibleAliasPointee(ret_pointee, host_pointee)) {
+                return absl::InvalidArgumentError(absl::Substitute(
+                    "Function $0 $1 alias_ptr return pointee '$2' is "
+                    "incompatible with parameter $3 pointee '$4'.",
+                    func.name, role, ret_pointee, alias.host_param_name,
+                    host_pointee));
+              }
               return absl::OkStatus();
             },
             [&](const lifetime::AliasCallbackReturn& alias) -> absl::Status {
+              if (!param.is_return_value) {
+                return absl::InvalidArgumentError(absl::Substitute(
+                    "Function $0 $1: alias_callback_return is only supported "
+                    "on function return values.",
+                    func.name, role));
+              }
               Parameter* cb_param =
                   func.FindParameter(alias.callback_param_name);
               if (!cb_param || !cb_param->Is<CallbackParam>()) {
@@ -642,7 +723,37 @@ absl::Status ValidateAndLinkParameter(Function& func, Parameter& param,
                     "non-existent or non-callback parameter $2.",
                     func.name, role, alias.callback_param_name));
               }
-              cb_param->As<CallbackParam>()->is_callback_return_aliased = true;
+              auto* cb = cb_param->As<CallbackParam>();
+              if (cb->return_value == nullptr ||
+                  !cb->return_value->Is<BufferParam>() ||
+                  !cb->return_value->type.is_pointer()) {
+                return absl::InvalidArgumentError(absl::Substitute(
+                    "Function $0 $1 alias_callback_return references callback "
+                    "$2 whose return value is not a buffer pointer.",
+                    func.name, role, alias.callback_param_name));
+              }
+              if (cb->return_value->type.pointee != nullptr &&
+                  cb->return_value->type.pointee->is_const &&
+                  param.type.pointee != nullptr &&
+                  !param.type.pointee->is_const) {
+                return absl::InvalidArgumentError(absl::Substitute(
+                    "Function $0 $1 alias_callback_return cannot strip const "
+                    "from callback $2 return type '$3'.",
+                    func.name, role, alias.callback_param_name,
+                    cb->return_value->type.canonical_name));
+              }
+              const std::string ret_pointee =
+                  param.type.unqualified_pointee_type_name();
+              const std::string cb_ret_pointee =
+                  cb->return_value->type.unqualified_pointee_type_name();
+              if (!IsCompatibleAliasPointee(ret_pointee, cb_ret_pointee)) {
+                return absl::InvalidArgumentError(absl::Substitute(
+                    "Function $0 $1 alias_callback_return return pointee '$2' "
+                    "is incompatible with callback $3 return pointee '$4'.",
+                    func.name, role, ret_pointee, alias.callback_param_name,
+                    cb_ret_pointee));
+              }
+              cb->is_callback_return_aliased = true;
               return absl::OkStatus();
             },
         },
@@ -723,6 +834,17 @@ absl::Status LinkAliasParamToCallbackParam(Function& func) {
 
 absl::Status ValidateAndLinkLibraryIR(Library& library) {
   for (auto& func : library.functions) {
+    const size_t rpc_args = CountLoweredRpcArgs(func);
+    // The emitters generate no sandboxee wrapper (and thus no RPC) for a
+    // function with a sandboxee thunk, so its arguments never go through
+    // FuncCall. A host thunk alone keeps the generated sandboxee wrapper.
+    if (!func.sandboxee_thunk.has_value() &&
+        rpc_args > ::sapi::FuncCall::kArgsMax) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("Function $0 lowers to $1 RPC arguments, exceeding "
+                           "FuncCall::kArgsMax ($2).",
+                           func.name, rpc_args, ::sapi::FuncCall::kArgsMax));
+    }
     ABSL_RETURN_IF_ERROR(LinkAliasParamToCallbackParam(func));
     for (auto& param : func.parameters) {
       ABSL_RETURN_IF_ERROR(ValidateAndLinkParameter(func, param));
