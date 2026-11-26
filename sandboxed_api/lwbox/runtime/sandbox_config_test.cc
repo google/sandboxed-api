@@ -19,10 +19,14 @@
 #include <cstddef>
 #include <limits>
 #include <memory>
+#include <string>
 #include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/flags/commandlineflag.h"
+#include "absl/flags/flag.h"
+#include "absl/flags/reflection.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
@@ -92,17 +96,18 @@ TEST(SandboxConfigTest, DefaultPolicyBuilderBuildsValidPolicy) {
   EXPECT_THAT(policy, IsOk());
 }
 
-TEST(SandboxConfigTest, CreateMergedSandboxConfigPopulatesExpectedDefaults) {
-  sandbox2::PolicyBuilder builder = DefaultPolicyBuilder();
-  absl::StatusOr<std::unique_ptr<sandbox2::Policy>> policy = builder.TryBuild();
-  ASSERT_THAT(policy, IsOk());
-
-  constexpr ::sapi::EmbedToc kDummyToc = {
+// Builds the merged sandbox config with the current flags.
+::sapi::SandboxConfig CreateMergedSandboxConfigForTest() {
+  static constexpr ::sapi::EmbedToc kDummyToc = {
       .name = "merged_sandbox_bin",
       .data = "elf",
   };
-  ::sapi::SandboxConfig config =
-      CreateMergedSandboxConfig(*std::move(policy), &kDummyToc);
+  return CreateMergedSandboxConfig(DefaultPolicyBuilder().BuildOrDie(),
+                                   &kDummyToc);
+}
+
+TEST(SandboxConfigTest, CreateMergedSandboxConfigPopulatesExpectedDefaults) {
+  ::sapi::SandboxConfig config = CreateMergedSandboxConfigForTest();
 
   EXPECT_EQ(config.name, "SapiMergedSandbox");
   EXPECT_TRUE(config.environment_variables.has_value());
@@ -121,6 +126,41 @@ TEST(SandboxConfigTest, CreateMergedSandboxConfigPopulatesExpectedDefaults) {
   EXPECT_EQ(config.sandbox2.limits->rlimit_nofile().rlim_cur, RLIM64_INFINITY);
   EXPECT_EQ(config.sandbox2.limits->rlimit_core().rlim_cur, RLIM64_INFINITY);
   EXPECT_EQ(config.sandbox2.limits->wall_time_limit(), absl::ZeroDuration());
+}
+
+TEST(SandboxConfigTest, CreateMergedSandboxConfigUsesSharedMemorySizeFlag) {
+  absl::FlagSaver flag_saver;
+  absl::SetFlag(&FLAGS_lwbox_shared_memory_mb, 16);
+  ::sapi::SandboxConfig config = CreateMergedSandboxConfigForTest();
+  ASSERT_TRUE(config.sandbox2.shared_memory_config.has_value());
+  EXPECT_EQ(config.sandbox2.shared_memory_config->size, 16ULL << 20);
+  EXPECT_TRUE(config.sandbox2.shared_memory_config->enable_huge_pages);
+
+  // Sizes of 4 GiB and more don't overflow.
+  absl::SetFlag(&FLAGS_lwbox_shared_memory_mb, 65535);
+  config = CreateMergedSandboxConfigForTest();
+  ASSERT_TRUE(config.sandbox2.shared_memory_config.has_value());
+  EXPECT_EQ(config.sandbox2.shared_memory_config->size, 65535ULL << 20);
+}
+
+TEST(SandboxConfigTest, SharedMemorySizeFlagRejectsOutOfRangeValues) {
+  absl::FlagSaver flag_saver;
+  absl::CommandLineFlag* flag =
+      absl::FindCommandLineFlag("lwbox_shared_memory_mb");
+  ASSERT_NE(flag, nullptr);
+  std::string error;
+  EXPECT_FALSE(flag->ParseFrom("65536", &error));
+  EXPECT_FALSE(flag->ParseFrom("-1", &error));
+  EXPECT_TRUE(flag->ParseFrom("65535", &error)) << error;
+}
+
+TEST(SandboxConfigTest, CreateMergedSandboxConfigWithoutSharedMemory) {
+  absl::FlagSaver flag_saver;
+  absl::SetFlag(&FLAGS_lwbox_shared_memory_mb, 0);
+  ::sapi::SandboxConfig config = CreateMergedSandboxConfigForTest();
+  EXPECT_FALSE(config.sandbox2.shared_memory_config.has_value());
+  // Shared memory comms do not depend on the shared memory region.
+  EXPECT_TRUE(config.sandbox2.enable_shared_memory_comms);
 }
 
 TEST(SandboxConfigTest, CheckedMultiplyAndCheck) {

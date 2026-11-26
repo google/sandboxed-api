@@ -16,8 +16,10 @@
 #define SANDBOXED_API_LWBOX_RUNTIME_SANDBOX_CONFIG_H_
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 
+#include "absl/flags/declare.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
@@ -27,13 +29,21 @@
 #include "sandboxed_api/sandbox2/policybuilder.h"
 #include "sandboxed_api/sandbox_config.h"
 
+// Size in MiB of the memory region that the Sandbox2 merged sandbox shares with
+// the host to pass buffers without extra copies, or 0 to not use such a region.
+// Read when the sandbox is created. Only binaries that sandbox at least one
+// library define this flag, so job configs that set it should also pass
+// --undefok=lwbox_shared_memory_mb.
+ABSL_DECLARE_FLAG(uint16_t, lwbox_shared_memory_mb);
+
 namespace sapi::lwbox {
 
 // Returns the default PolicyBuilder for lightweight sandboxed libraries.
 sandbox2::PolicyBuilder DefaultPolicyBuilder();
 
 // Builds a SandboxConfig for a merged lightweight sandbox from its extracted
-// seccomp `policy` and embedded binary `embed_toc`.
+// seccomp `policy` and embedded binary `embed_toc`. Reads
+// --lwbox_shared_memory_mb.
 ::sapi::SandboxConfig CreateMergedSandboxConfig(
     std::unique_ptr<sandbox2::Policy> policy,
     const ::sapi::EmbedToc* embed_toc);

@@ -17,9 +17,12 @@
 #include <sys/resource.h>
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
+#include <optional>
 #include <utility>
 
+#include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/time/time.h"
@@ -32,6 +35,19 @@
 #include "sandboxed_api/sandbox2/sandbox_config.h"
 #include "sandboxed_api/sandbox_config.h"
 #include "sandboxed_api/util/checked_math.h"
+
+// uint16_t bounds the region to less than 64 GiB, so that parsing the flag
+// rejects larger (and negative) values instead of the sandbox failing on the
+// first call.
+ABSL_FLAG(uint16_t, lwbox_shared_memory_mb, 128,
+          "Size in MiB (at most 65535) of the memory region that the Sandbox2 "
+          "sandbox of lightweight sandboxed libraries shares with the host to "
+          "pass buffers without extra copies. Buffers that don't fit are "
+          "allocated in the sandboxee and copied through the sandbox's RPC "
+          "channel instead, which is slower. Pages are allocated on first use "
+          "and stay allocated while the sandbox runs. 0 disables the region. "
+          "Has no effect with other sandbox backends. Must be set before the "
+          "first call into a sandboxed library.");
 
 namespace sapi::lwbox {
 
@@ -46,6 +62,14 @@ sandbox2::PolicyBuilder DefaultPolicyBuilder() {
 ::sapi::SandboxConfig CreateMergedSandboxConfig(
     std::unique_ptr<sandbox2::Policy> policy,
     const ::sapi::EmbedToc* embed_toc) {
+  std::optional<sandbox2::SharedMemoryConfig> shared_memory_config;
+  if (const uint16_t size_mb = absl::GetFlag(FLAGS_lwbox_shared_memory_mb);
+      size_mb > 0) {
+    shared_memory_config = sandbox2::SharedMemoryConfig{
+        .size = size_t{size_mb} << 20,
+        .enable_huge_pages = true,
+    };
+  }
   return {
       .name = "SapiMergedSandbox",
       .environment_variables =
@@ -55,11 +79,7 @@ sandbox2::PolicyBuilder DefaultPolicyBuilder() {
           {
               .policy = std::move(policy),
               .fork_client_context = ::sapi::ForkClientContext(embed_toc),
-              .shared_memory_config =
-                  sandbox2::SharedMemoryConfig{
-                      .size = (128ULL << 20),
-                      .enable_huge_pages = true,
-                  },
+              .shared_memory_config = shared_memory_config,
               .enable_shared_memory_comms = true,
               .enable_multithreading = true,
               // We're permissive with limits by default to not break libraries

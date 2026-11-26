@@ -20,6 +20,7 @@ add_library(sapi::lwbox_sandbox_config ALIAS sapi_lwbox_sandbox_config)
 target_link_libraries(sapi_lwbox_sandbox_config
   PUBLIC
     absl::check
+    absl::flags
     absl::status
     absl::statusor
     absl::time
@@ -140,6 +141,9 @@ if(BUILD_TESTING AND SAPI_BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     sapi::sapi
     sandbox2::policy
     sandbox2::policybuilder
+    absl::flags
+    absl::flags_commandlineflag
+    absl::flags_reflection
     absl::status
     absl::status_matchers
     absl::statusor
